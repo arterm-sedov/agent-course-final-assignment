@@ -12,7 +12,7 @@ Usage:
 Environment Variables:
     - GEMINI_KEY: API key for Gemini model (if using Google provider)
     - SUPABASE_URL: URL for Supabase instance
-    - SUPABASE_KEY or SUPABASE_SERVICE_KEY: Key for Supabase access
+    - SUPABASE_KEY: Key for Supabase access
 
 Files required in the same directory:
     - system_prompt.txt
@@ -83,13 +83,14 @@ class GaiaAgent:
 
         # Rate limiting setup
         self.last_request_time = 0
-        self.min_request_interval = 6.5  # Minimum 6.5 seconds between requests (10 req/min = 6 sec, plus buffer)
+         # Minimum 1 second between requests
+        self.min_request_interval = 1
 
         # Set up embeddings and supabase retriever
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
         self.supabase_client = create_client(
             os.environ.get("SUPABASE_URL"),
-            os.environ.get("SUPABASE_KEY") # or os.environ.get("SUPABASE_SERVICE_KEY")
+            os.environ.get("SUPABASE_KEY")
         )
         self.vector_store = SupabaseVectorStore(
             client=self.supabase_client,
@@ -167,7 +168,7 @@ class GaiaAgent:
         if time_since_last < self.min_request_interval:
             sleep_time = self.min_request_interval - time_since_last
             # Add small random jitter to avoid thundering herd
-            jitter = random.uniform(0, 0.5)
+            jitter = random.uniform(0, 0.2)
             time.sleep(sleep_time + jitter)
         self.last_request_time = time.time()
 
@@ -237,7 +238,7 @@ class GaiaAgent:
             try:
                 response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                 answer = self._extract_final_answer(response)
-                
+                return answer, llm_name
                 # If no reference provided, return the first successful answer
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
