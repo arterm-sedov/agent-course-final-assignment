@@ -28,7 +28,7 @@ lxml
 sentence-transformers
 google-genai
 litellm
-board-to-fen
+board_to_fen
 scipy
 scikit-learn
 sympy
