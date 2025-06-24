@@ -124,8 +124,10 @@ class GaiaAgent:
         
         try:
             self.llm_third_fallback = ChatHuggingFace(
-                model="meta-llama/Llama-2-7b-chat-hf",
-                temperature=0,
+                llm=HuggingFaceEndpoint(
+                    url="https://api-inference.huggingface.co/models/Meta-DeepLearning/llama-2-7b-chat-hf",
+                    temperature=0,
+                ),
             )
             print("✅ Third fallback LLM (HuggingFace) initialized successfully")
         except Exception as e:
