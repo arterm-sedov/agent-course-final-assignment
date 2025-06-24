@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
+import board_to_fen
 
 # LangChain imports for search tools
 try:
@@ -275,10 +276,6 @@ def web_search(query: str) -> str:
         str: Formatted search results from Tavily with source URLs and content snippets.
              Returns an error message if Tavily is not available or if the search fails.
 
-    Example:
-        >>> web_search("latest SpaceX launch date")
-        Returns formatted results from recent web searches about SpaceX launches.
-
     Note:
         Requires TAVILY_API_KEY environment variable to be set.
         Install with: pip install langchain-tavily
@@ -382,33 +379,32 @@ def download_file_from_url(url: str, filename: Optional[str] = None) -> str:
 
 def get_task_file(task_id: str, file_name: str) -> str:
     """
-    Download a file associated with a given task_id from the evaluation API.
+    Download a file associated with a given task_id from the evaluation API, with a local fallback.
     
     This tool is used to download files that are part of GAIA benchmark tasks.
-    It first tries to download from the evaluation API, and if that fails,
-    it falls back to local files.
+    It first tries to download from the evaluation API, and if that fails
+    (e.g., due to network issues or rate limits),
+    it falls back to local files in the 'files' directory.
+    The file is always saved to a 'downloads' directory.
 
     Args:
         task_id (str): The task ID for the file to download.
         file_name (str): The name of the file to download.
 
     Returns:
-        str: The absolute file path where the file was downloaded.
+        str: The absolute file path where the file was downloaded, or an error message if not found.
     """
     directory_name = "downloads"
     os.makedirs(directory_name, exist_ok=True)
-    
     try:
         # Try to download from evaluation API
         evaluation_api_base_url = os.environ.get("EVALUATION_API_BASE_URL", "https://api.gaia-benchmark.com")
         response = requests.get(f"{evaluation_api_base_url}/files/{task_id}", timeout=15)
         response.raise_for_status()
-        
         filepath = os.path.join(directory_name, file_name)
         with open(filepath, 'wb') as file:
             file.write(response.content)
         return os.path.abspath(filepath)
-        
     except Exception as e:
         # Fallback to local files
         try:
@@ -734,34 +730,31 @@ def understand_video(youtube_url: str, prompt: str) -> str:
     
     This tool can understand video content, extract information, and answer questions
     about what happens in the video.
-
+    It uses the Gemini API and requires the GEMINI_KEY environment variable to be set.
+    
     Args:
         youtube_url (str): The URL of the YouTube video to analyze.
         prompt (str): A question or request regarding the video content.
-
+    
     Returns:
         str: Analysis of the video content based on the prompt, or error message.
-
+    
     Note:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
     if not GEMINI_AVAILABLE:
         return "Google Gemini not available. Install with: pip install google-genai"
-    
     try:
         gemini_key = os.environ.get("GEMINI_KEY")
         if not gemini_key:
             return "GEMINI_KEY not found in environment variables."
-        
         client = genai.Client(api_key=gemini_key)
         video_description = client.models.generate_content(
             model="gemini-2.0-flash-exp",
             contents=types.Content(
                 parts=[
-                    types.Part(
-                        file_data=types.FileData(file_uri=youtube_url)
-                    ),
+                    types.Part(file_data=types.FileData(file_uri=youtube_url)),
                     types.Part(text=prompt)
                 ]
             )
@@ -776,26 +769,26 @@ def understand_audio(file_path: str, prompt: str) -> str:
     
     This tool can transcribe audio, understand spoken content, and answer questions
     about the audio content.
-
+    It uses the Gemini API and requires the GEMINI_KEY environment variable to be set.
+    The audio file is uploaded to Gemini and then analyzed with the provided prompt.
+    
     Args:
         file_path (str): The path to the local audio file to analyze.
         prompt (str): A question or request regarding the audio content.
-
+    
     Returns:
         str: Analysis of the audio content based on the prompt, or error message.
-
+    
     Note:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
     if not GEMINI_AVAILABLE:
         return "Google Gemini not available. Install with: pip install google-genai"
-    
     try:
         gemini_key = os.environ.get("GEMINI_KEY")
         if not gemini_key:
             return "GEMINI_KEY not found in environment variables."
-        
         client = genai.Client(api_key=gemini_key)
         mp3_file = client.files.upload(file=file_path)
         audio_description = client.models.generate_content(
@@ -809,31 +802,31 @@ def understand_audio(file_path: str, prompt: str) -> str:
 # ========== CHESS TOOLS ==========
 def convert_chess_move(piece_placement: str, move: str) -> str:
     """
-    Convert a chess move from coordinate notation to algebraic notation.
+    Convert a chess move from coordinate notation to algebraic notation using LiteLLM.
     
     This tool uses an LLM to convert chess moves between different notations.
     Coordinate notation uses square names (e.g., "e2e4"), while algebraic notation
     uses piece symbols and square names (e.g., "e4", "Nf3", "O-O").
-
+    The function constructs a prompt for the LLM and expects 
+    only the algebraic notation as output, with no extra commentary.
+    
     Args:
         piece_placement (str): The chess piece placement in plain text or FEN format.
         move (str): The move in coordinate notation (e.g., "e2e4").
-
+    
     Returns:
         str: The move in algebraic notation, or error message.
-
+    
     Note:
         Requires OPENROUTER_API_KEY environment variable to be set.
         Install with: pip install litellm
     """
     if not LITELLM_AVAILABLE:
         return "LiteLLM not available. Install with: pip install litellm"
-    
     try:
         openrouter_key = os.environ.get("OPENROUTER_API_KEY")
         if not openrouter_key:
             return "OPENROUTER_API_KEY not found in environment variables."
-        
         move_message = (
             f"Convert this chess move from coordinate notation to algebraic "
             f"notation: {move}. Use the following piece placement: {piece_placement}. "
@@ -853,18 +846,20 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
 
 def get_best_chess_move(fen: str) -> str:
     """
-    Get the best chess move in coordinate notation based on a FEN representation.
+    Get the best chess move in coordinate notation based on a FEN representation
+    using a chess evaluation API.
     
-    This tool uses a chess evaluation API to find the best move for a given position.
+    This tool uses a chess evaluation API (default: Lichess cloud eval) 
+    to find the best move for a given position.
     The FEN (Forsyth-Edwards Notation) describes the current chess position.
-
+    The function supports optional authentication via LICHESS_KEY.
+    
     Args:
         fen (str): The FEN representation of the chess position.
-                   Example: "rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11"
-
+    
     Returns:
         str: The best move in coordinate notation, or error message.
-
+    
     Note:
         Requires CHESS_EVAL_URL environment variable to be set.
     """
@@ -876,7 +871,6 @@ def get_best_chess_move(fen: str) -> str:
         if lichess_key:
             headers["Authorization"] = f"Bearer {lichess_key}"
         response = requests.get(url, timeout=15, headers=headers)
-        
         if response.status_code == 200:
             data = json.loads(response.text)
             if data.get('success') == True:
@@ -890,310 +884,31 @@ def get_best_chess_move(fen: str) -> str:
 
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
-    Get the FEN representation from an image of a chess board.
+    Get the FEN representation from an image of a chess board using board-to-fen.
     
     This tool uses computer vision to analyze a chess board image and convert it
     to FEN (Forsyth-Edwards Notation) format. It can handle various board orientations
     and automatically adjusts the FEN to be compatible with chess engines.
-
+    The function sets the side to move based on the player_turn argument 
+    and appends standard game state information.
+    
     Args:
         image_path (str): The path to the chess board image file.
         player_turn (str): The player with the next turn ("black" or "white").
-
+    
     Returns:
         str: The FEN representation of the chess position, or error message.
-
+    
     Note:
         Requires board-to-fen package to be installed.
         Install with: pip install board-to-fen
     """
     if not CHESS_FEN_AVAILABLE:
         return "board-to-fen not available. Install with: pip install board-to-fen"
-    
     try:
-        # Convert player_turn to FEN format
         side_to_move = "b" if player_turn.lower() == "black" else "w"
-        
-        # Get board placement from image
         board_placement = get_fen_from_image_path(image_path)
-        
-        # Add game state information
         board_fen = f"{board_placement} {side_to_move} - - 0 1"
-        
-        # Invert and mirror the FEN to make it Stockfish compatible
-        # This is a simplified version - the full implementation would include
-        # the complex FEN transformation logic from the original tool
-        
-        return board_fen
-    except Exception as e:
-        return f"Error getting chess board FEN: {str(e)}"
-
-# ========== END OF TOOLS.PY ==========
-
-# ========== ADDITIONAL TOOLS FROM REFERENCE IMPLEMENTATIONS ==========
-
-# Google Gemini imports for video/audio understanding
-try:
-    from google import genai
-    from google.genai import types
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-    print("Warning: Google Gemini not available. Install with: pip install google-genai")
-
-# LiteLLM imports for chess move conversion
-try:
-    from litellm import completion
-    LITELLM_AVAILABLE = True
-except ImportError:
-    LITELLM_AVAILABLE = False
-    print("Warning: LiteLLM not available. Install with: pip install litellm")
-
-# Chess FEN prediction
-try:
-    from board_to_fen.predict import get_fen_from_image_path
-    CHESS_FEN_AVAILABLE = True
-except ImportError:
-    CHESS_FEN_AVAILABLE = False
-    print("Warning: board_to_fen not available. Install with: pip install board-to-fen")
-
-def get_task_file(task_id: str, file_name: str) -> str:
-    """
-    Download a file associated with a given task_id from the evaluation API.
-    
-    This tool is used to download files that are part of GAIA benchmark tasks.
-    It first tries to download from the evaluation API, and if that fails,
-    it falls back to local files.
-
-    Args:
-        task_id (str): The task ID for the file to download.
-        file_name (str): The name of the file to download.
-
-    Returns:
-        str: The absolute file path where the file was downloaded.
-    """
-    directory_name = "downloads"
-    os.makedirs(directory_name, exist_ok=True)
-    
-    try:
-        # Try to download from evaluation API
-        evaluation_api_base_url = os.environ.get("EVALUATION_API_BASE_URL", "https://api.gaia-benchmark.com")
-        response = requests.get(f"{evaluation_api_base_url}/files/{task_id}", timeout=15)
-        response.raise_for_status()
-        
-        filepath = os.path.join(directory_name, file_name)
-        with open(filepath, 'wb') as file:
-            file.write(response.content)
-        return os.path.abspath(filepath)
-        
-    except Exception as e:
-        # Fallback to local files
-        try:
-            local_filepath = os.path.join("files", file_name)
-            if os.path.exists(local_filepath):
-                filepath = os.path.join(directory_name, file_name)
-                shutil.copy2(local_filepath, filepath)
-                return os.path.abspath(filepath)
-            else:
-                return f"Error: File {file_name} not found locally or via API"
-        except Exception as local_error:
-            return f"Error downloading file: {str(e)}. Local fallback also failed: {str(local_error)}"
-
-def understand_video(youtube_url: str, prompt: str) -> str:
-    """
-    Analyze a YouTube video using Google Gemini's video understanding capabilities.
-    
-    This tool can understand video content, extract information, and answer questions
-    about what happens in the video.
-
-    Args:
-        youtube_url (str): The URL of the YouTube video to analyze.
-        prompt (str): A question or request regarding the video content.
-
-    Returns:
-        str: Analysis of the video content based on the prompt, or error message.
-
-    Note:
-        Requires GEMINI_KEY environment variable to be set.
-        Install with: pip install google-genai
-    """
-    if not GEMINI_AVAILABLE:
-        return "Google Gemini not available. Install with: pip install google-genai"
-    
-    try:
-        gemini_key = os.environ.get("GEMINI_KEY")
-        if not gemini_key:
-            return "GEMINI_KEY not found in environment variables."
-        
-        client = genai.Client(api_key=gemini_key)
-        video_description = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=types.Content(
-                parts=[
-                    types.Part(
-                        file_data=types.FileData(file_uri=youtube_url)
-                    ),
-                    types.Part(text=prompt)
-                ]
-            )
-        )
-        return video_description.text
-    except Exception as e:
-        return f"Error understanding video: {str(e)}"
-
-def understand_audio(file_path: str, prompt: str) -> str:
-    """
-    Analyze an audio file using Google Gemini's audio understanding capabilities.
-    
-    This tool can transcribe audio, understand spoken content, and answer questions
-    about the audio content.
-
-    Args:
-        file_path (str): The path to the local audio file to analyze.
-        prompt (str): A question or request regarding the audio content.
-
-    Returns:
-        str: Analysis of the audio content based on the prompt, or error message.
-
-    Note:
-        Requires GEMINI_KEY environment variable to be set.
-        Install with: pip install google-genai
-    """
-    if not GEMINI_AVAILABLE:
-        return "Google Gemini not available. Install with: pip install google-genai"
-    
-    try:
-        gemini_key = os.environ.get("GEMINI_KEY")
-        if not gemini_key:
-            return "GEMINI_KEY not found in environment variables."
-        
-        client = genai.Client(api_key=gemini_key)
-        mp3_file = client.files.upload(file=file_path)
-        audio_description = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=[prompt, mp3_file]
-        )
-        return audio_description.text
-    except Exception as e:
-        return f"Error understanding audio: {str(e)}"
-
-def convert_chess_move(piece_placement: str, move: str) -> str:
-    """
-    Convert a chess move from coordinate notation to algebraic notation.
-    
-    This tool uses an LLM to convert chess moves between different notations.
-    Coordinate notation uses square names (e.g., "e2e4"), while algebraic notation
-    uses piece symbols and square names (e.g., "e4", "Nf3", "O-O").
-
-    Args:
-        piece_placement (str): The chess piece placement in plain text or FEN format.
-        move (str): The move in coordinate notation (e.g., "e2e4").
-
-    Returns:
-        str: The move in algebraic notation, or error message.
-
-    Note:
-        Requires OPENROUTER_API_KEY environment variable to be set.
-        Install with: pip install litellm
-    """
-    if not LITELLM_AVAILABLE:
-        return "LiteLLM not available. Install with: pip install litellm"
-    
-    try:
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-        if not openrouter_key:
-            return "OPENROUTER_API_KEY not found in environment variables."
-        
-        move_message = (
-            f"Convert this chess move from coordinate notation to algebraic "
-            f"notation: {move}. Use the following piece placement: {piece_placement}. "
-            f"Do not provide any additional thinking or commentary in the response, "
-            f"just the algebraic notation only."
-        )
-        messages = [{"content": move_message, "role": "user"}]
-        response = completion(
-            model="openai/gpt-4o-mini",
-            temperature=0.0,
-            messages=messages,
-            api_key=openrouter_key
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Error converting chess move: {str(e)}"
-
-def get_best_chess_move(fen: str) -> str:
-    """
-    Get the best chess move in coordinate notation based on a FEN representation.
-    
-    This tool uses a chess evaluation API to find the best move for a given position.
-    The FEN (Forsyth-Edwards Notation) describes the current chess position.
-
-    Args:
-        fen (str): The FEN representation of the chess position.
-                   Example: "rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11"
-
-    Returns:
-        str: The best move in coordinate notation, or error message.
-
-    Note:
-        Requires CHESS_EVAL_URL environment variable to be set.
-    """
-    try:
-        chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
-        url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth=15"
-        lichess_key = os.environ.get("LICHESS_KEY")
-        headers = {}
-        if lichess_key:
-            headers["Authorization"] = f"Bearer {lichess_key}"
-        response = requests.get(url, timeout=15, headers=headers)
-        
-        if response.status_code == 200:
-            data = json.loads(response.text)
-            if data.get('success') == True:
-                return data['bestmove'].split()[1]
-            else:
-                return f"Error getting chess evaluation: {data.get('error', 'Unknown error')}"
-        else:
-            return f"Error getting chess evaluation: HTTP {response.status_code}"
-    except Exception as e:
-        return f"Error getting chess evaluation: {str(e)}"
-
-def get_chess_board_fen(image_path: str, player_turn: str) -> str:
-    """
-    Get the FEN representation from an image of a chess board.
-    
-    This tool uses computer vision to analyze a chess board image and convert it
-    to FEN (Forsyth-Edwards Notation) format. It can handle various board orientations
-    and automatically adjusts the FEN to be compatible with chess engines.
-
-    Args:
-        image_path (str): The path to the chess board image file.
-        player_turn (str): The player with the next turn ("black" or "white").
-
-    Returns:
-        str: The FEN representation of the chess position, or error message.
-
-    Note:
-        Requires board-to-fen package to be installed.
-        Install with: pip install board-to-fen
-    """
-    if not CHESS_FEN_AVAILABLE:
-        return "board-to-fen not available. Install with: pip install board-to-fen"
-    
-    try:
-        # Convert player_turn to FEN format
-        side_to_move = "b" if player_turn.lower() == "black" else "w"
-        
-        # Get board placement from image
-        board_placement = get_fen_from_image_path(image_path)
-        
-        # Add game state information
-        board_fen = f"{board_placement} {side_to_move} - - 0 1"
-        
-        # Invert and mirror the FEN to make it Stockfish compatible
-        # This is a simplified version - the full implementation would include
-        # the complex FEN transformation logic from the original tool
-        
         return board_fen
     except Exception as e:
         return f"Error getting chess board FEN: {str(e)}"

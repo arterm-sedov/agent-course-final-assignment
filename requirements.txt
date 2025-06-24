@@ -29,6 +29,7 @@ sentence-transformers
 google-genai
 litellm
 board_to_fen
+board-to-fen
 scipy
 scikit-learn
 sympy
