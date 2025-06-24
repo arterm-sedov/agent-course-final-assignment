@@ -56,7 +56,7 @@ class GaiaAgent:
         tools: List of callable tool functions.
         llm_with_tools: LLM instance with tools bound for tool-calling.
     """
-    def __init__(self, provider: str = "google"):
+    def __init__(self, provider: str = "groq"):
         """
         Initialize the agent, loading the system prompt, tools, retriever, and LLM.
 
