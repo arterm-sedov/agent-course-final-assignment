@@ -852,7 +852,7 @@ def get_best_chess_move(fen: str) -> str:
     This tool uses a chess evaluation API (default: Lichess cloud eval) 
     to find the best move for a given position.
     The FEN (Forsyth-Edwards Notation) describes the current chess position.
-    The function supports optional authentication via LICHESS_KEY.
+    Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
     
     Args:
         fen (str): The FEN representation of the chess position.
