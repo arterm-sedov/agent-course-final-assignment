@@ -91,7 +91,7 @@ class GaiaAgent:
 
         # Set up LLM
         if provider == "google":
-            self.llm = ChatGoogleGenerativeAI(model="gemini-2.0-pro", temperature=0, google_api_key=os.environ.get("GEMINI_KEY"))
+            self.llm = ChatGoogleGenerativeAI(model=".5-pro-preview-05-06", temperature=0, google_api_key=os.environ.get("GEMINI_KEY"))
         elif provider == "groq":
             self.llm = ChatGroq(model="qwen-qwq-32b", temperature=0)
         elif provider == "huggingface":
