@@ -26,3 +26,13 @@ openpyxl
 beautifulsoup4
 lxml
 sentence-transformers
+# Additional dependencies for new tools
+google-genai
+litellm
+board-to-fen
+# Additional dependencies for CodeInterpreter
+scipy
+scikit-learn
+sympy
+networkx
+nltk
