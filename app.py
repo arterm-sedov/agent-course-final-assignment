@@ -184,4 +184,4 @@ if __name__ == "__main__":
     print("-"*(60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for GAIA Unit 4 Agent Evaluation...")
-    demo.launch(debug=True, share=True)
+    demo.launch(debug=True, share=False)
