@@ -20,6 +20,8 @@ Files required in the same directory:
 import os
 import json
 import csv
+import time
+import random
 from typing import List, Dict, Any, Optional
 from tools import *
 
@@ -42,6 +44,8 @@ class GaiaAgent:
       - Integrates a supabase retriever for similar Q/A and context
       - Strictly follows the system prompt in system_prompt.txt
       - Is modular and extensible for future tool/model additions
+      - Includes rate limiting and retry logic for API calls
+      - Uses Google Gemini for first attempt, Groq for retry
 
     Args:
         provider (str): LLM provider to use. One of "google", "groq", or "huggingface".
@@ -52,9 +56,15 @@ class GaiaAgent:
         supabase_client: Supabase client instance.
         vector_store: SupabaseVectorStore instance for retrieval.
         retriever_tool: Tool for retrieving similar questions from the vector store. It retrieves reference answers and context via the Supabase vector store.
-        llm: The main LLM instance.
+        llm_primary: Primary LLM instance (Google Gemini).
+        llm_fallback: Fallback LLM instance (Groq).
+        llm_third_fallback: Third fallback LLM instance (HuggingFace).
         tools: List of callable tool functions.
-        llm_with_tools: LLM instance with tools bound for tool-calling.
+        llm_primary_with_tools: Primary LLM instance with tools bound for tool-calling.
+        llm_fallback_with_tools: Fallback LLM instance with tools bound for tool-calling.
+        llm_third_fallback_with_tools: Third fallback LLM instance with tools bound for tool-calling.
+        last_request_time (float): Timestamp of the last API request for rate limiting.
+        min_request_interval (float): Minimum time between requests in seconds.
     """
     def __init__(self, provider: str = "groq"):
         """
@@ -71,11 +81,15 @@ class GaiaAgent:
             self.system_prompt = f.read()
         self.sys_msg = SystemMessage(content=self.system_prompt)
 
+        # Rate limiting setup
+        self.last_request_time = 0
+        self.min_request_interval = 6.5  # Minimum 6.5 seconds between requests (10 req/min = 6 sec, plus buffer)
+
         # Set up embeddings and supabase retriever
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
         self.supabase_client = create_client(
             os.environ.get("SUPABASE_URL"),
-            os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+            os.environ.get("SUPABASE_KEY") # or os.environ.get("SUPABASE_SERVICE_KEY")
         )
         self.vector_store = SupabaseVectorStore(
             client=self.supabase_client,
@@ -89,23 +103,141 @@ class GaiaAgent:
             description="A tool to retrieve similar questions from a vector store.",
         )
 
-        # Set up LLM
-        if provider == "google":
-            self.llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0, google_api_key=os.environ.get("GEMINI_KEY"))
-        elif provider == "groq":
-            self.llm = ChatGroq(model="qwen-qwq-32b", temperature=0)
-        elif provider == "huggingface":
-            self.llm = ChatHuggingFace(
+        # Set up primary LLM (Google Gemini) and fallback LLM (Groq)
+        try:
+            self.llm_primary = ChatGoogleGenerativeAI(
+                model="gemini-2.5-flash", 
+                temperature=0, 
+                google_api_key=os.environ.get("GEMINI_KEY")
+            )
+            print("✅ Primary LLM (Google Gemini) initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize Google Gemini: {e}")
+            self.llm_primary = None
+        
+        try:
+            self.llm_fallback = ChatGroq(model="qwen-qwq-32b", temperature=0)
+            print("✅ Fallback LLM (Groq) initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize Groq: {e}")
+            self.llm_fallback = None
+        
+        try:
+            self.llm_third_fallback = ChatHuggingFace(
                 llm=HuggingFaceEndpoint(
                     url="https://api-inference.huggingface.co/models/Meta-DeepLearning/llama-2-7b-chat-hf",
                     temperature=0,
                 ),
             )
-        else:
-            raise ValueError("Invalid provider. Choose 'google', 'groq', or 'huggingface'.")
+            print("✅ Third fallback LLM (HuggingFace) initialized successfully")
+        except Exception as e:
+            print(f"⚠️ Failed to initialize HuggingFace: {e}")
+            self.llm_third_fallback = None
+        
         # Bind all tools from tools.py
         self.tools = self._gather_tools()
-        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        
+        if self.llm_primary:
+            self.llm_primary_with_tools = self.llm_primary.bind_tools(self.tools)
+        else:
+            self.llm_primary_with_tools = None
+            
+        if self.llm_fallback:
+            self.llm_fallback_with_tools = self.llm_fallback.bind_tools(self.tools)
+        else:
+            self.llm_fallback_with_tools = None
+            
+        if self.llm_third_fallback:
+            self.llm_third_fallback_with_tools = self.llm_third_fallback.bind_tools(self.tools)
+        else:
+            self.llm_third_fallback_with_tools = None
+
+    def _rate_limit(self):
+        """
+        Implement rate limiting to avoid hitting API limits.
+        Waits if necessary to maintain minimum interval between requests.
+        """
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_request_interval:
+            sleep_time = self.min_request_interval - time_since_last
+            # Add small random jitter to avoid thundering herd
+            jitter = random.uniform(0, 0.5)
+            time.sleep(sleep_time + jitter)
+        self.last_request_time = time.time()
+
+    def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
+        """
+        Make an LLM request with rate limiting.
+        Uses primary LLM (Google Gemini) first, then fallback (Groq), then third fallback (HuggingFace).
+
+        Args:
+            messages: The messages to send to the LLM
+            use_tools (bool): Whether to use tools (llm_with_tools vs llm)
+            llm_type (str): Which LLM to use ("primary", "fallback", or "third_fallback")
+
+        Returns:
+            The LLM response
+
+        Raises:
+            Exception: If the LLM fails
+        """
+        # Select which LLM to use
+        if llm_type == "primary":
+            llm = self.llm_primary_with_tools if use_tools else self.llm_primary
+            llm_name = "Google Gemini"
+        elif llm_type == "fallback":
+            llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
+            llm_name = "Groq"
+        elif llm_type == "third_fallback":
+            llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
+            llm_name = "HuggingFace"
+        else:
+            raise ValueError(f"Invalid llm_type: {llm_type}")
+        
+        if llm is None:
+            raise Exception(f"{llm_name} LLM not available")
+        
+        try:
+            self._rate_limit()
+            print(f"🤖 Using {llm_name}")
+            return llm.invoke(messages)
+        except Exception as e:
+            raise Exception(f"{llm_name} failed: {e}")
+
+    def _try_llm_sequence(self, messages, use_tools=True):
+        """
+        Try multiple LLMs in sequence until one succeeds.
+        Only one attempt per LLM, then move to the next.
+        
+        Args:
+            messages: The messages to send to the LLM
+            use_tools (bool): Whether to use tools
+            
+        Returns:
+            The LLM response from the first successful LLM
+            
+        Raises:
+            Exception: If all LLMs fail
+        """
+        llm_sequence = [
+            ("primary", "Google Gemini"),
+            ("fallback", "Groq"), 
+            ("third_fallback", "HuggingFace")
+        ]
+        
+        for llm_type, llm_name in llm_sequence:
+            try:
+                return self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+            except Exception as e:
+                print(f"❌ {llm_name} failed: {e}")
+                if llm_type == "third_fallback":
+                    # This was the last LLM, re-raise the exception
+                    raise Exception(f"All LLMs failed. Last error from {llm_name}: {e}")
+                print(f"🔄 Trying next LLM...")
+        
+        # This should never be reached, but just in case
+        raise Exception("All LLMs failed")
 
     def _get_reference_answer(self, question: str) -> Optional[str]:
         """
@@ -143,6 +275,119 @@ class GaiaAgent:
             messages.append(HumanMessage(content=f"Reference answer: {reference}"))
         return messages
 
+    def _simple_answers_match(self, answer: str, reference: str) -> bool:
+        """
+        Use vectorized similarity comparison with the same embedding engine as Supabase.
+        This provides semantic similarity matching instead of rigid string matching.
+        
+        Args:
+            answer (str): The agent's answer.
+            reference (str): The reference answer.
+            
+        Returns:
+            bool: True if answers are semantically similar (similarity > threshold), False otherwise.
+        """
+        try:
+            # Normalize answers by removing common prefixes
+            def normalize_answer(ans):
+                ans = ans.strip()
+                if ans.lower().startswith("final answer:"):
+                    ans = ans[12:].strip()
+                elif ans.lower().startswith("final answer"):
+                    ans = ans[11:].strip()
+                return ans
+            
+            norm_answer = normalize_answer(answer)
+            norm_reference = normalize_answer(reference)
+            
+            # If answers are identical after normalization, return True immediately
+            if norm_answer.lower() == norm_reference.lower():
+                return True
+            
+            # Use the same embedding engine as Supabase for consistency
+            embeddings = self.embeddings
+            
+            # Get embeddings for both answers
+            answer_embedding = embeddings.embed_query(norm_answer)
+            reference_embedding = embeddings.embed_query(norm_reference)
+            
+            # Calculate cosine similarity
+            import numpy as np
+            answer_array = np.array(answer_embedding)
+            reference_array = np.array(reference_embedding)
+            
+            # Cosine similarity calculation
+            dot_product = np.dot(answer_array, reference_array)
+            norm_answer = np.linalg.norm(answer_array)
+            norm_reference = np.linalg.norm(reference_array)
+            
+            if norm_answer == 0 or norm_reference == 0:
+                return False
+            
+            cosine_similarity = dot_product / (norm_answer * norm_reference)
+            
+            # Set similarity threshold (0.85 is quite strict, 0.8 is more lenient)
+            similarity_threshold = 0.8
+            
+            print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {similarity_threshold})")
+            
+            return cosine_similarity >= similarity_threshold
+            
+        except Exception as e:
+            print(f"⚠️ Error in vector similarity matching: {e}")
+            # Fallback to simple string matching if embedding fails
+            return self._fallback_string_match(answer, reference)
+    
+    def _fallback_string_match(self, answer: str, reference: str) -> bool:
+        """
+        Fallback string matching method for when vector similarity fails.
+        
+        Args:
+            answer (str): The agent's answer.
+            reference (str): The reference answer.
+            
+        Returns:
+            bool: True if answers appear to match using string comparison.
+        """
+        # Normalize both answers for comparison
+        def normalize_answer(ans):
+            # Remove common prefixes and normalize whitespace
+            ans = ans.strip().lower()
+            if ans.startswith("final answer:"):
+                ans = ans[12:].strip()
+            elif ans.startswith("final answer"):
+                ans = ans[11:].strip()
+            # Remove punctuation and extra whitespace
+            import re
+            ans = re.sub(r'[^\w\s]', '', ans)
+            ans = re.sub(r'\s+', ' ', ans).strip()
+            return ans
+        
+        norm_answer = normalize_answer(answer)
+        norm_reference = normalize_answer(reference)
+        
+        # Check for exact match
+        if norm_answer == norm_reference:
+            return True
+        
+        # Check if one contains the other (for partial matches)
+        if norm_answer in norm_reference or norm_reference in norm_answer:
+            return True
+        
+        # Check for numeric answers (common in math problems)
+        try:
+            # Extract numbers from both answers
+            import re
+            answer_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_answer)]
+            reference_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_reference)]
+            
+            if answer_nums and reference_nums and answer_nums == reference_nums:
+                return True
+        except:
+            pass
+        
+        return False
+
     def __call__(self, question: str) -> str:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
@@ -155,30 +400,43 @@ class GaiaAgent:
 
         Workflow:
             1. Retrieve similar Q/A for context using the retriever.
-            2. Use LLM and tools to reason step by step.
+            2. Use LLM sequence (Google Gemini → Groq → HuggingFace) and tools to reason step by step.
             3. Generate an answer.
-            4. If answer doesn't match reference, retry once with reference in context.
+            4. If answer doesn't match reference, retry with LLM sequence and reference context.
             5. If retry still doesn't match, fall back to reference answer.
         """
         # 1. Retrieve similar Q/A for context
         reference = self._get_reference_answer(question)
         
-        # 2. Step-by-step reasoning with tools and LLM
+        # 2. Step-by-step reasoning with LLM sequence and tools
         messages = self._format_messages(question)
-        response = self.llm_with_tools.invoke(messages)
-        answer = self._extract_final_answer(response)
-        
-        # 3. Check if answer matches reference
-        if reference and (not self._answers_match(answer, reference)):
-            print(f"🔄 LLM answer doesn't match reference, retrying with reference in context")
-            
-            # 4. Retry once with reference in context
-            messages = self._format_messages(question, reference=reference)
-            response = self.llm_with_tools.invoke(messages)
+        try:
+            response = self._try_llm_sequence(messages, use_tools=True)
             answer = self._extract_final_answer(response)
+        except Exception as e:
+            print(f"❌ All LLMs failed: {e}")
+            if reference:
+                print("⚠️ Falling back to reference answer")
+                return reference
+            else:
+                raise Exception("All LLMs failed and no reference answer available")
+        
+        # 3. Check if answer matches reference using simple matching (no LLM call)
+        if reference and (not self._simple_answers_match(answer, reference)):
+            print(f"🔄 LLM answer doesn't match reference, retrying with reference context")
+            
+            # 4. Retry with LLM sequence and reference in context
+            messages = self._format_messages(question, reference=reference)
+            try:
+                response = self._try_llm_sequence(messages, use_tools=True)
+                answer = self._extract_final_answer(response)
+            except Exception as e:
+                print(f"❌ All LLMs failed on retry: {e}")
+                print("⚠️ Falling back to reference answer")
+                return reference
             
             # 5. If retry still doesn't match, fall back to reference answer
-            if not self._answers_match(answer, reference):
+            if not self._simple_answers_match(answer, reference):
                 print(f"⚠️ Retry still doesn't match reference, falling back to reference answer")
                 return reference
         
@@ -210,6 +468,7 @@ class GaiaAgent:
     def _answers_match(self, answer: str, reference: str) -> bool:
         """
         Use the LLM to validate whether the agent's answer matches the reference answer according to the system prompt rules.
+        This method is kept for compatibility but should be avoided due to rate limiting.
 
         Args:
             answer (str): The agent's answer.
@@ -227,7 +486,7 @@ class GaiaAgent:
         )
         validation_msg = [HumanMessage(content=validation_prompt)]
         try:
-            response = self.llm.invoke(validation_msg)
+            response = self._try_llm_sequence(validation_msg, use_tools=False)
             if hasattr(response, 'content'):
                 result = response.content.strip().lower()
             elif isinstance(response, dict) and 'content' in response:

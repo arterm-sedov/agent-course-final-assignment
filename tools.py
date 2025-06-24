@@ -871,7 +871,11 @@ def get_best_chess_move(fen: str) -> str:
     try:
         chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
         url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth=15"
-        response = requests.get(url, timeout=15)
+        lichess_key = os.environ.get("LICHESS_KEY")
+        headers = {}
+        if lichess_key:
+            headers["Authorization"] = f"Bearer {lichess_key}"
+        response = requests.get(url, timeout=15, headers=headers)
         
         if response.status_code == 200:
             data = json.loads(response.text)
@@ -1137,7 +1141,11 @@ def get_best_chess_move(fen: str) -> str:
     try:
         chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
         url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth=15"
-        response = requests.get(url, timeout=15)
+        lichess_key = os.environ.get("LICHESS_KEY")
+        headers = {}
+        if lichess_key:
+            headers["Authorization"] = f"Bearer {lichess_key}"
+        response = requests.get(url, timeout=15, headers=headers)
         
         if response.status_code == 200:
             data = json.loads(response.text)
