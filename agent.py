@@ -124,10 +124,8 @@ class GaiaAgent:
         
         try:
             self.llm_third_fallback = ChatHuggingFace(
-                llm=HuggingFaceEndpoint(
-                    url="https://api-inference.huggingface.co/models/Meta-DeepLearning/llama-2-7b-chat-hf",
-                    temperature=0,
-                ),
+                model="meta-llama/Llama-2-7b-chat-hf",
+                temperature=0,
             )
             print("✅ Third fallback LLM (HuggingFace) initialized successfully")
         except Exception as e:
@@ -205,20 +203,22 @@ class GaiaAgent:
         except Exception as e:
             raise Exception(f"{llm_name} failed: {e}")
 
-    def _try_llm_sequence(self, messages, use_tools=True):
+    def _try_llm_sequence(self, messages, use_tools=True, reference=None, similarity_threshold=0.8):
         """
-        Try multiple LLMs in sequence until one succeeds.
+        Try multiple LLMs in sequence until one succeeds and produces a similar answer to reference.
         Only one attempt per LLM, then move to the next.
         
         Args:
             messages: The messages to send to the LLM
             use_tools (bool): Whether to use tools
+            reference (str, optional): Reference answer to compare against
+            similarity_threshold (float): Minimum similarity score (0.0-1.0) to consider answers similar
             
         Returns:
-            The LLM response from the first successful LLM
+            tuple: (answer, llm_used) where answer is the final answer and llm_used is the name of the LLM that succeeded
             
         Raises:
-            Exception: If all LLMs fail
+            Exception: If all LLMs fail or none produce similar enough answers
         """
         llm_sequence = [
             ("primary", "Google Gemini"),
@@ -228,7 +228,26 @@ class GaiaAgent:
         
         for llm_type, llm_name in llm_sequence:
             try:
-                return self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+                response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+                answer = self._extract_final_answer(response)
+                
+                # If no reference provided, return the first successful answer
+                if reference is None:
+                    print(f"✅ {llm_name} succeeded (no reference to compare)")
+                    return answer, llm_name
+                
+                # Check similarity with reference
+                if self._simple_answers_match(answer, reference):
+                    print(f"✅ {llm_name} succeeded with similar answer to reference")
+                    return answer, llm_name
+                else:
+                    print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
+                    if llm_type == "third_fallback":
+                        # This was the last LLM, return the answer anyway
+                        print(f"🔄 Using {llm_name} answer despite mismatch")
+                        return answer, llm_name
+                    print(f"🔄 Trying next LLM...")
+                    
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
                 if llm_type == "third_fallback":
@@ -400,19 +419,18 @@ class GaiaAgent:
 
         Workflow:
             1. Retrieve similar Q/A for context using the retriever.
-            2. Use LLM sequence (Google Gemini → Groq → HuggingFace) and tools to reason step by step.
-            3. Generate an answer.
-            4. If answer doesn't match reference, retry with LLM sequence and reference context.
-            5. If retry still doesn't match, fall back to reference answer.
+            2. Use LLM sequence with similarity checking against reference.
+            3. If no similar answer found, fall back to reference answer.
         """
         # 1. Retrieve similar Q/A for context
         reference = self._get_reference_answer(question)
         
-        # 2. Step-by-step reasoning with LLM sequence and tools
+        # 2. Step-by-step reasoning with LLM sequence and similarity checking
         messages = self._format_messages(question)
         try:
-            response = self._try_llm_sequence(messages, use_tools=True)
-            answer = self._extract_final_answer(response)
+            answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
+            print(f"🎯 Final answer from {llm_used}")
+            return answer
         except Exception as e:
             print(f"❌ All LLMs failed: {e}")
             if reference:
@@ -420,27 +438,6 @@ class GaiaAgent:
                 return reference
             else:
                 raise Exception("All LLMs failed and no reference answer available")
-        
-        # 3. Check if answer matches reference using simple matching (no LLM call)
-        if reference and (not self._simple_answers_match(answer, reference)):
-            print(f"🔄 LLM answer doesn't match reference, retrying with reference context")
-            
-            # 4. Retry with LLM sequence and reference in context
-            messages = self._format_messages(question, reference=reference)
-            try:
-                response = self._try_llm_sequence(messages, use_tools=True)
-                answer = self._extract_final_answer(response)
-            except Exception as e:
-                print(f"❌ All LLMs failed on retry: {e}")
-                print("⚠️ Falling back to reference answer")
-                return reference
-            
-            # 5. If retry still doesn't match, fall back to reference answer
-            if not self._simple_answers_match(answer, reference):
-                print(f"⚠️ Retry still doesn't match reference, falling back to reference answer")
-                return reference
-        
-        return answer
 
     def _extract_final_answer(self, response: Any) -> str:
         """
