@@ -238,7 +238,8 @@ class GaiaAgent:
             try:
                 response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                 answer = self._extract_final_answer(response)
-                return answer, llm_name
+                print(f"✅ {llm_name} answered: {answer}")
+                print(f"✅ Reference: {reference}")
                 # If no reference provided, return the first successful answer
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
