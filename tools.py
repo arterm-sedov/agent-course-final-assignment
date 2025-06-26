@@ -751,7 +751,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
             return "GEMINI_KEY not found in environment variables."
         client = genai.Client(api_key=gemini_key)
         video_description = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-pro",  # Use same model as agent for consistency
             contents=types.Content(
                 parts=[
                     types.Part(file_data=types.FileData(file_uri=youtube_url)),
@@ -792,7 +792,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
         client = genai.Client(api_key=gemini_key)
         mp3_file = client.files.upload(file=file_path)
         audio_description = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-pro",  # Use same model as agent for consistency
             contents=[prompt, mp3_file]
         )
         return audio_description.text

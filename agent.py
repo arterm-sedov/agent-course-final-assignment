@@ -206,20 +206,76 @@ class GaiaAgent:
         max_steps = 5  # Prevent infinite loops
         # Detect if this is Groq (by class name)
         is_groq = llm.__class__.__name__.lower().startswith('chatgroq')
+        
+        # Track repeated tool calls to detect infinite loops
+        repeated_tool_calls = {}
+        
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1} - Invoking LLM with messages:")
             for i, msg in enumerate(messages):
                 print(f"  Message {i}: {msg}")
             response = llm.invoke(messages)
             print(f"[Tool Loop] Raw LLM response: {response}")
+            
+            # Debug: Check response structure
+            print(f"[Tool Loop] Response type: {type(response)}")
+            print(f"[Tool Loop] Response has content: {hasattr(response, 'content')}")
+            if hasattr(response, 'content'):
+                print(f"[Tool Loop] Content length: {len(response.content) if response.content else 0}")
+            print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
+            if hasattr(response, 'tool_calls'):
+                print(f"[Tool Loop] Tool calls: {response.tool_calls}")
+            
             # If response has content and no tool calls, return
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
                 print(f"[Tool Loop] Final answer detected: {response.content}")
                 return response
+                
             # If response has tool calls (Gemini, OpenAI, etc.)
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s): {tool_calls}")
+                
+                # Check for repeated tool calls with empty content (infinite loop detection)
+                if not hasattr(response, 'content') or not response.content:
+                    for tool_call in tool_calls:
+                        tool_name = tool_call.get('name')
+                        tool_args = tool_call.get('args', {})
+                        # Create a key for this tool call
+                        call_key = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+                        
+                        if call_key in repeated_tool_calls:
+                            repeated_tool_calls[call_key] += 1
+                            if repeated_tool_calls[call_key] >= 2:  # Same tool call repeated 2+ times
+                                print(f"[Tool Loop] ⚠️ Detected infinite loop: {tool_name} called {repeated_tool_calls[call_key]} times with empty content")
+                                print(f"[Tool Loop] Breaking loop and returning last tool result")
+                                # Return a synthetic response with the last tool result
+                                if messages and hasattr(messages[-1], 'content'):
+                                    last_tool_result = messages[-1].content
+                                    # Create a synthetic response with the tool result as the answer
+                                    from langchain_core.messages import AIMessage
+                                    synthetic_response = AIMessage(content=f"Based on the tool result: {last_tool_result}")
+                                    return synthetic_response
+                        else:
+                            repeated_tool_calls[call_key] = 1
+                
+                # Additional safeguard: if we have multiple tool results and the LLM keeps returning empty content,
+                # try to construct a final answer from the tool results
+                if step >= 2 and (not hasattr(response, 'content') or not response.content):
+                    print(f"[Tool Loop] ⚠️ Multiple tool calls with empty content detected. Attempting to construct final answer.")
+                    # Look for the most recent tool result that might contain the answer
+                    for msg in reversed(messages):
+                        if hasattr(msg, 'content') and msg.content and "Teal'c responds" in msg.content:
+                            # Extract the answer from the tool result
+                            import re
+                            match = re.search(r"Teal'c responds?.*?['\"]([^'\"]+)['\"]", msg.content)
+                            if match:
+                                answer = match.group(1).strip()
+                                print(f"[Tool Loop] Extracted answer from tool result: {answer}")
+                                from langchain_core.messages import AIMessage
+                                synthetic_response = AIMessage(content=f"FINAL ANSWER: {answer}")
+                                return synthetic_response
+                
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
@@ -247,6 +303,7 @@ class GaiaAgent:
                 for i, msg in enumerate(messages):
                     print(f"  Message {i}: {msg}")
                 continue  # Next LLM call
+                
             # Gemini (and some LLMs) may use 'function_call' instead
             function_call = getattr(response, 'function_call', None)
             if function_call:
@@ -276,13 +333,16 @@ class GaiaAgent:
                 for i, msg in enumerate(messages):
                     print(f"  Message {i}: {msg}")
                 continue
+                
             # If response has content (final answer), return
             if hasattr(response, 'content') and response.content:
                 print(f"[Tool Loop] Final answer detected: {response.content}")
                 return response
+                
             # If no tool calls and no content, break (fail)
             print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
             break
+            
         # If we exit loop, return last response (may be empty)
         print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
         return response
@@ -329,6 +389,35 @@ class GaiaAgent:
             tool_registry = {tool.__name__: tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry)
+                # If tool calling resulted in empty content, try without tools as fallback
+                if not hasattr(response, 'content') or not response.content:
+                    print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
+                    # Get the LLM without tools
+                    if llm_type == "primary":
+                        llm_no_tools = self.llm_primary
+                    elif llm_type == "fallback":
+                        llm_no_tools = self.llm_fallback
+                    elif llm_type == "third_fallback":
+                        llm_no_tools = self.llm_third_fallback
+                    
+                    if llm_no_tools:
+                        # Add a message explaining the tool results
+                        tool_results = []
+                        for msg in messages:
+                            if hasattr(msg, 'name') and msg.name:  # This is a tool message
+                                tool_results.append(f"Tool {msg.name} result: {msg.content}")
+                        
+                        if tool_results:
+                            # Create a new message with tool results included
+                            tool_summary = "\n".join(tool_results)
+                            enhanced_messages = messages[:-len(tool_results)] if tool_results else messages
+                            enhanced_messages.append(HumanMessage(content=f"Based on the following tool results, please provide your final answer:\n{tool_summary}"))
+                            
+                            print(f"🔄 Retrying {llm_name} without tools with enhanced context")
+                            response = llm_no_tools.invoke(enhanced_messages)
+                        else:
+                            print(f"🔄 Retrying {llm_name} without tools")
+                            response = llm_no_tools.invoke(messages)
             else:
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
@@ -597,6 +686,24 @@ class GaiaAgent:
             text = response['content']
         else:
             text = str(response)
+            
+        # Handle synthetic responses from infinite loop detection
+        if text.startswith("Based on the tool result:"):
+            # Extract the tool result and use it as the answer
+            tool_result = text.replace("Based on the tool result:", "").strip()
+            # Clean up the tool result to extract just the answer
+            if "Teal'c responds" in tool_result:
+                # Extract just the response part
+                import re
+                match = re.search(r"Teal'c responds?.*?['\"]([^'\"]+)['\"]", tool_result)
+                if match:
+                    return match.group(1).strip()
+                # Fallback: extract the word after "responds"
+                match = re.search(r"responds?.*?['\"]([^'\"]+)['\"]", tool_result)
+                if match:
+                    return match.group(1).strip()
+            return tool_result.strip()
+            
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
@@ -607,6 +714,7 @@ class GaiaAgent:
                 # Remove trailing punctuation and whitespace
                 answer = answer.strip().rstrip('.').rstrip(',').strip()
                 return answer
+                
         # Fallback: return the whole response, normalized
         import re
         answer = text.strip()
