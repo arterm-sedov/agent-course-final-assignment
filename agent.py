@@ -30,7 +30,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
@@ -177,6 +177,72 @@ class GaiaAgent:
             time.sleep(sleep_time + jitter)
         self.last_request_time = time.time()
 
+    def _run_tool_calling_loop(self, llm, messages, tool_registry):
+        """
+        Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
+        Args:
+            llm: The LLM instance (with or without tools bound)
+            messages: The message history (list)
+            tool_registry: Dict mapping tool names to functions
+        Returns:
+            The final LLM response (with content)
+        """
+        max_steps = 5  # Prevent infinite loops
+        for _ in range(max_steps):
+            response = llm.invoke(messages)
+            # If response has content and no tool calls, return
+            if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
+                return response
+            # If response has tool calls (Gemini, OpenAI, etc.)
+            tool_calls = getattr(response, 'tool_calls', None)
+            if tool_calls:
+                for tool_call in tool_calls:
+                    tool_name = tool_call.get('name')
+                    tool_args = tool_call.get('args', {})
+                    if isinstance(tool_args, str):
+                        try:
+                            tool_args = json.loads(tool_args)
+                        except Exception:
+                            pass
+                    tool_func = tool_registry.get(tool_name)
+                    if not tool_func:
+                        tool_result = f"Tool '{tool_name}' not found."
+                    else:
+                        try:
+                            tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                        except Exception as e:
+                            tool_result = f"Error running tool '{tool_name}': {e}"
+                    # Add tool result as a ToolMessage
+                    messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
+                continue  # Next LLM call
+            # Gemini (and some LLMs) may use 'function_call' instead
+            function_call = getattr(response, 'function_call', None)
+            if function_call:
+                tool_name = function_call.get('name')
+                tool_args = function_call.get('arguments', {})
+                if isinstance(tool_args, str):
+                    try:
+                        tool_args = json.loads(tool_args)
+                    except Exception:
+                        pass
+                tool_func = tool_registry.get(tool_name)
+                if not tool_func:
+                    tool_result = f"Tool '{tool_name}' not found."
+                else:
+                    try:
+                        tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                    except Exception as e:
+                        tool_result = f"Error running tool '{tool_name}': {e}"
+                messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
+                continue
+            # If response has content (final answer), return
+            if hasattr(response, 'content') and response.content:
+                return response
+            # If no tool calls and no content, break (fail)
+            break
+        # If we exit loop, return last response (may be empty)
+        return response
+
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
         """
         Make an LLM request with rate limiting.
@@ -215,7 +281,12 @@ class GaiaAgent:
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
                 print(f"Message {i}: {msg}")
-            response = llm.invoke(messages)
+            # Build tool registry (name -> function)
+            tool_registry = {tool.__name__: tool for tool in self.tools}
+            if use_tools:
+                response = self._run_tool_calling_loop(llm, messages, tool_registry)
+            else:
+                response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
             # Print only the first 1000 characters if response is long
             resp_str = str(response)
@@ -473,7 +544,7 @@ class GaiaAgent:
             response (Any): The LLM response object.
 
         Returns:
-            str: The extracted final answer string. If not found, returns the full response as a string.
+            str: The extracted final answer string, normalized (no 'FINAL ANSWER:' prefix, trimmed, no trailing punctuation).
         """
         # Try to find the line starting with 'FINAL ANSWER:'
         if hasattr(response, 'content'):
@@ -482,11 +553,22 @@ class GaiaAgent:
             text = response['content']
         else:
             text = str(response)
+        # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
-                return line.strip()
-        # Fallback: return the whole response
-        return text.strip()
+                answer = line.strip()
+                # Remove 'FINAL ANSWER:' or 'FINAL ANSWER' prefix (case-insensitive)
+                import re
+                answer = re.sub(r'^final answer\s*:?\s*', '', answer, flags=re.IGNORECASE)
+                # Remove trailing punctuation and whitespace
+                answer = answer.strip().rstrip('.').rstrip(',').strip()
+                return answer
+        # Fallback: return the whole response, normalized
+        import re
+        answer = text.strip()
+        answer = re.sub(r'^final answer\s*:?\s*', '', answer, flags=re.IGNORECASE)
+        answer = answer.strip().rstrip('.').rstrip(',').strip()
+        return answer
 
     def _answers_match(self, answer: str, reference: str) -> bool:
         """
