@@ -1,103 +1,124 @@
 #!/usr/bin/env python3
 """
-GAIA Unit 4 - Virtual Environment Setup Script
-By Arte(r)m Sedov
+Cross-platform virtual environment setup and dependency installation for arterm-sedov.
+Supports both Windows and Linux/macOS environments.
 
-This script automates the setup of a Python virtual environment for the GAIA Unit 4 agent.
+This script:
+1. Creates a virtual environment
+2. Installs dependencies using platform-specific requirements files
+3. Handles platform-specific issues automatically
+4. Provides comprehensive error handling and user feedback
 
 Usage:
-    python setup_venv.py
-
-This script will:
-1. Check Python version
-2. Create a virtual environment
-3. Install all required dependencies
-4. Verify the installation
+    python setup_venv.py [--skip-venv] [--skip-deps] [--verbose]
 """
 
 import os
 import sys
 import subprocess
 import platform
+import shutil
 from pathlib import Path
+import argparse
 
-def run_command(command, check=True, capture_output=True):
-    """Run a shell command and return the result."""
+def print_status(message, status="INFO"):
+    """Print a formatted status message."""
+    colors = {
+        "INFO": "\033[94m",    # Blue
+        "SUCCESS": "\033[92m", # Green
+        "WARNING": "\033[93m", # Yellow
+        "ERROR": "\033[91m",   # Red
+        "RESET": "\033[0m"     # Reset
+    }
+    
+    if platform.system() == "Windows" and not os.environ.get("TERM"):
+        # Windows without color support
+        print(f"[{status}] {message}")
+    else:
+        # Unix-like systems or Windows with color support
+        color = colors.get(status, colors["INFO"])
+        reset = colors["RESET"]
+        print(f"{color}[{status}]{reset} {message}")
+
+def run_command(command, check=True, capture_output=True, shell=False):
+    """
+    Run a command and return the result.
+    
+    Args:
+        command: Command to run (list or string)
+        check: Whether to raise exception on non-zero exit code
+        capture_output: Whether to capture stdout/stderr
+        shell: Whether to run in shell mode
+    
+    Returns:
+        subprocess.CompletedProcess object
+    """
     try:
+        if isinstance(command, str) and not shell:
+            command = command.split()
+        
         result = subprocess.run(
-            command, 
-            shell=True, 
-            check=check, 
+            command,
+            check=check,
             capture_output=capture_output,
+            shell=shell,
             text=True
         )
         return result
     except subprocess.CalledProcessError as e:
-        print(f"❌ Command failed: {command}")
-        print(f"Error: {e}")
-        return None
+        print_status(f"Command failed: {' '.join(command) if isinstance(command, list) else command}", "ERROR")
+        print_status(f"Exit code: {e.returncode}", "ERROR")
+        if e.stdout:
+            print(f"STDOUT: {e.stdout}")
+        if e.stderr:
+            print(f"STDERR: {e.stderr}")
+        raise
 
 def get_python_command():
-    """Get the appropriate Python command for the current platform."""
+    """Get the appropriate python command for the current platform."""
     if platform.system() == "Windows":
-        # Try different Python commands on Windows
-        commands = ["py", "python", "python3"]
-        for cmd in commands:
-            try:
-                result = subprocess.run(f"{cmd} --version", shell=True, capture_output=True, text=True)
-                if result.returncode == 0:
-                    return cmd
-            except:
-                continue
-        return "python"  # fallback
+        return "python"
     else:
         return "python3"
 
 def check_python_version():
-    """Check if Python version is 3.8 or higher."""
-    print("🐍 Checking Python version...")
+    """Check if Python version is compatible (3.8+)."""
     version = sys.version_info
     if version.major < 3 or (version.major == 3 and version.minor < 8):
-        print(f"❌ Python {version.major}.{version.minor} detected. Python 3.8+ is required.")
+        print_status("Python 3.8+ is required", "ERROR")
+        print_status(f"Current version: {version.major}.{version.minor}.{version.micro}", "ERROR")
         return False
-    print(f"✅ Python {version.major}.{version.minor}.{version.micro} detected.")
+    
+    print_status(f"Python version: {version.major}.{version.minor}.{version.micro}", "SUCCESS")
     return True
 
 def create_virtual_environment():
     """Create a virtual environment."""
-    print("\n📦 Creating virtual environment...")
-    
     venv_path = Path("venv")
+    
     if venv_path.exists():
-        print("⚠️  Virtual environment 'venv' already exists.")
-        response = input("Do you want to recreate it? (y/N): ").lower().strip()
-        if response == 'y':
-            print("🗑️  Removing existing virtual environment...")
-            if platform.system() == "Windows":
-                run_command("rmdir /s /q venv", check=False)
-            else:
-                run_command("rm -rf venv", check=False)
-        else:
-            print("✅ Using existing virtual environment.")
+        print_status("Virtual environment already exists", "WARNING")
+        response = input("Do you want to recreate it? (y/N): ").strip().lower()
+        if response != 'y':
+            print_status("Using existing virtual environment", "INFO")
             return True
+        else:
+            print_status("Removing existing virtual environment...", "INFO")
+            shutil.rmtree(venv_path)
     
-    # Get the appropriate Python command
+    print_status("Creating virtual environment...", "INFO")
     python_cmd = get_python_command()
-    print(f"Using Python command: {python_cmd}")
     
-    # Create virtual environment
-    result = run_command(f"{python_cmd} -m venv venv")
-    if result and result.returncode == 0:
-        print("✅ Virtual environment created successfully.")
+    try:
+        run_command([python_cmd, "-m", "venv", "venv"])
+        print_status("Virtual environment created successfully", "SUCCESS")
         return True
-    else:
-        print("❌ Failed to create virtual environment.")
-        print("Try running manually:")
-        print(f"  {python_cmd} -m venv venv")
+    except subprocess.CalledProcessError:
+        print_status("Failed to create virtual environment", "ERROR")
         return False
 
 def get_activation_command():
-    """Get the appropriate activation command based on the platform."""
+    """Get the activation command for the current platform."""
     if platform.system() == "Windows":
         return "venv\\Scripts\\activate"
     else:
@@ -117,101 +138,171 @@ def get_pip_path():
     else:
         return "venv/bin/pip"
 
+def get_requirements_file():
+    """Get the appropriate requirements file based on the platform."""
+    if platform.system() == "Windows":
+        requirements_file = "requirements.win.txt"
+        if Path(requirements_file).exists():
+            print_status(f"Using Windows-specific requirements: {requirements_file}", "INFO")
+            return requirements_file
+        else:
+            print_status("Windows requirements file not found, using main requirements.txt", "WARNING")
+            return "requirements.txt"
+    else:
+        print_status("Using main requirements.txt for Linux/macOS", "INFO")
+        return "requirements.txt"
+
 def install_dependencies():
-    """Install dependencies from requirements.txt."""
-    print("\n📚 Installing dependencies...")
+    """Install dependencies using the appropriate requirements file."""
+    pip_cmd = get_pip_path()
+    python_cmd = get_python_path()
+    requirements_file = get_requirements_file()
     
-    # Check if requirements.txt exists
-    if not Path("requirements.txt").exists():
-        print("❌ requirements.txt not found in current directory.")
+    print_status("Installing dependencies...", "INFO")
+    
+    # Check if requirements file exists
+    if not Path(requirements_file).exists():
+        print_status(f"Requirements file {requirements_file} not found", "ERROR")
         return False
     
-    python_path = get_python_path()
-    pip_path = get_pip_path()
+    # Step 1: Upgrade pip using python -m pip
+    print_status("Upgrading pip...", "INFO")
+    try:
+        run_command([python_cmd, "-m", "pip", "install", "--upgrade", "pip"])
+        print_status("Pip upgraded successfully", "SUCCESS")
+    except subprocess.CalledProcessError:
+        print_status("Failed to upgrade pip, continuing...", "WARNING")
     
-    # Upgrade pip first
-    print("⬆️  Upgrading pip...")
-    result = run_command(f"{python_path} -m pip install --upgrade pip")
-    if not result or result.returncode != 0:
-        print("⚠️  Failed to upgrade pip, continuing anyway...")
+    # Step 2: Install build tools
+    print_status("Installing build tools...", "INFO")
+    try:
+        run_command([pip_cmd, "install", "wheel", "setuptools"])
+    except subprocess.CalledProcessError:
+        print_status("Failed to install build tools, continuing...", "WARNING")
     
-    # Install requirements
-    print("📦 Installing packages from requirements.txt...")
-    result = run_command(f"{pip_path} install -r requirements.txt")
-    
-    if result and result.returncode == 0:
-        print("✅ Dependencies installed successfully.")
+    # Step 3: Install dependencies from requirements file
+    print_status(f"Installing dependencies from {requirements_file}...", "INFO")
+    try:
+        run_command([pip_cmd, "install", "-r", requirements_file])
+        print_status("All dependencies installed successfully", "SUCCESS")
         return True
-    else:
-        print("❌ Failed to install dependencies.")
-        print("Try running manually:")
-        print(f"  {pip_path} install -r requirements.txt")
+        
+    except subprocess.CalledProcessError as e:
+        print_status(f"Failed to install dependencies from {requirements_file}", "ERROR")
+        
+        # If Windows requirements failed, try main requirements as fallback
+        if platform.system() == "Windows" and requirements_file == "requirements.win.txt":
+            print_status("Trying main requirements.txt as fallback...", "WARNING")
+            try:
+                run_command([pip_cmd, "install", "-r", "requirements.txt"])
+                print_status("Dependencies installed using main requirements.txt", "SUCCESS")
+                print_status("Note: TensorFlow not installed - sentence-transformers may not work optimally", "WARNING")
+                print_status("To install TensorFlow manually, try:", "INFO")
+                print_status("  pip install tensorflow-cpu", "INFO")
+                print_status("  or", "INFO")
+                print_status("  pip install tensorflow", "INFO")
+                return True
+            except subprocess.CalledProcessError:
+                print_status("Both requirements files failed", "ERROR")
+                return False
+        
         return False
 
 def verify_installation():
-    """Verify that key packages are installed correctly."""
-    print("\n🔍 Verifying installation...")
+    """Verify that the installation was successful."""
+    print_status("Verifying installation...", "INFO")
     
-    test_script = """
-import sys
-try:
-    import langchain
-    import supabase
-    import gradio
-    import pandas
-    import numpy
-    import requests
-    print("✅ All core packages imported successfully!")
-    print(f"Python path: {sys.executable}")
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    sys.exit(1)
-"""
+    python_cmd = get_python_path()
     
-    python_path = get_python_path()
-    result = run_command(f'{python_path} -c "{test_script}"')
+    # Test imports
+    test_imports = [
+        "numpy",
+        "pandas", 
+        "requests",
+        "google.genai",
+        "langchain",
+        "supabase",
+        "gradio"
+    ]
     
-    if result and result.returncode == 0:
-        print("✅ Installation verification passed.")
-        return True
-    else:
-        print("❌ Installation verification failed.")
+    failed_imports = []
+    
+    for module in test_imports:
+        try:
+            run_command([python_cmd, "-c", f"import {module}"], capture_output=True)
+            print_status(f"✓ {module}", "SUCCESS")
+        except subprocess.CalledProcessError:
+            print_status(f"✗ {module}", "ERROR")
+            failed_imports.append(module)
+    
+    if failed_imports:
+        print_status(f"Failed to import: {', '.join(failed_imports)}", "ERROR")
         return False
+    
+    # Test version info
+    try:
+        result = run_command([python_cmd, "-c", "import pandas as pd; print(f'Pandas version: {pd.__version__}')"], capture_output=True)
+        print_status(result.stdout.strip(), "INFO")
+    except subprocess.CalledProcessError:
+        print_status("Could not get pandas version", "WARNING")
+    
+    print_status("Installation verification completed", "SUCCESS")
+    return True
 
 def main():
-    """Main setup function."""
-    print("🚀 GAIA Unit 4 - Virtual Environment Setup")
-    print("=" * 50)
+    """Main function."""
+    parser = argparse.ArgumentParser(description="Setup virtual environment and install dependencies")
+    parser.add_argument("--skip-venv", action="store_true", help="Skip virtual environment creation")
+    parser.add_argument("--skip-deps", action="store_true", help="Skip dependency installation")
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
+    
+    args = parser.parse_args()
+    
+    print_status("=" * 60, "INFO")
+    print_status("arterm-sedov Setup Script", "INFO")
+    print_status("=" * 60, "INFO")
+    print_status(f"Platform: {platform.system()} {platform.release()}", "INFO")
+    print_status(f"Python: {sys.executable}", "INFO")
+    print_status("=" * 60, "INFO")
     
     # Check Python version
     if not check_python_version():
         sys.exit(1)
     
     # Create virtual environment
-    if not create_virtual_environment():
-        sys.exit(1)
+    if not args.skip_venv:
+        if not create_virtual_environment():
+            sys.exit(1)
+    else:
+        print_status("Skipping virtual environment creation", "INFO")
     
     # Install dependencies
-    if not install_dependencies():
-        sys.exit(1)
+    if not args.skip_deps:
+        if not install_dependencies():
+            sys.exit(1)
+    else:
+        print_status("Skipping dependency installation", "INFO")
     
     # Verify installation
-    if not verify_installation():
-        sys.exit(1)
+    if not args.skip_deps:
+        if not verify_installation():
+            print_status("Installation verification failed", "ERROR")
+            sys.exit(1)
     
-    # Success message
-    print("\n🎉 Virtual environment setup completed successfully!")
-    print("\n📋 Next steps:")
-    print("1. Activate the virtual environment:")
-    activation_cmd = get_activation_command()
-    print(f"   {activation_cmd}")
-    print("\n2. Set up your .env file with API keys")
-    print("3. Run the vector store setup:")
-    print("   python setup_vector_store.py")
-    print("\n4. Start the application:")
-    print("   python app.py")
-    
-    print(f"\n💡 To activate the environment later, run: {activation_cmd}")
+    # Print next steps
+    print_status("=" * 60, "INFO")
+    print_status("Setup completed successfully!", "SUCCESS")
+    print_status("=" * 60, "INFO")
+    print_status("Next steps:", "INFO")
+    print_status("1. Activate the virtual environment:", "INFO")
+    print_status(f"   {get_activation_command()}", "INFO")
+    print_status("2. Set up your environment variables in .env file:", "INFO")
+    print_status("   GEMINI_KEY=your_gemini_api_key", "INFO")
+    print_status("   SUPABASE_URL=your_supabase_url", "INFO")
+    print_status("   SUPABASE_KEY=your_supabase_key", "INFO")
+    print_status("3. Run the agent:", "INFO")
+    print_status("   python app.py", "INFO")
+    print_status("=" * 60, "INFO")
 
 if __name__ == "__main__":
     main() 

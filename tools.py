@@ -882,6 +882,148 @@ def get_best_chess_move(fen: str) -> str:
     except Exception as e:
         return f"Error getting chess evaluation: {str(e)}"
 
+def _expand_fen_rank(rank_str):
+    """
+    Expands a single rank string from FEN notation (e.g., 'p2b4')
+    into a list of 8 characters representing the squares.
+    Uses ' ' for empty squares.
+    """
+    expanded_rank = []
+    for char in rank_str:
+        if char.isdigit():
+            # Add number of empty squares specified by the digit
+            expanded_rank.extend([' '] * int(char))
+        else:
+            # Add the piece character
+            expanded_rank.append(char)
+    # Validate rank length
+    if len(expanded_rank) != 8:
+        raise ValueError(f"Invalid FEN rank string (length != 8): {rank_str}")
+    return expanded_rank
+
+def _compress_fen_rank(rank_list):
+    """
+    Compresses a list of 8 characters (representing a rank)
+    back into FEN rank notation (e.g., turns [' ', 'K', ...] into '1K6').
+    Assumes ' ' represents an empty square.
+    """
+    if len(rank_list) != 8:
+        raise ValueError(f"Invalid rank list (length != 8): {rank_list}")
+
+    compressed_rank = ""
+    empty_count = 0
+    for char in rank_list:
+        if char == ' ':
+            empty_count += 1
+        else:
+            # If we encountered a piece after empty squares, add the count
+            if empty_count > 0:
+                compressed_rank += str(empty_count)
+                empty_count = 0
+            # Add the piece
+            compressed_rank += char
+    # If the rank ends with empty squares, add the final count
+    if empty_count > 0:
+        compressed_rank += str(empty_count)
+    return compressed_rank
+
+def _invert_mirror_fen(fen_string):
+    """
+    Takes a FEN string, inverts the board vertically, mirrors it horizontally,
+    and returns the new FEN string representing this transformed view.
+    The other FEN fields (turn, castling, etc.) are preserved.
+    """
+    try:
+        # 1. Split FEN into parts
+        parts = fen_string.strip().split(' ')
+        if len(parts) != 6:
+            raise ValueError("FEN string must have 6 space-separated fields.")
+        board_part = parts[0]
+        other_parts = parts[1:] # Side-to-move, castling, ep, halfmove, fullmove
+
+        # 2. Parse the board part into an 8x8 representation
+        rank_strings = board_part.split('/')
+        if len(rank_strings) != 8:
+            raise ValueError("FEN board part must have 8 ranks separated by '/'.")
+
+        # original_board[0] corresponds to rank 8, original_board[7] to rank 1
+        original_board = [_expand_fen_rank(r) for r in rank_strings]
+
+        # 3. Create a new empty 8x8 board for the transformed state
+        # Using ' ' as the placeholder for empty squares
+        transformed_board = [[' ' for _ in range(8)] for _ in range(8)]
+
+        # 4. Apply the inversion (vertical flip) and mirror (horizontal flip)
+        for r in range(8): # Iterate through original rows (ranks 8 down to 1)
+            for c in range(8): # Iterate through original columns (files a to h)
+                # The piece at original [r][c] moves to transformed [7-r][7-c]
+                transformed_board[7 - r][7 - c] = original_board[r][c]
+
+        # 5. Generate the new FEN board string from the transformed board
+        # Read ranks from top (index 0 = rank 8) to bottom (index 7 = rank 1)
+        new_rank_strings = [_compress_fen_rank(row) for row in transformed_board]
+        new_board_part = "/".join(new_rank_strings)
+
+        # 6. Reassemble the full FEN string
+        return " ".join([new_board_part] + other_parts)
+
+    except Exception as e:
+        # Return error message if parsing or processing fails
+        return f"Error processing FEN: {e}. Input: '{fen_string}'"
+
+def _add_fen_game_state(board_placement,
+                    side_to_move,
+                    castling="-",
+                    en_passant="-",
+                    halfmove_clock=0,
+                    fullmove_number=1):
+    """
+    Appends standard game state information to a FEN board placement string.
+
+    Args:
+        board_placement (str): The board layout part of the FEN string
+                            (e.g., "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR").
+        side_to_move (str): The active color ('w' for White, 'b' for Black).
+                            Case-insensitive, will be converted to lowercase.
+        castling (str, optional): Castling availability string (e.g., "KQkq", "-").
+                                Defaults to "-".
+        en_passant (str, optional): En passant target square string (e.g., "e3", "-").
+                                    Defaults to "-".
+        halfmove_clock (int, optional): The number of halfmoves since the last
+                                    capture or pawn advance. Defaults to 0.
+        fullmove_number (int, optional): The number of the full move. Starts at 1
+                                    and increments after Black's move. Defaults to 1.
+
+    Returns:
+        str: The complete FEN string including the game state,
+            or an error message string if inputs are invalid.
+    """
+    # Validate side_to_move
+    side_to_move_lower = str(side_to_move).lower()
+    if side_to_move_lower not in ['w', 'b']:
+        return f"Error: side_to_move must be 'w' or 'b', received '{side_to_move}'"
+
+    # Validate clock values (should be non-negative integers, fullmove >= 1)
+    try:
+        halfmove_clock = int(halfmove_clock)
+        fullmove_number = int(fullmove_number)
+        if halfmove_clock < 0:
+            raise ValueError("halfmove_clock cannot be negative.")
+        if fullmove_number < 1:
+            raise ValueError("fullmove_number must be 1 or greater.")
+    except (ValueError, TypeError):
+        return (f"Error: halfmove_clock ('{halfmove_clock}') and "
+                f"fullmove_number ('{fullmove_number}') must be valid integers "
+                f"(non-negative and positive respectively).")
+
+    # Assemble the full FEN string using the validated/defaulted values
+    # Note: castling and en_passant strings are used directly as passed or defaulted.
+    # More complex validation could be added for them if needed.
+    full_fen = (f"{board_placement} {side_to_move_lower} {castling} "
+                f"{en_passant} {halfmove_clock} {fullmove_number}")
+
+    return full_fen
+
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
     Get the FEN representation from an image of a chess board using board-to-fen.
@@ -908,9 +1050,70 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     try:
         side_to_move = "b" if player_turn.lower() == "black" else "w"
         board_placement = get_fen_from_image_path(image_path)
-        board_fen = f"{board_placement} {side_to_move} - - 0 1"
-        return board_fen
+        
+        # Add game state information to the FEN
+        board_fen = _add_fen_game_state(board_placement, side_to_move)
+        
+        # Inversion makes board_to_fen output Stockfish compatible
+        board_fen_inverted = _invert_mirror_fen(board_fen)
+        
+        return board_fen_inverted
     except Exception as e:
         return f"Error getting chess board FEN: {str(e)}"
+
+def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
+    """
+    Solve a chess position by analyzing the board image and finding the best move.
+    
+    This comprehensive tool:
+    1. Converts the chess board image to FEN notation
+    2. Gets the best move from a chess evaluation API
+    3. Converts the coordinate notation to algebraic notation
+    4. Returns the solution with analysis
+    
+    Args:
+        image_path (str): The path to the chess board image file.
+        player_turn (str): The player with the next turn ("black" or "white").
+        question (str): Optional question about the position (e.g., "guarantees a win").
+    
+    Returns:
+        str: The best move in algebraic notation with analysis, or error message.
+    
+    Note:
+        Requires board-to-fen, chess evaluation API, and LiteLLM to be available.
+    """
+    try:
+        # Step 1: Get FEN from image
+        fen = get_chess_board_fen(image_path, player_turn)
+        if fen.startswith("Error"):
+            return f"Error getting FEN: {fen}"
+        
+        # Step 2: Get best move in coordinate notation
+        best_move_coord = get_best_chess_move(fen)
+        if best_move_coord.startswith("Error"):
+            return f"Error getting best move: {best_move_coord}"
+        
+        # Step 3: Convert to algebraic notation
+        # Create a simple piece placement description for the LLM
+        piece_placement = f"FEN: {fen}"
+        algebraic_move = convert_chess_move(piece_placement, best_move_coord)
+        if algebraic_move.startswith("Error"):
+            return f"Error converting move: {algebraic_move}"
+        
+        # Step 4: Format the response
+        result = f"Chess Position Analysis:\n"
+        result += f"FEN: {fen}\n"
+        result += f"Player to move: {player_turn}\n"
+        result += f"Best move (coordinate): {best_move_coord}\n"
+        result += f"Best move (algebraic): {algebraic_move}\n"
+        
+        if question:
+            result += f"\nQuestion: {question}\n"
+            result += f"Answer: {algebraic_move}"
+        
+        return result
+        
+    except Exception as e:
+        return f"Error solving chess position: {str(e)}"
 
 # ========== END OF TOOLS.PY ========== 

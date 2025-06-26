@@ -1,463 +1,323 @@
-# GAIA Unit 4 - Vector Store Setup Instructions
+# arterm-sedov Setup Instructions
 
-This guide will help you set up the vector store for your GAIA Unit 4 agent using your Supabase and Hugging Face credentials.
+## Overview
 
-## 🐍 Python Virtual Environment Setup
-
-### Quick Setup (Automated)
-
-**For a one-command setup, use the automated script:**
-```bash
-python setup_venv.py
-```
-
-This script will automatically:
-- ✅ Check Python version
-- ✅ Create virtual environment
-- ✅ Install all dependencies
-- ✅ Verify installation
-- ✅ Provide next steps
-
-### Manual Setup
-
-If you prefer to set up manually or the automated script doesn't work:
-
-### Step 0: Create and Activate Virtual Environment
-
-**For Windows:**
-```bash
-# Create virtual environment (try these commands in order)
-py -m venv venv
-# OR if py doesn't work:
-python -m venv venv
-# OR if python doesn't work:
-python3 -m venv venv
-
-# Activate virtual environment
-venv\Scripts\activate
-
-# Verify activation (should show venv path)
-where python
-```
-
-**For macOS/Linux:**
-```bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-source venv/bin/activate
-
-# Verify activation (should show venv path)
-which python
-```
-
-**For Hugging Face Spaces:**
-```bash
-# HF Spaces automatically creates a virtual environment
-# Just install requirements
-pip install -r requirements.txt
-```
-
-### Step 0.1: Verify Python Version
-
-Make sure you have Python 3.8+ installed:
-
-```bash
-# Windows
-py --version
-# OR
-python --version
-
-# macOS/Linux
-python3 --version
-# Should show Python 3.8.x or higher
-```
-
-### Step 0.2: Upgrade pip (Recommended)
-
-```bash
-# Upgrade pip to latest version
-python -m pip install --upgrade pip
-```
-
-### Step 0.3: Install Dependencies
-
-```bash
-# Install all required packages
-pip install -r requirements.txt
-```
-
-### Step 0.4: Verify Installation
-
-```bash
-# Test that key packages are installed
-python -c "import langchain, supabase, gradio; print('✅ All packages installed successfully!')"
-```
-
-### Virtual Environment Management
-
-**To deactivate the virtual environment:**
-```bash
-deactivate
-```
-
-**To reactivate later:**
-```bash
-# Windows
-venv\Scripts\activate
-
-# macOS/Linux
-source venv/bin/activate
-```
-
-**To delete and recreate virtual environment:**
-```bash
-# Deactivate first
-deactivate
-
-# Delete old environment
-rm -rf venv  # macOS/Linux
-# OR
-rmdir /s venv  # Windows
-
-# Create new environment (repeat Step 0)
-```
-
-### Windows-Specific Troubleshooting
-
-**If you get "python is not recognized":**
-1. Make sure Python is installed and added to PATH
-2. Try using `py` instead of `python`
-3. Try using the full path to Python
-
-**If you get "venv is not recognized":**
-1. Make sure you're using Python 3.3+ (which includes venv)
-2. Try: `py -m venv venv` or `python -m venv venv`
-
-**If activation fails:**
-1. Make sure you're in the correct directory
-2. Try: `venv\Scripts\activate.bat` (Windows)
-3. Check if the venv folder was created properly
-
-**If pip install fails:**
-1. Try upgrading pip first: `python -m pip install --upgrade pip`
-2. Check your internet connection
-3. Try installing packages one by one to identify the problematic one
-
-**Alternative Windows Setup:**
-```bash
-# If the automated script fails, try this manual approach:
-py -m venv venv
-venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-```
-
----
+This guide provides comprehensive setup instructions for the arterm-sedov GAIA Unit 4 agent project. The setup is designed to work on both Windows and Linux/macOS systems using platform-specific requirements files.
 
 ## Prerequisites
 
-1. **Python 3.8+**: Make sure you have Python 3.8 or higher installed
-2. **Supabase Account**: You need a Supabase project with pgvector extension enabled
-3. **Hugging Face Account**: For embeddings and API access
-4. **Virtual Environment**: Use the setup above to create an isolated Python environment
+- **Python 3.8 or higher**
+- **Git** (for cloning the repository)
+- **Internet connection** (for downloading dependencies)
 
-## Step 1: Set Up Environment Variables
+## Quick Start
 
-Create a `.env` file in the `arterm-sedov` directory with your credentials:
+### Option 1: Automated Setup (Recommended)
 
-```bash
-# REQUIRED: Supabase credentials (for vector store)
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your_service_role_key_here
-
-# REQUIRED: Google Gemini credentials (for LLM - default provider)
-GEMINI_KEY=your_gemini_api_key_here
-
-# OPTIONAL: Hugging Face credentials (for embeddings - uses free models by default)
-HUGGINGFACE_API_KEY=your_huggingface_api_key_here
-
-# OPTIONAL: Alternative LLM providers (only needed if you want to use these instead of Gemini)
-GROQ_API_KEY=your_groq_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-```
-
-### How to get Supabase credentials:
-
-1. Go to [supabase.com](https://supabase.com) and create a project
-2. In your project dashboard, go to Settings → API
-3. Copy the "Project URL" (this is your `SUPABASE_URL`)
-4. Copy the "service_role" key (this is your `SUPABASE_KEY`)
-
-### How to get Google Gemini API key:
-
-1. Go to [Google AI Studio](https://aistudio.google.com/)
-2. Create a new API key
-3. Use this key as your `GEMINI_KEY`
-
-### How to get Hugging Face API key (optional):
-
-1. Go to [huggingface.co](https://huggingface.co) and create an account
-2. Go to Settings → Access Tokens
-3. Create a new token with "read" permissions
-4. Use this token as your `HUGGINGFACE_API_KEY`
-5. **Note**: This is optional - the embeddings model works without an API key for basic usage
-
-### How to get Groq API key (optional):
-
-1. Go to [console.groq.com](https://console.groq.com/)
-2. Sign up or log in to your Groq account
-3. Navigate to the API Keys section
-4. Create a new API key
-5. Use this key as your `GROQ_API_KEY`
-6. **Note**: This is optional - only needed if you want to use Groq instead of Gemini
-
-### How to get Tavily API key (optional):
-
-1. Go to [tavily.com](https://tavily.com/)
-2. Sign up for an account
-3. Get your API key from the dashboard
-4. Use this key as your `TAVILY_API_KEY`
-5. **Note**: This is optional - only needed if you want to use web search tools
-
-**Tavily Implementation Details:**
-- The `web_search()` function uses Tavily's search API to find real-time web results
-- Returns up to 3 search results with source URLs and content snippets
-- Useful for finding current information, recent events, and up-to-date data
-- Automatically handles API key validation and error handling
-- Returns formatted results that can be easily parsed by the agent
-
-**Example Usage:**
-```python
-# In your agent, the web_search tool can be called like:
-result = web_search("latest SpaceX launch date")
-# Returns formatted web search results about recent SpaceX launches
-```
-
-## Step 2: Set Up Supabase Database
-
-### 2.1 Enable pgvector Extension
-
-In your Supabase SQL editor, run:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-### 2.2 Create the Table
-
-```sql
-CREATE TABLE agent_course_reference (
-    id BIGSERIAL PRIMARY KEY,
-    content TEXT NOT NULL,
-    metadata JSONB,
-    embedding VECTOR(768)
-);
-```
-
-### 2.3 Create the Similarity Search Function
-
-```sql
-CREATE OR REPLACE FUNCTION match_agent_course_reference_langchain(
-    query_embedding vector(768),
-    match_count integer DEFAULT 5,
-    filter jsonb DEFAULT '{}'
-)
-RETURNS TABLE (
-    id bigint,
-    content text,
-    metadata jsonb,
-    embedding vector(768),
-    similarity float
-)
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        agent_course_reference.id,
-        agent_course_reference.content,
-        agent_course_reference.metadata,
-        agent_course_reference.embedding,
-        1 - (agent_course_reference.embedding <=> query_embedding) AS similarity
-    FROM agent_course_reference
-    WHERE agent_course_reference.metadata @> filter
-    ORDER BY agent_course_reference.embedding <=> query_embedding
-    LIMIT match_count;
-END;
-$$;
-```
-
-### 2.4 Create Table Truncate Function (Optional)
-
-For more reliable table clearing during setup:
-
-```sql
-CREATE OR REPLACE FUNCTION truncate_agent_course_reference()
-RETURNS void
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    TRUNCATE TABLE agent_course_reference RESTART IDENTITY;
-END;
-$$;
-```
-
-## Step 3: Copy Required Data Files
-
-Make sure to have the metadata file:
+The easiest way to set up the project is using the automated setup script:
 
 ```bash
-metadata.jsonl .
+# Clone the repository (if not already done)
+git clone <repository-url>
+cd arterm-sedov
+
+# Run the automated setup script
+python setup_venv.py
 ```
 
-## Step 4: Install Required Packages
+This script will:
+- Check Python version compatibility
+- Create a virtual environment
+- Automatically detect your platform (Windows/Linux/macOS)
+- Use the appropriate requirements file for your platform
+- Install all dependencies in the correct order
+- Verify the installation
+- Provide next steps
 
-Make sure you have all required packages installed:
+### Option 2: Manual Setup
 
+If you prefer manual setup or encounter issues with the automated script:
+
+#### Step 1: Create Virtual Environment
+
+**Windows:**
+```cmd
+python -m venv venv
+venv\Scripts\activate
+```
+
+**Linux/macOS:**
 ```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+#### Step 2: Install Dependencies
+
+**For Windows:**
+```bash
+# Upgrade pip
+python -m pip install --upgrade pip
+
+# Install build tools
+pip install wheel setuptools
+
+# Install dependencies using Windows-specific requirements
+pip install -r requirements.win.txt
+```
+
+**For Linux/macOS:**
+```bash
+# Upgrade pip
+python -m pip install --upgrade pip
+
+# Install dependencies using main requirements
 pip install -r requirements.txt
 ```
 
-If you don't have a requirements.txt, install these packages:
+## Requirements Files
 
-```bash
-pip install langchain langchain-community langchain-core langchain-google-genai langchain-huggingface langchain-groq supabase python-dotenv pandas numpy pillow pytesseract requests langchain-tavily sentence-transformers
+The project uses platform-specific requirements files to handle different installation needs:
+
+### `requirements.txt` (Linux/macOS/Hugging Face Space)
+- Optimized for Linux, macOS, and Hugging Face Space deployment
+- Uses flexible version constraints for maximum compatibility
+- No Windows-specific build constraints
+
+### `requirements.win.txt` (Windows)
+- Contains Windows-specific version constraints
+- Avoids problematic versions (like pandas 2.2.2)
+- Includes all necessary version pins for Windows compatibility
+
+The setup script automatically detects your platform and uses the appropriate file.
+
+## Environment Variables Setup
+
+Create a `.env` file in the project root with the following variables:
+
+```env
+# Required for Google Gemini integration
+GEMINI_KEY=your_gemini_api_key_here
+
+# Required for Supabase vector store
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_key_here
+
+# Optional: For HuggingFace integration
+HUGGINGFACE_API_KEY=your_huggingface_api_key_here
+
+# Optional: For OpenRouter (chess move conversion)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
 ```
 
-## Step 5: Run the Setup Script
+### Getting API Keys
 
-### Option A: Run the Python Script
+1. **Google Gemini API Key:**
+   - Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+   - Create a new API key
+   - Copy the key to your `.env` file
+
+2. **Supabase Credentials:**
+   - Create a Supabase project at [supabase.com](https://supabase.com)
+   - Go to Settings > API
+   - Copy the URL and anon key to your `.env` file
+
+3. **HuggingFace API Key (Optional):**
+   - Visit [HuggingFace Settings](https://huggingface.co/settings/tokens)
+   - Create a new token
+   - Copy to your `.env` file
+
+## Vector Store Setup
+
+After setting up the environment, you need to populate the vector store with reference data:
 
 ```bash
+# Run the vector store setup
 python setup_vector_store.py
 ```
 
-### Option B: Run the Jupyter Notebook
+This will:
+- Load the metadata.jsonl file
+- Connect to your Supabase instance
+- Populate the vector store with reference Q&A data
+- Test the similarity search functionality
+
+## Running the Agent
+
+### Development Mode
 
 ```bash
-jupyter notebook explore_metadata.ipynb
+# Start the Gradio interface
+python app.py
 ```
 
-## Step 6: Verify the Setup
+This will launch a web interface where you can:
+- Test individual questions
+- Run the full evaluation
+- Submit answers to the GAIA benchmark
 
-The setup script will:
+### Production Mode (Hugging Face Space)
 
-1. ✅ Load metadata.jsonl data
-2. ✅ Connect to Supabase
-3. ✅ Populate the vector store with Q&A data
-4. ✅ Test similarity search functionality
-5. ✅ Analyze tools used in the dataset
-6. ✅ Test GaiaAgent integration
-
-You should see output like:
-
-```
-🚀 GAIA Unit 4 - Vector Store Setup
-==================================================
-📁 Loading metadata.jsonl...
-✅ Loaded 1000 questions from metadata.jsonl
-
-🔍 Exploring sample data...
-==================================================
-Task ID: d1af70ea-a9a4-421a-b9cc-94b5e02f1788
-Question: As of the 2020 census, what was the population difference...
-...
-
-🔗 Setting up Supabase connection...
-✅ Supabase URL: https://your-project.supabase.co
-✅ Supabase Key: eyJhbGciOi...
-✅ Supabase connection established
-
-📊 Populating vector store...
-✅ Prepared 1000 documents for insertion
-✅ Cleared existing data from agent_course_reference table
-✅ Successfully inserted 1000 documents into agent_course_reference table
-✅ Saved documents to supabase_docs.csv as backup
-
-🧪 Testing vector store...
-✅ Vector store initialized
-✅ Found 1 similar documents
-✅ Top match: Content: Question : On June 6, 2023...
-
-🛠️  Analyzing tools used in dataset...
-Total number of unique tools: 83
-Top 20 most used tools:
-  ├── web browser: 107
-  ├── search engine: 101
-  ├── calculator: 34
-  ...
-
-🤖 Testing GaiaAgent integration...
-✅ GaiaAgent initialized
-✅ Reference answer found: 80GSFC21M0002
-
-==================================================
-📋 SETUP SUMMARY
-==================================================
-✅ Metadata loaded: 1000 questions
-✅ Supabase connection: Success
-✅ Vector store population: Success
-✅ Vector store testing: Success
-✅ Agent integration: Success
-
-🎉 Vector store setup completed successfully!
-GaiaAgent is ready to use with the vector store.
-```
+The project is configured for Hugging Face Space deployment. The main `requirements.txt` is optimized for the HF environment.
 
 ## Troubleshooting
 
-### Common Issues:
+### Common Issues
 
-1. **"metadata.jsonl not found"**
-   - Make sure you copied the file from fisherman611 folder
-   - Run: `cp ../fisherman611/metadata.jsonl .`
+#### 1. Platform Detection Issues
 
-2. **"Missing Supabase credentials"**
-   - Check that the `.env` file exists and has correct credentials
-   - Make sure you're using the service_role key, not the anon key
+**Problem:** Wrong requirements file is used
+**Solution:** The setup script automatically detects your platform. If you need to force a specific file:
+```bash
+# For Windows
+pip install -r requirements.win.txt
 
-3. **"Error inserting data into Supabase"**
-   - Check if the table exists and has the correct schema
-   - Verify pgvector extension is enabled
-   - Check your Supabase permissions
+# For Linux/macOS
+pip install -r requirements.txt
+```
 
-4. **"Error in similarity search"**
-   - Verify the function `match_agent_course_reference_langchain` exists
-   - Check if data was properly inserted into the table
+#### 2. Virtual Environment Issues
 
-5. **"Error testing GaiaAgent integration"**
-   - Make sure you have `GEMINI_KEY` in your `.env` file
-   - Check if all required packages are installed
+**Problem:** Virtual environment creation fails
+**Solution:** 
+```bash
+# Remove existing venv and recreate
+rm -rf venv  # Linux/macOS
+# OR
+rmdir /s /q venv  # Windows
+python setup_venv.py
+```
 
-6. **"ModuleNotFoundError: No module named 'sentence-transformers'"**
-   - Install the missing package: `pip install sentence-transformers`
-   - This package is required for HuggingFace embeddings
-   - Re-run the setup script after installation
+#### 3. Permission Errors
 
-7. **"ImportError: Could not import sentence_transformers"**
-   - Make sure you're in the virtual environment
-   - Run: `pip install sentence-transformers`
-   - If that doesn't work, try: `pip install --upgrade sentence-transformers`
+**Problem:** Permission denied when installing packages
+**Solution:**
+```bash
+# Use --user flag
+pip install --user -r requirements.txt
+```
 
-### Getting Help:
+#### 4. Missing Dependencies
 
-- Check the Supabase logs in your project dashboard
-- Verify your table structure matches the expected schema
-- Test the similarity function directly in Supabase SQL editor
+**Problem:** Import errors after installation
+**Solution:**
+```bash
+# Reinstall dependencies
+pip install --force-reinstall -r requirements.txt
+```
+
+#### 5. API Key Issues
+
+**Problem:** "Missing API key" errors
+**Solution:**
+- Check that your `.env` file exists and has the correct format
+- Verify API keys are valid and have proper permissions
+- Ensure no extra spaces or quotes around the values
+
+### Platform-Specific Issues
+
+#### Windows
+
+- **PowerShell Execution Policy:** If you get execution policy errors:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+
+- **Visual Studio Build Tools:** If you encounter build errors:
+  - Install Visual Studio Build Tools 2019 or later
+  - Or use conda instead of pip:
+    ```cmd
+    conda install pandas numpy
+    pip install -r requirements.win.txt
+    ```
+
+#### Linux/macOS
+
+- **Missing system dependencies:** Install required system packages:
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install python3-dev build-essential
+  
+  # macOS
+  xcode-select --install
+  ```
+
+## Verification
+
+After setup, verify everything works:
+
+```python
+# Test basic imports
+import numpy as np
+import pandas as pd
+import langchain
+import supabase
+import gradio
+
+print("✅ All core packages imported successfully!")
+print(f"Pandas version: {pd.__version__}")
+```
+
+## Project Structure
+
+```
+arterm-sedov/
+├── agent.py              # Main agent implementation
+├── app.py                # Gradio web interface
+├── tools.py              # Tool functions for the agent
+├── setup_venv.py         # Cross-platform setup script
+├── setup_vector_store.py # Vector store initialization
+├── requirements.txt      # Dependencies (Linux/macOS/HF Space)
+├── requirements.win.txt  # Dependencies (Windows)
+├── system_prompt.txt     # Agent system prompt
+├── metadata.jsonl        # Reference Q&A data
+├── supabase_docs.csv     # Vector store backup
+└── .env                  # Environment variables (create this)
+```
+
+## Advanced Configuration
+
+### Custom Model Providers
+
+The agent supports multiple LLM providers. You can modify `agent.py` to use different providers:
+
+- **Google Gemini** (default): Requires `GEMINI_KEY`
+- **Groq**: Requires `GROQ_API_KEY`
+- **HuggingFace**: Requires `HUGGINGFACE_API_KEY`
+
+### Vector Store Configuration
+
+The vector store uses Supabase with the following configuration:
+- **Table:** `agent_course_reference`
+- **Embedding Model:** `sentence-transformers/all-mpnet-base-v2`
+- **Similarity Search:** Cosine similarity
+
+### Tool Configuration
+
+The agent includes comprehensive tools for:
+- **Math operations:** Basic arithmetic, calculus, statistics
+- **Web search:** Google search, Wikipedia, arXiv
+- **File operations:** Download, read, analyze files
+- **Image processing:** OCR, analysis, transformation
+- **Chess analysis:** Position solving, move calculation
+- **Code execution:** Python code interpreter
+
+## Support
+
+If you encounter issues:
+
+1. Check the troubleshooting section above
+2. Review the error logs in the console
+3. Verify your environment variables are set correctly
+4. Ensure all dependencies are installed properly
 
 ## Next Steps
 
-Once the setup is complete:
+After successful setup:
 
-1. The vector store is populated with reference Q&A data
-2. The GaiaAgent can use similarity search to find relevant answers
-3. You can run the full evaluation with `python app.py`
-4. The agent will automatically use the vector store for reference answers
+1. **Test the agent** with sample questions
+2. **Run the evaluation** to see performance metrics
+3. **Submit to GAIA benchmark** for official scoring
+4. **Customize the agent** for your specific needs
 
-## Files Created/Modified:
-
-- `explore_metadata.ipynb` - Jupyter notebook for exploration
-- `setup_vector_store.py` - Python script for setup
-- `
+The agent is now ready for the GAIA Unit 4 benchmark! 🚀

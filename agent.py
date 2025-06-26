@@ -678,7 +678,7 @@ class GaiaAgent:
             'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file',
             'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images',
             'understand_video', 'understand_audio',
-            'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen'
+            'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position'
         ]
         
         # Ensure all specific tools are included
