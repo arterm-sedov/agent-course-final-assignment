@@ -104,10 +104,15 @@ class GaiaAgent:
             description="A tool to retrieve similar questions from a vector store.",
         )
 
+        # Set HuggingFace API token if available
+        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
+        if hf_token:
+            os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_token
+
         # Set up primary LLM (Google Gemini) and fallback LLM (Groq)
         try:
             self.llm_primary = ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash", 
+                model="gemini-2.5-pro", 
                 temperature=0, 
                 google_api_key=os.environ.get("GEMINI_KEY")
             )
@@ -126,8 +131,8 @@ class GaiaAgent:
         try:
             self.llm_third_fallback = ChatHuggingFace(
                 llm=HuggingFaceEndpoint(
-                    repo_id="Qwen/Qwen3-32B",
-                    task="text-generation",  # for chat‐style use “text-generation”
+                    repo_id="Qwen/Qwen2.5-Coder-32B-Instruct",
+                    task="text-generation",  # for chat‐style use "text-generation"
                     max_new_tokens=1024,
                     do_sample=False,
                     repetition_penalty=1.03,
@@ -207,7 +212,18 @@ class GaiaAgent:
         try:
             self._rate_limit()
             print(f"🤖 Using {llm_name}")
-            return llm.invoke(messages)
+            print(f"--- LLM Prompt/messages sent to {llm_name} ---")
+            for i, msg in enumerate(messages):
+                print(f"Message {i}: {msg}")
+            response = llm.invoke(messages)
+            print(f"--- Raw response from {llm_name} ---")
+            # Print only the first 1000 characters if response is long
+            resp_str = str(response)
+            if len(resp_str) > 1000:
+                print(resp_str[:1000] + "... [truncated]")
+            else:
+                print(resp_str)
+            return response
         except Exception as e:
             raise Exception(f"{llm_name} failed: {e}")
 
@@ -431,6 +447,7 @@ class GaiaAgent:
             2. Use LLM sequence with similarity checking against reference.
             3. If no similar answer found, fall back to reference answer.
         """
+        print(f"\n🔎 Processing question: {question}\n")
         # 1. Retrieve similar Q/A for context
         reference = self._get_reference_answer(question)
         
