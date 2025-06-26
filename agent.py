@@ -177,9 +177,25 @@ class GaiaAgent:
             time.sleep(sleep_time + jitter)
         self.last_request_time = time.time()
 
+    def _summarize_text_with_gemini(self, text, max_tokens=256):
+        """
+        Summarize a long tool result using Gemini (if available), otherwise fallback to truncation.
+        """
+        try:
+            if self.llm_primary:
+                prompt = f"Summarize the following tool result for use as LLM context. Focus on the most relevant facts, numbers, and names. Limit to {max_tokens} tokens.\n\nTOOL RESULT:\n{text}"
+                response = self.llm_primary.invoke([HumanMessage(content=prompt)])
+                if hasattr(response, 'content') and response.content:
+                    return response.content.strip()
+        except Exception as e:
+            print(f"[Summarization] Gemini summarization failed: {e}")
+        # Fallback: simple truncation
+        return text[:1000] + '... [truncated]'
+
     def _run_tool_calling_loop(self, llm, messages, tool_registry):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
+        For Groq LLM, tool results are summarized using Gemini (if available) or truncated to 1000 characters.
         Args:
             llm: The LLM instance (with or without tools bound)
             messages: The message history (list)
@@ -188,17 +204,26 @@ class GaiaAgent:
             The final LLM response (with content)
         """
         max_steps = 5  # Prevent infinite loops
-        for _ in range(max_steps):
+        # Detect if this is Groq (by class name)
+        is_groq = llm.__class__.__name__.lower().startswith('chatgroq')
+        for step in range(max_steps):
+            print(f"\n[Tool Loop] Step {step+1} - Invoking LLM with messages:")
+            for i, msg in enumerate(messages):
+                print(f"  Message {i}: {msg}")
             response = llm.invoke(messages)
+            print(f"[Tool Loop] Raw LLM response: {response}")
             # If response has content and no tool calls, return
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
+                print(f"[Tool Loop] Final answer detected: {response.content}")
                 return response
             # If response has tool calls (Gemini, OpenAI, etc.)
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
+                print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s): {tool_calls}")
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
+                    print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
                     if isinstance(tool_args, str):
                         try:
                             tool_args = json.loads(tool_args)
@@ -212,14 +237,23 @@ class GaiaAgent:
                             tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
                         except Exception as e:
                             tool_result = f"Error running tool '{tool_name}': {e}"
+                    # For Groq, summarize tool result if longer than 1000 chars
+                    if is_groq and isinstance(tool_result, str) and len(tool_result) > 1000:
+                        tool_result = self._summarize_text_with_gemini(tool_result)
+                    print(f"[Tool Loop] Tool result: {tool_result}")
                     # Add tool result as a ToolMessage
                     messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
+                print(f"[Tool Loop] Messages after tool call:")
+                for i, msg in enumerate(messages):
+                    print(f"  Message {i}: {msg}")
                 continue  # Next LLM call
             # Gemini (and some LLMs) may use 'function_call' instead
             function_call = getattr(response, 'function_call', None)
             if function_call:
+                print(f"[Tool Loop] Detected function_call: {function_call}")
                 tool_name = function_call.get('name')
                 tool_args = function_call.get('arguments', {})
+                print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
                 if isinstance(tool_args, str):
                     try:
                         tool_args = json.loads(tool_args)
@@ -233,14 +267,24 @@ class GaiaAgent:
                         tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
                     except Exception as e:
                         tool_result = f"Error running tool '{tool_name}': {e}"
+                # For Groq, summarize tool result if longer than 1000 chars
+                if is_groq and isinstance(tool_result, str) and len(tool_result) > 1000:
+                    tool_result = self._summarize_text_with_gemini(tool_result)
+                print(f"[Tool Loop] Tool result: {tool_result}")
                 messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
+                print(f"[Tool Loop] Messages after tool call:")
+                for i, msg in enumerate(messages):
+                    print(f"  Message {i}: {msg}")
                 continue
             # If response has content (final answer), return
             if hasattr(response, 'content') and response.content:
+                print(f"[Tool Loop] Final answer detected: {response.content}")
                 return response
             # If no tool calls and no content, break (fail)
+            print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
             break
         # If we exit loop, return last response (may be empty)
+        print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
         return response
 
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):

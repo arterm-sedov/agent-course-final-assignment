@@ -35,3 +35,4 @@ scikit-learn
 sympy
 networkx
 nltk
+opencv-python
