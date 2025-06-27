@@ -6,6 +6,10 @@ This checks that the agent can access and use the chess functionality.
 
 import os
 import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from agent import GaiaAgent
 
 def test_agent_chess_tools():

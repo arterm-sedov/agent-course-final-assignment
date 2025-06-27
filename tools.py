@@ -1265,10 +1265,18 @@ def _get_best_chess_move_internal(fen: str) -> str:
         response = requests.get(url, timeout=15, headers=headers)
         if response.status_code == 200:
             data = json.loads(response.text)
-            if data.get('success') == True:
-                return data['bestmove'].split()[1]
+            # Lichess API returns pvs array with moves, not a bestmove field
+            if 'pvs' in data and len(data['pvs']) > 0:
+                # Extract the first move from the moves string
+                moves_string = data['pvs'][0].get('moves', '')
+                if moves_string:
+                    # Split by space and take the first move
+                    first_move = moves_string.split()[0]
+                    return first_move
+                else:
+                    return f"Error getting chess evaluation: No moves in response"
             else:
-                return f"Error getting chess evaluation: {data.get('error', 'Unknown error')}"
+                return f"Error getting chess evaluation: No pvs data in response"
         else:
             return f"Error getting chess evaluation: HTTP {response.status_code}"
     except Exception as e:
