@@ -1293,7 +1293,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 "do_sample": False,
                 "temperature": 0,
                 "retry_on_error": True
-                "temperature": 0
             },
             {
                 "repo_id": "microsoft/DialoGPT-medium",
