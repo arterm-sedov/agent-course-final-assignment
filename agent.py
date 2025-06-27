@@ -332,7 +332,6 @@ class GaiaAgent:
         max_steps = 5  # Prevent infinite loops
         called_tools = set()  # Track which tools have been called to prevent duplicates
         tool_results_history = []  # Track tool results for better fallback handling
-        tool_args_history = {}
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1} - Using LLM: {llm_type}")
             # Truncate messages to prevent token overflow
@@ -414,7 +413,6 @@ class GaiaAgent:
                         print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
                         new_tool_calls.append(tool_call)
                         called_tools.add((tool_name, args_key))
-                        tool_args_history[(tool_name, args_key)] = None
                     else:
                         # Duplicate tool call
                         print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
@@ -440,28 +438,29 @@ class GaiaAgent:
                 for tool_call in new_tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
+                    
+                    # Inject file data if available and needed
+                    if isinstance(tool_args, dict):
+                        tool_args = self._inject_file_data_to_tool_args(tool_name, tool_args)
+                    
                     print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
-                    if isinstance(tool_args, str):
-                        try:
-                            tool_args = json.loads(tool_args)
-                        except Exception:
-                            pass
                     tool_func = tool_registry.get(tool_name)
                     if not tool_func:
                         tool_result = f"Tool '{tool_name}' not found."
                         print(f"[Tool Loop] Tool '{tool_name}' not found.")
                     else:
                         try:
-                            # Handle both LangChain tools and regular functions
                             if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
+                                    # For non-dict args, assume it's a single value that should be passed as 'input'
                                     tool_result = tool_func.invoke({"input": tool_args})
                             else:
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func(**tool_args)
                                 else:
+                                    # For non-dict args, pass directly
                                     tool_result = tool_func(tool_args)
                             print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
                         except Exception as e:
@@ -509,15 +508,21 @@ class GaiaAgent:
                     print(f"[Tool Loop] Tool '{tool_name}' not found.")
                 else:
                     try:
+                        # Inject file data if available and needed
+                        if isinstance(tool_args, dict):
+                            tool_args = self._inject_file_data_to_tool_args(tool_name, tool_args)
+                        
                         if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func.invoke(tool_args)
                             else:
+                                # For non-dict args, assume it's a single value that should be passed as 'input'
                                 tool_result = tool_func.invoke({"input": tool_args})
                         else:
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func(**tool_args)
                             else:
+                                # For non-dict args, pass directly
                                 tool_result = tool_func(tool_args)
                         print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
                     except Exception as e:
@@ -899,24 +904,34 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         
         return False
 
-    def __call__(self, question: str) -> str:
+    def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
 
         Args:
             question (str): The question to answer.
+            file_data (str, optional): Base64 encoded file data if a file is attached.
+            file_name (str, optional): Name of the attached file.
 
         Returns:
             str: The agent's final answer, formatted per system_prompt.txt.
 
         Workflow:
-            1. Retrieve similar Q/A for context using the retriever.
-            2. Use LLM sequence with similarity checking against reference.
-            3. If no similar answer found, fall back to reference answer.
+            1. Store file data for use by tools.
+            2. Retrieve similar Q/A for context using the retriever.
+            3. Use LLM sequence with similarity checking against reference.
+            4. If no similar answer found, fall back to reference answer.
         """
         print(f"\n🔎 Processing question: {question}\n")
         # Store the original question for reuse throughout the process
         self.original_question = question
+        
+        # Store file data for use by tools
+        self.current_file_data = file_data
+        self.current_file_name = file_name
+        
+        if file_data and file_name:
+            print(f"📁 File attached: {file_name} ({len(file_data)} chars base64)")
         
         # 1. Retrieve similar Q/A for context
         reference = self._get_reference_answer(question)
@@ -1133,3 +1148,51 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         
         print(f"✅ Gathered {len(tool_list)} tools: {[get_tool_name(tool) for tool in tool_list]}")
         return tool_list 
+
+    def _inject_file_data_to_tool_args(self, tool_name: str, tool_args: dict) -> dict:
+        """
+        Automatically inject file data into tool arguments if the tool needs it and file data is available.
+        
+        Args:
+            tool_name (str): Name of the tool being called
+            tool_args (dict): Original tool arguments
+            
+        Returns:
+            dict: Modified tool arguments with file data if needed
+        """
+        # Tools that need file data
+        file_tools = {
+            'understand_audio': 'file_path',
+            'analyze_image': 'image_base64', 
+            'transform_image': 'image_base64',
+            'draw_on_image': 'image_base64',
+            'combine_images': 'images_base64',
+            'extract_text_from_image': 'image_path',
+            'analyze_csv_file': 'file_path',
+            'analyze_excel_file': 'file_path',
+            'get_chess_board_fen': 'image_path',
+            'solve_chess_position': 'image_path'
+        }
+        
+        if tool_name in file_tools and self.current_file_data and self.current_file_name:
+            param_name = file_tools[tool_name]
+            
+            # For image tools, use base64 directly
+            if 'image' in param_name:
+                tool_args[param_name] = self.current_file_data
+                print(f"[Tool Loop] Injected base64 image data for {tool_name}")
+            # For file path tools, create a temporary file
+            elif 'file_path' in param_name:
+                import tempfile
+                import base64
+                
+                # Decode base64 and create temporary file
+                file_data = base64.b64decode(self.current_file_data)
+                with tempfile.NamedTemporaryFile(suffix=os.path.splitext(self.current_file_name)[1], delete=False) as temp_file:
+                    temp_file.write(file_data)
+                    temp_file_path = temp_file.name
+                
+                tool_args[param_name] = temp_file_path
+                print(f"[Tool Loop] Created temporary file {temp_file_path} for {tool_name}")
+        
+        return tool_args 

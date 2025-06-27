@@ -69,16 +69,43 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
+        file_name = item.get("file_name", "")  # Extract file_name from question data
+        
         if not task_id or question_text is None:
             print(f"Skipping item with missing task_id or question: {item}")
             continue
+        
+        # Download file if one is referenced
+        file_data = None
+        if file_name and file_name.strip():
+            try:
+                print(f"📁 Downloading file: {file_name} for task {task_id}")
+                file_url = f"{api_url}/files/{task_id}"
+                file_response = requests.get(file_url, timeout=30)
+                file_response.raise_for_status()
+                
+                # Convert file to base64
+                import base64
+                file_data = base64.b64encode(file_response.content).decode('utf-8')
+                print(f"✅ Downloaded and encoded file: {file_name} ({len(file_data)} chars)")
+            except Exception as e:
+                print(f"⚠️ Failed to download file {file_name} for task {task_id}: {e}")
+                file_data = None
+        
         try:
-            submitted_answer = agent(question_text)
+            # Pass both question text and file data to agent
+            if file_data:
+                # Create enhanced question with file context
+                enhanced_question = f"{question_text}\n\n[File attached: {file_name} - base64 encoded data available]"
+                submitted_answer = agent(enhanced_question, file_data=file_data, file_name=file_name)
+            else:
+                submitted_answer = agent(question_text)
+            
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": submitted_answer})
+            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": submitted_answer})
         except Exception as e:
             print(f"Error running agent on task {task_id}: {e}")
-            results_log.append({"Task ID": task_id, "Question": question_text, "Submitted Answer": f"AGENT ERROR: {e}"})
+            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": f"AGENT ERROR: {e}"})
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")

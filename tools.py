@@ -1095,7 +1095,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
     The audio file is uploaded to Gemini and then analyzed with the provided prompt.
     
     Args:
-        file_path (str): The path to the local audio file to analyze.
+        file_path (str): The path to the local audio file to analyze, or base64 encoded audio data.
         prompt (str): A question or request regarding the audio content.
     
     Returns:
@@ -1111,8 +1111,33 @@ def understand_audio(file_path: str, prompt: str) -> str:
         gemini_key = os.environ.get("GEMINI_KEY")
         if not gemini_key:
             return "GEMINI_KEY not found in environment variables."
+        
         client = genai.Client(api_key=gemini_key)
-        mp3_file = client.files.upload(file=file_path)
+        
+        # Check if file_path is base64 data or actual file path
+        if file_path.startswith('/') or os.path.exists(file_path):
+            # It's a file path
+            mp3_file = client.files.upload(file=file_path)
+        else:
+            # Assume it's base64 data
+            import base64
+            import tempfile
+            
+            try:
+                # Decode base64 and create temporary file
+                audio_data = base64.b64decode(file_path)
+                with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
+                    temp_file.write(audio_data)
+                    temp_file_path = temp_file.name
+                
+                try:
+                    mp3_file = client.files.upload(file=temp_file_path)
+                finally:
+                    # Clean up temporary file
+                    os.unlink(temp_file_path)
+            except Exception as decode_error:
+                return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
+        
         audio_description = client.models.generate_content(
             model="gemini-2.5-pro",  # Use same model as agent for consistency
             contents=[prompt, mp3_file]
