@@ -36,6 +36,18 @@ from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 
+# === GLOBAL SYSTEM PROMPT LOADING ===
+SYSTEM_PROMPT = None
+ANSWER_FORMATTING_RULES = None
+
+def _load_system_prompt():
+    global SYSTEM_PROMPT, ANSWER_FORMATTING_RULES
+    if SYSTEM_PROMPT is None:
+        with open("system_prompt.txt", "r", encoding="utf-8") as f:
+            SYSTEM_PROMPT = f.read()
+        ANSWER_FORMATTING_RULES = SYSTEM_PROMPT
+_load_system_prompt()
+
 class GaiaAgent:
     """
     Main agent for the GAIA Unit 4 benchmark.
@@ -80,9 +92,8 @@ class GaiaAgent:
         Raises:
             ValueError: If an invalid provider is specified.
         """
-        # Load system prompt
-        with open("system_prompt.txt", "r", encoding="utf-8") as f:
-            self.system_prompt = f.read()
+        _load_system_prompt()
+        self.system_prompt = SYSTEM_PROMPT
         self.sys_msg = SystemMessage(content=self.system_prompt)
 
         # Rate limiting setup
@@ -247,25 +258,36 @@ class GaiaAgent:
         
         return truncated_messages
 
-    def _summarize_text_with_gemini(self, text, max_tokens=256):
+    def _summarize_text_with_llm(self, text, max_tokens=512):
         """
-        Summarize a long tool result using Gemini (if available), otherwise fallback to truncation.
+        Summarize a long tool result using Groq (if available), otherwise Gemini, otherwise fallback to truncation.
         """
+        prompt = f"Summarize the following tool result for use as LLM context. Focus on the most relevant facts, numbers, and names. Limit to {max_tokens} tokens.\n\nTOOL RESULT:\n{text}"
+        try:
+            if self.llm_fallback:
+                response = self.llm_fallback.invoke([HumanMessage(content=prompt)])
+                if hasattr(response, 'content') and response.content:
+                    return response.content.strip()
+        except Exception as e:
+            print(f"[Summarization] Groq summarization failed: {e}")
         try:
             if self.llm_primary:
-                prompt = f"Summarize the following tool result for use as LLM context. Focus on the most relevant facts, numbers, and names. Limit to {max_tokens} tokens.\n\nTOOL RESULT:\n{text}"
                 response = self.llm_primary.invoke([HumanMessage(content=prompt)])
                 if hasattr(response, 'content') and response.content:
                     return response.content.strip()
         except Exception as e:
             print(f"[Summarization] Gemini summarization failed: {e}")
-        # Fallback: simple truncation
         return text[:1000] + '... [truncated]'
 
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
-        For Groq LLM, tool results are summarized using Gemini (if available) or truncated to 1000 characters.
+        - Summarizes tool results after each call and injects them into the context.
+        - Reminds the LLM if it tries to call the same tool with the same arguments.
+        - Injects the system prompt before requesting the final answer.
+        - Uses Groq for summarization if available, otherwise Gemini, otherwise truncation.
+        - Keeps the context concise and focused on the system prompt, question, tool results, and answer formatting rules.
+
         Args:
             llm: The LLM instance (with or without tools bound)
             messages: The message history (list)
@@ -275,56 +297,32 @@ class GaiaAgent:
             The final LLM response (with content)
         """
         max_steps = 5  # Prevent infinite loops
-        
-        # Track which tools have been called to prevent duplicates
-        called_tools = set()
-        
-        # Track tool results for better fallback handling
-        tool_results_history = []
-        
+        called_tools = set()  # Track which tools have been called to prevent duplicates
+        tool_results_history = []  # Track tool results for better fallback handling
+        tool_args_history = {}
         for step in range(max_steps):
-            print(f"\n[Tool Loop] Step {step+1} - Invoking LLM with messages:")
-            
+            print(f"\n[Tool Loop] Step {step+1} - Using LLM: {llm_type}")
             # Truncate messages to prevent token overflow
             messages = self._truncate_messages(messages, llm_type)
-            
-            # Estimate token count and warn if too high
-            total_text = ""
-            for msg in messages:
-                if hasattr(msg, 'content') and msg.content:
-                    total_text += str(msg.content)
-            
+            total_text = "".join(str(getattr(msg, 'content', '')) for msg in messages)
             estimated_tokens = self._estimate_tokens(total_text)
-            
-            # Get token limit for this LLM type
             token_limit = self.token_limits.get(llm_type)
-            
             if token_limit and estimated_tokens > token_limit:
-                print(f"⚠️ Warning: Estimated tokens ({estimated_tokens}) exceed limit ({token_limit}) for {llm_type}")
-                # Force summarization of tool results only for non-Gemini LLMs
-                if llm_type != "gemini":
-                    for msg in messages:
-                        if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
-                            if len(msg.content) > 500:
-                                print(f"📝 Summarizing long tool result for {llm_type}")
-                                msg.content = self._summarize_text_with_gemini(msg.content, max_tokens=300)
-            elif estimated_tokens > 10000:  # Log large contexts for debugging
-                print(f"📊 Large context detected: {estimated_tokens} estimated tokens for {llm_type}")
-            
-            for i, msg in enumerate(messages):
-                print(f"  Message {i}: {msg}")
-            
+                print(f"[Tool Loop] Truncating messages: estimated {estimated_tokens} tokens (limit {token_limit})")
+                for msg in messages:
+                    if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
+                        if len(msg.content) > 500:
+                            print(f"[Tool Loop] Summarizing long tool result for token limit")
+                            msg.content = self._summarize_text_with_llm(msg.content, max_tokens=300)
             try:
                 response = llm.invoke(messages)
             except Exception as e:
-                print(f"❌ LLM invocation failed: {e}")
-                # Return a synthetic response with error information
+                print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
                 from langchain_core.messages import AIMessage
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
-            
+
+            # === DEBUG OUTPUT ===
             print(f"[Tool Loop] Raw LLM response: {response}")
-            
-            # Debug: Check response structure
             print(f"[Tool Loop] Response type: {type(response)}")
             print(f"[Tool Loop] Response has content: {hasattr(response, 'content')}")
             if hasattr(response, 'content'):
@@ -332,63 +330,48 @@ class GaiaAgent:
             print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
             if hasattr(response, 'tool_calls'):
                 print(f"[Tool Loop] Tool calls: {response.tool_calls}")
-            
+
             # If response has content and no tool calls, return
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
                 print(f"[Tool Loop] Final answer detected: {response.content}")
                 return response
-                
-            # If response has tool calls (Gemini, OpenAI, etc.)
+
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
-                print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s): {tool_calls}")
-                
-                # Filter out duplicate tool calls
+                print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
+                # Filter out duplicate tool calls (by name and args)
                 new_tool_calls = []
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
-                    if tool_name not in called_tools:
+                    tool_args = tool_call.get('args', {})
+                    args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+                    if (tool_name, args_key) not in called_tools:
+                        # New tool call
+                        print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
                         new_tool_calls.append(tool_call)
-                        called_tools.add(tool_name)
-                        print(f"[Tool Loop] ✅ New tool call: {tool_name}")
+                        called_tools.add((tool_name, args_key))
+                        tool_args_history[(tool_name, args_key)] = None
                     else:
-                        print(f"[Tool Loop] ⚠️ Skipping duplicate tool call: {tool_name}")
-                
+                        # Duplicate tool call
+                        print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
+                        reminder = f"You have already called tool '{tool_name}' with arguments {tool_args}. Please use the previous result."
+                        messages.append(HumanMessage(content=reminder))
                 if not new_tool_calls:
-                    print(f"[Tool Loop] ⚠️ All tool calls were duplicates. Forcing final answer generation.")
-                    # Force the LLM to generate a final answer from existing tool results
-                    if tool_results_history:
-                        # Add a human message that forces the LLM to provide a final answer
-                        force_answer_msg = HumanMessage(content=f"""
-All necessary tools have been called. Based on the available tool results, provide your FINAL ANSWER according to the system prompt format.
-
-IMPORTANT FORMATTING RULES:
-- YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings
-- If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise
-- If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise
-- Your answer must end with "FINAL ANSWER: [your answer]"
-
-For example, if the answer is three, write: FINAL ANSWER: 3
-""")
-                        messages.append(force_answer_msg)
-                        
-                        # Try one more time with the forced answer request
-                        try:
-                            final_response = llm.invoke(messages)
-                            if hasattr(final_response, 'content') and final_response.content:
-                                print(f"[Tool Loop] ✅ Forced final answer generated: {final_response.content}")
-                                return final_response
-                        except Exception as e:
-                            print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
-                    
-                    # If all else fails, use the best tool result
+                    # All tool calls were duplicates, force final answer
+                    print(f"[Tool Loop] All tool calls were duplicates. Appending system prompt for final answer.")
+                    messages.append(HumanMessage(content=f"{self.system_prompt}"))
+                    try:
+                        final_response = llm.invoke(messages)
+                        if hasattr(final_response, 'content') and final_response.content:
+                            print(f"[Tool Loop] ✅ Forced final answer generated: {final_response.content}")
+                            return final_response
+                    except Exception as e:
+                        print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
                     if tool_results_history:
                         best_result = max(tool_results_history, key=len)
                         print(f"[Tool Loop] 📝 Using best tool result as final answer: {best_result}")
                         from langchain_core.messages import AIMessage
-                        synthetic_response = AIMessage(content=f"FINAL ANSWER: {best_result}")
-                        return synthetic_response
-                
+                        return AIMessage(content=f"FINAL ANSWER: {best_result}")
                 # Execute only new tool calls
                 for tool_call in new_tool_calls:
                     tool_name = tool_call.get('name')
@@ -402,154 +385,100 @@ For example, if the answer is three, write: FINAL ANSWER: 3
                     tool_func = tool_registry.get(tool_name)
                     if not tool_func:
                         tool_result = f"Tool '{tool_name}' not found."
+                        print(f"[Tool Loop] Tool '{tool_name}' not found.")
                     else:
                         try:
                             # Handle both LangChain tools and regular functions
                             if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
-                                # It's a LangChain tool, use invoke method
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
                                     tool_result = tool_func.invoke({"input": tool_args})
                             else:
-                                # It's a regular function (including @tool decorated functions)
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func(**tool_args)
                                 else:
-                                    # Handle single argument case
                                     tool_result = tool_func(tool_args)
+                            print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
                         except Exception as e:
                             tool_result = f"Error running tool '{tool_name}': {e}"
-                    
-                    # Store tool result in history for better fallback handling
+                            print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                     tool_results_history.append(str(tool_result))
-                    
-                    # For Groq, summarize tool result if longer than 1000 chars
-                    # For Gemini, allow longer results (up to 5000 chars) before summarizing
-                    if isinstance(tool_result, str):
-                        if llm_type == "groq" and len(tool_result) > 1000:
-                            tool_result = self._summarize_text_with_gemini(tool_result)
-                        elif llm_type == "huggingface" and len(tool_result) > 2000:
-                            tool_result = self._summarize_text_with_gemini(tool_result)
-                        elif llm_type == "gemini" and len(tool_result) > 5000:
-                            # Only summarize very long results for Gemini
-                            tool_result = self._summarize_text_with_gemini(tool_result, max_tokens=1000)
-                    print(f"[Tool Loop] Tool result: {tool_result}")
-                    # Add tool result as a ToolMessage
+                    # Summarize tool result and inject as message for LLM context
+                    summary = self._summarize_text_with_llm(str(tool_result), max_tokens=255)
+                    print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
+                    summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
+                    messages.append(summary_msg)
                     messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
-                print(f"[Tool Loop] Messages after tool call:")
-                for i, msg in enumerate(messages):
-                    print(f"  Message {i}: {msg}")
                 continue  # Next LLM call
-                
-            # Gemini (and some LLMs) may use 'function_call' instead
+            # Gemini (and some LLMs) may use 'function_call' instead of 'tool_calls'
             function_call = getattr(response, 'function_call', None)
             if function_call:
-                print(f"[Tool Loop] Detected function_call: {function_call}")
                 tool_name = function_call.get('name')
-                
-                # Check if this tool has already been called
-                if tool_name in called_tools:
-                    print(f"[Tool Loop] ⚠️ Skipping duplicate function call: {tool_name}")
-                    # Force final answer generation
+                tool_args = function_call.get('arguments', {})
+                args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+                if (tool_name, args_key) in called_tools:
+                    print(f"[Tool Loop] Duplicate function_call detected: {tool_name} with args: {tool_args}")
+                    reminder = f"You have already called tool '{tool_name}' with arguments {tool_args}. Please use the previous result."
+                    messages.append(HumanMessage(content=reminder))
                     if tool_results_history:
-                        force_answer_msg = HumanMessage(content=f"""
-All necessary tools have been called. Based on the available tool results, provide your FINAL ANSWER according to the system prompt format.
-
-IMPORTANT FORMATTING RULES:
-- YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings
-- If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise
-- If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise
-- Your answer must end with "FINAL ANSWER: [your answer]"
-
-For example, if the answer is 3, write: FINAL ANSWER: 3
-""")
-                        messages.append(force_answer_msg)
+                        print(f"[Tool Loop] Appending system prompt for final answer after duplicate function_call.")
+                        messages.append(HumanMessage(content=f"{self.system_prompt}"))
                         try:
                             final_response = llm.invoke(messages)
                             if hasattr(final_response, 'content') and final_response.content:
+                                print(f"[Tool Loop] ✅ Forced final answer generated: {final_response.content}")
                                 return final_response
                         except Exception as e:
                             print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
-                    
-                    # Use best tool result as fallback
                     if tool_results_history:
                         best_result = max(tool_results_history, key=len)
+                        print(f"[Tool Loop] 📝 Using best tool result as final answer: {best_result}")
                         from langchain_core.messages import AIMessage
                         return AIMessage(content=f"FINAL ANSWER: {best_result}")
                     continue
-                
-                called_tools.add(tool_name)
-                tool_args = function_call.get('arguments', {})
-                print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
-                if isinstance(tool_args, str):
-                    try:
-                        tool_args = json.loads(tool_args)
-                    except Exception:
-                        pass
+                called_tools.add((tool_name, args_key))
                 tool_func = tool_registry.get(tool_name)
+                print(f"[Tool Loop] Running function_call tool: {tool_name} with args: {tool_args}")
                 if not tool_func:
                     tool_result = f"Tool '{tool_name}' not found."
+                    print(f"[Tool Loop] Tool '{tool_name}' not found.")
                 else:
                     try:
-                        # Handle both LangChain tools and regular functions
                         if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
-                            # It's a LangChain tool, use invoke method
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func.invoke(tool_args)
                             else:
                                 tool_result = tool_func.invoke({"input": tool_args})
                         else:
-                            # It's a regular function (including @tool decorated functions)
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func(**tool_args)
                             else:
-                                # Handle single argument case
                                 tool_result = tool_func(tool_args)
+                        print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
                     except Exception as e:
                         tool_result = f"Error running tool '{tool_name}': {e}"
-                
-                # Store tool result in history for better fallback handling
+                        print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                 tool_results_history.append(str(tool_result))
-                
-                # For Groq, summarize tool result if longer than 1000 chars
-                # For Gemini, allow longer results (up to 5000 chars) before summarizing
-                if isinstance(tool_result, str):
-                    if llm_type == "groq" and len(tool_result) > 1000:
-                        tool_result = self._summarize_text_with_gemini(tool_result)
-                    elif llm_type == "huggingface" and len(tool_result) > 2000:
-                        tool_result = self._summarize_text_with_gemini(tool_result)
-                    elif llm_type == "gemini" and len(tool_result) > 5000:
-                        # Only summarize very long results for Gemini
-                        tool_result = self._summarize_text_with_gemini(tool_result, max_tokens=1000)
-                print(f"[Tool Loop] Tool result: {tool_result}")
+                summary = self._summarize_text_with_llm(str(tool_result), max_tokens=255)
+                print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
+                summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
+                messages.append(summary_msg)
                 messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
-                print(f"[Tool Loop] Messages after tool call:")
-                for i, msg in enumerate(messages):
-                    print(f"  Message {i}: {msg}")
                 continue
-                
-            # If response has content (final answer), return
             if hasattr(response, 'content') and response.content:
-                print(f"[Tool Loop] Final answer detected: {response.content}")
+                print(f"[Tool Loop] Injecting system prompt before final answer.")
+                messages.append(HumanMessage(content=f"Before answering, remember:\n{self.system_prompt}"))
                 return response
-                
-            # If no tool calls and no content, break (fail)
             print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
             break
-            
-        # If we exit loop, return last response (may be empty)
-        print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
-        
-        # NEW: If we have tool results but no final answer, use the best tool result
         if tool_results_history and (not hasattr(response, 'content') or not response.content):
-            print(f"[Tool Loop] 📝 No final answer generated, using best tool result from history")
-            # Use the most comprehensive tool result as the final answer
-            best_result = max(tool_results_history, key=len)  # Use the longest/most detailed result
+            best_result = max(tool_results_history, key=len)
+            print(f"[Tool Loop] 📝 No final answer generated, using best tool result from history: {best_result}")
             from langchain_core.messages import AIMessage
             synthetic_response = AIMessage(content=f"FINAL ANSWER: {best_result}")
             return synthetic_response
-        
+        print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
         return response
 
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
