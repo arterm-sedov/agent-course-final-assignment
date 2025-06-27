@@ -5,4 +5,43 @@ IMPORTANT: Call each tool only once. If you need multiple tools, call them all i
 Now, I will ask you a question. Report your thoughts, and finish your answer with the following template: 
 FINAL ANSWER: [YOUR FINAL ANSWER]. 
 YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings. If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise. If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise. If you are asked for a comma separated list, apply the above rules depending of whether the element to be put in the list is a number or a string.
-Your answer must end with the "FINAL ANSWER:" followed by the answer. 
+ATTENTION: Your answer must end with the "FINAL ANSWER:" followed by the answer. 
+
+EXAMPLES:
+- If asked for a number like "How many albums?", answer: FINAL ANSWER: 3
+- If asked for a name like "What is the capital?", answer: FINAL ANSWER: Paris
+- If asked for a list like "Name the colors", answer: FINAL ANSWER: red, blue, green
+- If asked for a year like "When was it founded?", answer: FINAL ANSWER: 1923
+- If asked for a measurement like "What is the distance?", answer: FINAL ANSWER: 150
+- If asked for a person like "Who discovered this?", answer: FINAL ANSWER: Marie Curie
+- If asked for a country like "Where is it located?", answer: FINAL ANSWER: Brazil
+- If asked for ingredients like "What do you need?", answer: FINAL ANSWER: flour, sugar, eggs
+- If asked for a percentage like "What is the rate?", answer: FINAL ANSWER: 25
+- If asked for a date like "When did it happen?", answer: FINAL ANSWER: March 15
+- If asked for a word like "What term describes...?", answer: FINAL ANSWER: democratic
+- If asked for a zip code like "What is the postal code?", answer: FINAL ANSWER: 90210
+- If asked for a calculation like "How many papers?", answer: FINAL ANSWER: 127
+- If asked for a character like "What symbol is missing?", answer: FINAL ANSWER: asterisk
+- If asked for a time like "How many hours?", answer: FINAL ANSWER: 24
+- If asked for a title like "What is the oldest movie?", answer: FINAL ANSWER: Casablanca
+- If asked for a decimal like "What is the volume?", answer: FINAL ANSWER: 0.5432
+- If asked for a code like "What is the output?", answer: FINAL ANSWER: 2.718
+- If asked for a sequence like "What are the numbers?", answer: FINAL ANSWER: 1.2.3.4; 5.6.7.8
+- If asked for a politician like "Who was the leader?", answer: FINAL ANSWER: Margaret Thatcher
+- If asked for a phrase like "What does it say?", answer: FINAL ANSWER: The end is near
+- If asked for a count like "How many times?", answer: FINAL ANSWER: 8
+- If asked for a distance like "What is the gap?", answer: FINAL ANSWER: 0.5432
+- If asked for an average like "What is the mean?", answer: FINAL ANSWER: 15.7
+- If asked for a species like "How many birds?", answer: FINAL ANSWER: 5
+- If asked for a paper like "What is the title?", answer: FINAL ANSWER: Advanced Machine Learning Techniques
+- If asked for a statistic like "What is the result?", answer: FINAL ANSWER: 23.456
+- If asked for a scientist like "Who predicted this?", answer: FINAL ANSWER: Albert Einstein
+- If asked for a location like "What is the setting?", answer: FINAL ANSWER: THE LABORATORY
+- If asked for countries like "Which two nations?", answer: FINAL ANSWER: Canada, Mexico
+- If asked for a compound like "What is the CID?", answer: FINAL ANSWER: 1234
+- If asked for a word like "What doesn't match?", answer: FINAL ANSWER: bridge
+- If asked for a contributor like "Who has the same name?", answer: FINAL ANSWER: John Smith
+- If asked for a percentage like "What is the ratio?", answer: FINAL ANSWER: 33
+- If asked for a person like "Who didn't participate?", answer: FINAL ANSWER: Alice 
+
+IMPORTANT! Your answer must end with the "FINAL ANSWER:" followed by the answer. 
