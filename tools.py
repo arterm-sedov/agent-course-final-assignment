@@ -17,13 +17,22 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
-import board_to_fen
 
-# LangChain imports for search tools and tool decorator
+# Always import the tool decorator - it's essential
+from langchain_core.tools import tool
+
+# Optional imports with fallbacks
+try:
+    import board_to_fen
+    BOARD_TO_FEN_AVAILABLE = True
+except ImportError:
+    BOARD_TO_FEN_AVAILABLE = False
+    print("Warning: board_to_fen not available. Install with: pip install board-to-fen")
+
+# LangChain imports for search tools
 try:
     from langchain_tavily import TavilySearchResults
     from langchain_community.document_loaders import WikipediaLoader, ArxivLoader
-    from langchain_core.tools import tool
     TAVILY_AVAILABLE = True
 except ImportError:
     TAVILY_AVAILABLE = False
