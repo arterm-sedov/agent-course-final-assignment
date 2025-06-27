@@ -658,7 +658,19 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             #     print(resp_str)
             return response
         except Exception as e:
-            raise Exception(f"{llm_name} failed: {e}")
+            # Special handling for HuggingFace router errors
+            if llm_type == "third_fallback" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+                error_msg = f"HuggingFace router service error (500): {e}"
+                print(f"⚠️ {error_msg}")
+                print("💡 This is a known issue with HuggingFace's router service. Consider using Google Gemini or Groq instead.")
+                raise Exception(error_msg)
+            elif llm_type == "third_fallback" and "timeout" in str(e).lower():
+                error_msg = f"HuggingFace timeout error: {e}"
+                print(f"⚠️ {error_msg}")
+                print("💡 HuggingFace models may be slow or overloaded. Consider using Google Gemini or Groq instead.")
+                raise Exception(error_msg)
+            else:
+                raise Exception(f"{llm_name} failed: {e}")
 
     def _try_llm_sequence(self, messages, use_tools=True, reference=None, similarity_threshold=SIMILARITY_THRESHOLD):
         """
@@ -748,6 +760,23 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
+                
+                # Special retry logic for HuggingFace router errors
+                if llm_type == "third_fallback" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+                    print("🔄 HuggingFace router error detected, retrying once...")
+                    try:
+                        import time
+                        time.sleep(2)  # Wait 2 seconds before retry
+                        response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+                        answer = self._extract_final_answer(response)
+                        if not answer or answer == str(response).strip():
+                            answer = self._intelligent_answer_extraction(response, original_question)
+                        answer = self._post_process_answer(answer, original_question)
+                        print(f"✅ HuggingFace retry succeeded: {answer}")
+                        return answer, llm_name
+                    except Exception as retry_error:
+                        print(f"❌ HuggingFace retry also failed: {retry_error}")
+                
                 if llm_type == "third_fallback":
                     # This was the last LLM, re-raise the exception
                     raise Exception(f"All LLMs failed. Last error from {llm_name}: {e}")
@@ -1238,39 +1267,68 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         """
         Create HuggingFace LLM with multiple fallback options to handle router issues.
         """
-        # List of models to try in order of preference
+        # List of models to try in order of preference (more reliable models first)
         models_to_try = [
             {
-                "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
-                "endpoint_url": "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-Coder-32B-Instruct"
-            },
-            {
                 "repo_id": "microsoft/DialoGPT-medium",
-                "endpoint_url": "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+                "task": "text-generation",
+                "max_new_tokens": 512,  # Shorter for reliability
+                "do_sample": False,
+                "temperature": 0,
+                "timeout": 30,  # Shorter timeout
+                "retry_on_error": True
             },
             {
                 "repo_id": "gpt2",
-                "endpoint_url": "https://api-inference.huggingface.co/models/gpt2"
+                "task": "text-generation", 
+                "max_new_tokens": 256,  # Even shorter for basic model
+                "do_sample": False,
+                "temperature": 0,
+                "timeout": 20,
+                "retry_on_error": True
+            },
+            {
+                "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                "task": "text-generation",
+                "max_new_tokens": 1024,
+                "do_sample": False,
+                "temperature": 0,
+                "timeout": 60,  # Longer timeout for larger model
+                "retry_on_error": True
             }
         ]
         
         for model_config in models_to_try:
             try:
-                config = {
-                    "repo_id": model_config["repo_id"],
-                    "task": "text-generation",
-                    "max_new_tokens": 1024,
-                    "do_sample": False,
-                    "temperature": 0,
-                    "endpoint_url": model_config["endpoint_url"],
-                }
+                # Extract timeout and retry settings
+                timeout = model_config.pop("timeout", 30)
+                retry_on_error = model_config.pop("retry_on_error", True)
                 
+                # Create the endpoint with timeout
+                endpoint = HuggingFaceEndpoint(
+                    **model_config,
+                    timeout=timeout
+                )
+                
+                # Create the chat model with retry logic
                 llm = ChatHuggingFace(
-                    llm=HuggingFaceEndpoint(**config),
+                    llm=endpoint,
                     verbose=True,
                 )
-                print(f"✅ HuggingFace LLM initialized with {model_config['repo_id']}")
-                return llm
+                
+                # Test the model with a simple request
+                test_message = [HumanMessage(content="Hello")]
+                try:
+                    test_response = llm.invoke(test_message, timeout=timeout)
+                    if test_response and hasattr(test_response, 'content'):
+                        print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
+                        return llm
+                    else:
+                        print(f"⚠️ {model_config['repo_id']} returned empty response")
+                        continue
+                except Exception as test_error:
+                    print(f"⚠️ {model_config['repo_id']} test failed: {test_error}")
+                    continue
                 
             except Exception as e:
                 print(f"⚠️ Failed to initialize {model_config['repo_id']}: {e}")
