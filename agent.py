@@ -163,7 +163,10 @@ class GaiaAgent:
         
         try:
             self.llm_third_fallback = self._create_huggingface_llm()
-            print("✅ Third fallback LLM (HuggingFace) initialized successfully")
+            if self.llm_third_fallback is not None:
+                print("✅ Third fallback LLM (HuggingFace) initialized successfully")
+            else:
+                print("❌ Third fallback LLM (HuggingFace) failed to initialize")
         except Exception as e:
             print(f"⚠️ Failed to initialize HuggingFace: {e}")
             self.llm_third_fallback = None
@@ -695,6 +698,23 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             ("third_fallback", "HuggingFace")
         ]
         
+        # Filter out unavailable LLMs
+        available_llms = []
+        for llm_type, llm_name in llm_sequence:
+            if llm_type == "primary" and (self.llm_primary or self.llm_primary_with_tools):
+                available_llms.append((llm_type, llm_name))
+            elif llm_type == "fallback" and (self.llm_fallback or self.llm_fallback_with_tools):
+                available_llms.append((llm_type, llm_name))
+            elif llm_type == "third_fallback" and (self.llm_third_fallback or self.llm_third_fallback_with_tools):
+                available_llms.append((llm_type, llm_name))
+            else:
+                print(f"⚠️ {llm_name} not available, skipping...")
+        
+        if not available_llms:
+            raise Exception("No LLMs are available. Please check your API keys and configuration.")
+        
+        print(f"🔄 Available LLMs: {[name for _, name in available_llms]}")
+        
         # Extract the original question for intelligent extraction
         original_question = ""
         for msg in messages:
@@ -702,7 +722,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 original_question = msg.content
                 break
         
-        for llm_type, llm_name in llm_sequence:
+        for llm_type, llm_name in available_llms:
             try:
                 response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                 
@@ -752,10 +772,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                         except Exception as e:
                             print(f"❌ {llm_name} retry failed: {e}")
                     
-                    if llm_type == "third_fallback":
-                        # This was the last LLM, return the answer anyway
-                        print(f"🔄 Using {llm_name} answer despite mismatch")
-                        return answer, llm_name
                     print(f"🔄 Trying next LLM...")
                     
             except Exception as e:
@@ -777,9 +793,10 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     except Exception as retry_error:
                         print(f"❌ HuggingFace retry also failed: {retry_error}")
                 
-                if llm_type == "third_fallback":
+                # Check if this was the last available LLM
+                if llm_type == available_llms[-1][0]:
                     # This was the last LLM, re-raise the exception
-                    raise Exception(f"All LLMs failed. Last error from {llm_name}: {e}")
+                    raise Exception(f"All available LLMs failed. Last error from {llm_name}: {e}")
                 print(f"🔄 Trying next LLM...")
         
         # This should never be reached, but just in case
@@ -1275,7 +1292,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 "max_new_tokens": 512,  # Shorter for reliability
                 "do_sample": False,
                 "temperature": 0,
-                "timeout": 30,  # Shorter timeout
                 "retry_on_error": True
             },
             {
@@ -1284,7 +1300,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 "max_new_tokens": 256,  # Even shorter for basic model
                 "do_sample": False,
                 "temperature": 0,
-                "timeout": 20,
                 "retry_on_error": True
             },
             {
@@ -1293,24 +1308,16 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 "max_new_tokens": 1024,
                 "do_sample": False,
                 "temperature": 0,
-                "timeout": 60,  # Longer timeout for larger model
                 "retry_on_error": True
             }
         ]
         
         for model_config in models_to_try:
             try:
-                # Extract timeout and retry settings
-                timeout = model_config.pop("timeout", 30)
-                retry_on_error = model_config.pop("retry_on_error", True)
+                # Create the endpoint (without timeout parameter, but with retry_on_error)
+                endpoint = HuggingFaceEndpoint(**model_config)
                 
-                # Create the endpoint with timeout
-                endpoint = HuggingFaceEndpoint(
-                    **model_config,
-                    timeout=timeout
-                )
-                
-                # Create the chat model with retry logic
+                # Create the chat model
                 llm = ChatHuggingFace(
                     llm=endpoint,
                     verbose=True,
@@ -1319,9 +1326,10 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 # Test the model with a simple request
                 test_message = [HumanMessage(content="Hello")]
                 try:
-                    test_response = llm.invoke(test_message, timeout=timeout)
-                    if test_response and hasattr(test_response, 'content'):
+                    test_response = llm.invoke(test_message)
+                    if test_response and hasattr(test_response, 'content') and test_response.content:
                         print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
+                        print (f'Test message: {test_message}. Test responce: {test_response}')
                         return llm
                     else:
                         print(f"⚠️ {model_config['repo_id']} returned empty response")

@@ -67,16 +67,14 @@ def test_huggingface_config():
                 "task": "text-generation",
                 "max_new_tokens": 100,  # Very short for testing
                 "do_sample": False,
-                "temperature": 0,
-                "timeout": 15
+                "temperature": 0
             },
             {
                 "repo_id": "gpt2",
                 "task": "text-generation", 
                 "max_new_tokens": 50,
                 "do_sample": False,
-                "temperature": 0,
-                "timeout": 10
+                "temperature": 0
             }
         ]
         
@@ -84,10 +82,7 @@ def test_huggingface_config():
             try:
                 print(f"\n🔄 Testing model {i+1}: {model_config['repo_id']}")
                 
-                endpoint = HuggingFaceEndpoint(
-                    **model_config,
-                    timeout=model_config.get("timeout", 30)
-                )
+                endpoint = HuggingFaceEndpoint(**model_config)
                 
                 llm = ChatHuggingFace(
                     llm=endpoint,
@@ -99,7 +94,7 @@ def test_huggingface_config():
                 print(f"📤 Sending test message to {model_config['repo_id']}...")
                 
                 start_time = time.time()
-                response = llm.invoke(test_message, timeout=model_config.get("timeout", 30))
+                response = llm.invoke(test_message)
                 end_time = time.time()
                 
                 if response and hasattr(response, 'content') and response.content:
