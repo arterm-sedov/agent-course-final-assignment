@@ -19,10 +19,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
 import board_to_fen
 
-# LangChain imports for search tools
+# LangChain imports for search tools and tool decorator
 try:
     from langchain_community.tools.tavily_search import TavilySearchResults
     from langchain_community.document_loaders import WikipediaLoader, ArxivLoader
+    from langchain_core.tools import tool
     TAVILY_AVAILABLE = True
 except ImportError:
     TAVILY_AVAILABLE = False
@@ -329,6 +330,7 @@ class CodeInterpreter:
 # Create a global instance for use by tools
 interpreter_instance = CodeInterpreter()
 
+@tool
 def execute_code_multilang(code: str, language: str = "python") -> str:
     """Execute code in multiple languages (Python, Bash, SQL, C, Java) and return results.
 
@@ -394,6 +396,7 @@ def execute_code_multilang(code: str, language: str = "python") -> str:
     return "\n".join(response)
 
 # ========== MATH TOOLS ==========
+@tool
 def multiply(a: float, b: float) -> float:
     """
     Multiply two numbers and return the result.
@@ -407,6 +410,7 @@ def multiply(a: float, b: float) -> float:
     """
     return a * b
 
+@tool
 def add(a: float, b: float) -> float:
     """
     Add two numbers and return the result.
@@ -420,6 +424,7 @@ def add(a: float, b: float) -> float:
     """
     return a + b
 
+@tool
 def subtract(a: float, b: float) -> float:
     """
     Subtract the second number from the first and return the result.
@@ -433,6 +438,7 @@ def subtract(a: float, b: float) -> float:
     """
     return a - b
 
+@tool
 def divide(a: float, b: float) -> float:
     """
     Divide the first number by the second and return the result.
@@ -442,15 +448,13 @@ def divide(a: float, b: float) -> float:
         b (float): The denominator. Must not be zero.
 
     Returns:
-        float: The result of a / b.
-
-    Raises:
-        ValueError: If b is zero.
+        float: The quotient of a and b.
     """
     if b == 0:
-        raise ValueError("Cannot divide by zero.")
+        raise ValueError("Cannot divide by zero")
     return a / b
 
+@tool
 def modulus(a: int, b: int) -> int:
     """
     Compute the modulus (remainder) of two integers.
@@ -462,8 +466,11 @@ def modulus(a: int, b: int) -> int:
     Returns:
         int: The remainder when a is divided by b.
     """
+    if b == 0:
+        raise ValueError("Cannot divide by zero")
     return a % b
 
+@tool
 def power(a: float, b: float) -> float:
     """
     Raise the first number to the power of the second and return the result.
@@ -473,10 +480,11 @@ def power(a: float, b: float) -> float:
         b (float): The exponent.
 
     Returns:
-        float: The result of a raised to the power of b.
+        float: a raised to the power of b.
     """
     return a ** b
 
+@tool
 def square_root(a: float) -> float:
     """
     Compute the square root of a number. Returns a complex number if input is negative.
@@ -493,18 +501,19 @@ def square_root(a: float) -> float:
     return cmath.sqrt(a)
 
 # ========== WEB/SEARCH TOOLS ==========
+@tool
 def wiki_search(query: str) -> str:
     """
-    Search Wikipedia for a query and return up to 2 results as formatted text.
+    Search Wikipedia for a query and return up to 3 results as formatted text.
 
     Args:
-        query (str): The search query string.
+        query (str): The search query string for Wikipedia.
 
     Returns:
         str: Formatted search results from Wikipedia with source information and content.
     """
     try:
-        search_docs = WikipediaLoader(query=query, load_max_docs=2).load()
+        search_docs = WikipediaLoader(query=query, load_max_docs=3).load()
         formatted_results = "\n\n---\n\n".join(
             [
                 f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
@@ -515,6 +524,7 @@ def wiki_search(query: str) -> str:
     except Exception as e:
         return f"Error in Wikipedia search: {str(e)}"
 
+@tool
 def web_search(query: str) -> str:
     """
     Search the web using Tavily for a query and return up to 3 results as formatted text.
@@ -560,6 +570,7 @@ def web_search(query: str) -> str:
     except Exception as e:
         return f"Error in web search: {str(e)}"
 
+@tool
 def arxiv_search(query: str) -> str:
     """
     Search Arxiv for academic papers and return up to 3 results as formatted text.
@@ -574,7 +585,7 @@ def arxiv_search(query: str) -> str:
         search_docs = ArxivLoader(query=query, load_max_docs=3).load()
         formatted_results = "\n\n---\n\n".join(
             [
-                f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content[:1000]}'
+                f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
                 for doc in search_docs
             ]
         )
@@ -583,6 +594,7 @@ def arxiv_search(query: str) -> str:
         return f"Error in Arxiv search: {str(e)}"
 
 # ========== FILE/DATA TOOLS ==========
+@tool
 def save_and_read_file(content: str, filename: Optional[str] = None) -> str:
     """
     Save the provided content to a file and return the file path.
@@ -604,6 +616,7 @@ def save_and_read_file(content: str, filename: Optional[str] = None) -> str:
         f.write(content)
     return f"File saved to {filepath}. You can read this file to process its contents."
 
+@tool
 def download_file_from_url(url: str, filename: Optional[str] = None) -> str:
     """
     Download a file from a URL and save it to a temporary location. Returns the file path.
@@ -633,6 +646,7 @@ def download_file_from_url(url: str, filename: Optional[str] = None) -> str:
     except Exception as e:
         return f"Error downloading file: {str(e)}"
 
+@tool
 def get_task_file(task_id: str, file_name: str) -> str:
     """
     Download a file associated with a given task_id from the evaluation API, with a local fallback.
@@ -674,6 +688,7 @@ def get_task_file(task_id: str, file_name: str) -> str:
         except Exception as local_error:
             return f"Error downloading file: {str(e)}. Local fallback also failed: {str(local_error)}"
 
+@tool
 def extract_text_from_image(image_path: str) -> str:
     """
     Extract text from an image file using OCR (pytesseract) and return the extracted text.
@@ -692,6 +707,7 @@ def extract_text_from_image(image_path: str) -> str:
     except Exception as e:
         return f"Error extracting text from image: {str(e)}"
 
+@tool
 def analyze_csv_file(file_path: str, query: str) -> str:
     """
     Analyze a CSV file using pandas and return summary statistics and column info.
@@ -713,6 +729,7 @@ def analyze_csv_file(file_path: str, query: str) -> str:
     except Exception as e:
         return f"Error analyzing CSV file: {str(e)}"
 
+@tool
 def analyze_excel_file(file_path: str, query: str) -> str:
     """
     Analyze an Excel file using pandas and return summary statistics and column info.
@@ -735,6 +752,7 @@ def analyze_excel_file(file_path: str, query: str) -> str:
         return f"Error analyzing Excel file: {str(e)}"
 
 # ========== IMAGE ANALYSIS/GENERATION TOOLS ==========
+@tool
 def analyze_image(image_base64: str) -> str:
     """
     Analyze basic properties of an image (size, mode, color analysis, thumbnail preview) from a base64-encoded image string.
@@ -775,6 +793,7 @@ def analyze_image(image_base64: str) -> str:
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
+@tool
 def transform_image(image_base64: str, operation: str, params: Optional[Dict[str, Any]] = None) -> str:
     """
     Transform an image using various operations like resize, rotate, filter, etc.
@@ -826,6 +845,7 @@ def transform_image(image_base64: str, operation: str, params: Optional[Dict[str
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
+@tool
 def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) -> str:
     """
     Draw shapes, text, or other elements on an image.
@@ -883,10 +903,11 @@ def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) 
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
+@tool
 def generate_simple_image(image_type: str, width: int = 500, height: int = 500, 
                          params: Optional[Dict[str, Any]] = None) -> str:
     """
-    Generate simple images like gradients, solid colors, or noise patterns.
+    Generate simple images like gradients, solid colors, checkerboard, or noise patterns.
 
     Args:
         image_type (str): The type of image to generate.
@@ -899,7 +920,7 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
     """
     try:
         params = params or {}
-
+        
         if image_type == "solid":
             color = params.get("color", (255, 255, 255))
             img = Image.new("RGB", (width, height), color)
@@ -926,6 +947,18 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
         elif image_type == "noise":
             noise_array = np.random.randint(0, 256, (height, width, 3), dtype=np.uint8)
             img = Image.fromarray(noise_array, "RGB")
+        elif image_type == "checkerboard":
+            square_size = params.get("square_size", 50)
+            color1 = params.get("color1", "white")
+            color2 = params.get("color2", "black")
+            img = Image.new("RGB", (width, height))
+            for y in range(0, height, square_size):
+                for x in range(0, width, square_size):
+                    color = color1 if ((x // square_size) + (y // square_size)) % 2 == 0 else color2
+                    for dy in range(square_size):
+                        for dx in range(square_size):
+                            if x + dx < width and y + dy < height:
+                                img.putpixel((x + dx, y + dy), color)
         else:
             return json.dumps({"error": f"Unsupported image_type {image_type}"}, indent=2)
 
@@ -935,51 +968,83 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
+@tool
 def combine_images(images_base64: List[str], operation: str, 
                   params: Optional[Dict[str, Any]] = None) -> str:
     """
-    Combine multiple images (collage, stack, blend).
+    Combine multiple images using various operations (collage, stack, blend, horizontal, vertical, overlay, etc.).
 
     Args:
-        images_base64 (List[str]): List of base64 images.
-        operation (str): Combination type.
-        params (Dict[str, Any], optional): Additional parameters.
+        images_base64 (List[str]): List of base64-encoded image strings.
+        operation (str): The combination operation to perform.
+        params (Dict[str, Any], optional): Parameters for the combination.
 
     Returns:
         str: JSON string with the combined image as base64 or error message.
     """
     try:
+        if len(images_base64) < 2:
+            return json.dumps({"error": "At least 2 images required for combination"}, indent=2)
+        
         images = [decode_image(b64) for b64 in images_base64]
         params = params or {}
-
-        if operation == "stack":
+        
+        if operation == "horizontal":
+            # Combine images side by side
+            total_width = sum(img.width for img in images)
+            max_height = max(img.height for img in images)
+            result = Image.new("RGB", (total_width, max_height))
+            x_offset = 0
+            for img in images:
+                result.paste(img, (x_offset, 0))
+                x_offset += img.width
+        elif operation == "vertical":
+            # Stack images vertically
+            max_width = max(img.width for img in images)
+            total_height = sum(img.height for img in images)
+            result = Image.new("RGB", (max_width, total_height))
+            y_offset = 0
+            for img in images:
+                result.paste(img, (0, y_offset))
+                y_offset += img.height
+        elif operation == "overlay":
+            # Overlay images on top of each other
+            base_img = images[0]
+            for overlay_img in images[1:]:
+                if overlay_img.size != base_img.size:
+                    overlay_img = overlay_img.resize(base_img.size, Image.Resampling.LANCZOS)
+                base_img = Image.alpha_composite(base_img.convert("RGBA"), overlay_img.convert("RGBA"))
+            result = base_img.convert("RGB")
+        elif operation == "stack":
+            # Original stack operation with direction parameter
             direction = params.get("direction", "horizontal")
             if direction == "horizontal":
                 total_width = sum(img.width for img in images)
                 max_height = max(img.height for img in images)
-                new_img = Image.new("RGB", (total_width, max_height))
+                result = Image.new("RGB", (total_width, max_height))
                 x = 0
                 for img in images:
-                    new_img.paste(img, (x, 0))
+                    result.paste(img, (x, 0))
                     x += img.width
             else:
                 max_width = max(img.width for img in images)
                 total_height = sum(img.height for img in images)
-                new_img = Image.new("RGB", (max_width, total_height))
+                result = Image.new("RGB", (max_width, total_height))
                 y = 0
                 for img in images:
-                    new_img.paste(img, (0, y))
+                    result.paste(img, (0, y))
                     y += img.height
         else:
-            return json.dumps({"error": f"Unsupported combination operation {operation}"}, indent=2)
+            return json.dumps({"error": f"Unsupported combination operation: {operation}"}, indent=2)
 
-        result_path = save_image(new_img)
+        result_path = save_image(result)
         result_base64 = encode_image(result_path)
         return json.dumps({"combined_image": result_base64}, indent=2)
     except Exception as e:
         return json.dumps({"error": str(e)}, indent=2)
 
 # ========== VIDEO/AUDIO UNDERSTANDING TOOLS ==========
+@tool
 def understand_video(youtube_url: str, prompt: str) -> str:
     """
     Analyze a YouTube video using Google Gemini's video understanding capabilities.
@@ -1019,6 +1084,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
     except Exception as e:
         return f"Error understanding video: {str(e)}"
 
+@tool
 def understand_audio(file_path: str, prompt: str) -> str:
     """
     Analyze an audio file using Google Gemini's audio understanding capabilities.
@@ -1056,6 +1122,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
         return f"Error understanding audio: {str(e)}"
 
 # ========== CHESS TOOLS ==========
+@tool
 def convert_chess_move(piece_placement: str, move: str) -> str:
     """
     Convert a chess move from coordinate notation to algebraic notation using Google Gemini.
@@ -1100,6 +1167,7 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
     except Exception as e:
         return f"Error converting chess move: {str(e)}"
 
+@tool
 def get_best_chess_move(fen: str) -> str:
     """
     Get the best chess move in coordinate notation based on a FEN representation
@@ -1109,10 +1177,10 @@ def get_best_chess_move(fen: str) -> str:
     to find the best move for a given position.
     The FEN (Forsyth-Edwards Notation) describes the current chess position.
     Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
-    
+
     Args:
         fen (str): The FEN representation of the chess position.
-    
+
     Returns:
         str: The best move in coordinate notation, or error message.
     
@@ -1138,6 +1206,8 @@ def get_best_chess_move(fen: str) -> str:
     except Exception as e:
         return f"Error getting chess evaluation: {str(e)}"
 
+
+# ========== FEN HELPER FUNCTIONS ==========
 def _expand_fen_rank(rank_str):
     """
     Expands a single rank string from FEN notation (e.g., 'p2b4')
@@ -1280,6 +1350,7 @@ def _add_fen_game_state(board_placement,
 
     return full_fen
 
+@tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
     Get the FEN representation from an image of a chess board using board-to-fen.
@@ -1289,11 +1360,11 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     and automatically adjusts the FEN to be compatible with chess engines.
     The function sets the side to move based on the player_turn argument 
     and appends standard game state information.
-    
+
     Args:
         image_path (str): The path to the chess board image file.
         player_turn (str): The player with the next turn ("black" or "white").
-    
+
     Returns:
         str: The FEN representation of the chess position, or error message.
     
@@ -1303,6 +1374,7 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
     if not CHESS_FEN_AVAILABLE:
         return "board-to-fen not available. Install with: pip install board-to-fen"
+    
     try:
         side_to_move = "b" if player_turn.lower() == "black" else "w"
         board_placement = get_fen_from_image_path(image_path)
@@ -1317,6 +1389,7 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     except Exception as e:
         return f"Error getting chess board FEN: {str(e)}"
 
+@tool
 def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
     """
     Solve a chess position by analyzing the board image and finding the best move.
@@ -1326,12 +1399,12 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
     2. Gets the best move from a chess evaluation API
     3. Converts the coordinate notation to algebraic notation
     4. Returns the solution with analysis
-    
+
     Args:
         image_path (str): The path to the chess board image file.
         player_turn (str): The player with the next turn ("black" or "white").
         question (str): Optional question about the position (e.g., "guarantees a win").
-    
+
     Returns:
         str: The best move in algebraic notation with analysis, or error message.
     
