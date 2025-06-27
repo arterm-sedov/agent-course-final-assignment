@@ -1318,30 +1318,38 @@ def _add_fen_game_state(board_placement,
 
     return full_fen
 
-def _get_chess_board_fen_internal(image_path: str, player_turn: str) -> str:
+def _get_chess_board_fen_internal(image_path: str) -> str:
     """
     Internal function to get the FEN representation from an image of a chess board.
-    Uses linrock-chessboard-recognizer's recognize.py script via subprocess.
+    Uses the DerekLiu35-ImageToFen Hugging Face Space API.
     Args:
         image_path (str): Path to the chessboard image file.
-        player_turn (str): The player with the next turn ("black" or "white").
     Returns:
         str: The FEN string predicted by the recognizer, or an error message.
     """
+    api_url = "https://DerekLiu35-ImageToFen.hf.space/api/predict"
     try:
-        result = subprocess.run([
-            "python3", "chessboard-recognizer/recognize.py", image_path, "-q"
-        ], capture_output=True, text=True, check=True)
-        # The recognizer prints the FEN on the last line of stdout
-        lines = result.stdout.strip().splitlines()
-        for line in reversed(lines):
-            if "/" in line and len(line.split("/")) == 8:
-                return line.strip()
-        return f"Error: FEN not found in recognizer output. Output was: {result.stdout}"
-    except subprocess.CalledProcessError as e:
-        return f"Error running chessboard recognizer: {e.stderr or e.stdout}"
+        with open(image_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        payload = {"data": [img_b64]}
+        response = requests.post(api_url, json=payload, timeout=60)
+        if response.ok:
+            result = response.json()
+            data = result.get("data", [])
+            if data:
+                # FEN is usually the last string in the list
+                fen_candidate = data[-1]
+                if isinstance(fen_candidate, str) and fen_candidate.count('/') == 7:
+                    return fen_candidate
+                # Fallback: search for a line with 7 slashes
+                for item in data:
+                    if isinstance(item, str) and item.count('/') == 7:
+                        return item
+            return f"Error: FEN not found in API response: {result}"
+        else:
+            return f"Error: API call failed: {response.text}"
     except Exception as e:
-        return f"Error running chessboard recognizer: {str(e)}"
+        return f"Error running image-to-FEN API: {str(e)}"
 
 
 @tool
@@ -1356,7 +1364,7 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     Returns:
         str: The FEN representation of the chess position, or error message.
     """
-    return _get_chess_board_fen_internal(image_path, player_turn)
+    return _get_chess_board_fen_internal(image_path)
 
 @tool
 def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
@@ -1378,7 +1386,7 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
     """
     try:
         # Step 1: Get FEN from image (using internal function to avoid deprecation warning)
-        fen = _get_chess_board_fen_internal(image_path, player_turn)
+        fen = _get_chess_board_fen_internal(image_path)
         if isinstance(fen, str) and fen.startswith("Error"):
             return f"Error getting FEN: {fen}"
         # Step 2: Get best move in coordinate notation (using internal function)
