@@ -866,6 +866,27 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             else:
                 raise Exception("All LLMs failed and no reference answer available")
 
+    def _clean_final_answer_text(self, text: str) -> str:
+        """
+        Cleans up the answer text by:
+        - Removing everything before and including the first 'FINAL ANSWER' (case-insensitive, with/without colon/space)
+        - Stripping leading/trailing whitespace
+        - Removing extra punctuation (except for commas, dots, hyphens)
+        - Normalizing whitespace
+        """
+        import re
+        print(f"[CleanFinalAnswer] Original text before stripping: {text}")
+        # Find the first occurrence of 'FINAL ANSWER' (case-insensitive)
+        match = re.search(r'final answer\s*:?', text, flags=re.IGNORECASE)
+        if match:
+            # Only keep what comes after 'FINAL ANSWER'
+            text = text[match.end():]
+        # Remove extra punctuation except for commas, dots, hyphens
+        text = re.sub(r'[^\w\s,.-]', '', text)
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
     def _extract_final_answer(self, response: Any) -> str:
         """
         Extract the final answer from the LLM response, removing only the "FINAL ANSWER:" prefix.
@@ -885,129 +906,34 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             text = response['content']
         else:
             text = str(response)
-            
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
                 answer = line.strip()
-                # Remove 'FINAL ANSWER:' or 'FINAL ANSWER' prefix (case-insensitive)
-                import re
-                answer = re.sub(r'^final answer\s?:?\s?', '', answer, flags=re.IGNORECASE)
-                return answer.strip()
-                
-        # Fallback: return the whole response, removing prefix if present
-        import re
-        answer = text.strip()
-        answer = re.sub(r'^final answer\s?:?\s?', '', answer, flags=re.IGNORECASE)
-        return answer.strip()
-    
-    def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
-        """
-        Intelligently extract and format the answer from the LLM response.
-        This method can handle cases where the LLM gets the right answer but doesn't format it correctly.
-        
-        Args:
-            response (Any): The LLM response object.
-            question (str): The original question for context.
-            
-        Returns:
-            str: The properly formatted final answer.
-        """
-        if hasattr(response, 'content'):
-            text = response.content
-        elif isinstance(response, dict) and 'content' in response:
-            text = response['content']
-        else:
-            text = str(response)
-        
-        # First, try to extract using the standard method
-        standard_answer = self._extract_final_answer(response)
-        if standard_answer and standard_answer != text.strip():
-            return standard_answer
-        
-        # If no standard answer found, try intelligent extraction
-        import re
-        
-        # Look for patterns that indicate the answer
-        patterns = [
-            r'FINAL ANSWER:\s*(.+)',  # Standard format
-            r'answer[:\s]+(.+)',      # "answer: 3" or "answer 3"
-            r'is\s+(.+)',             # "is 3" or "is three"
-            r'(\d+)',                 # Just a number
-            r'(\w+(?:\s+\w+)*)',      # Words (for non-numeric answers)
-        ]
-        
-        # Check if question asks for a number
-        question_lower = question.lower()
-        is_numeric_question = any(word in question_lower for word in ['how many', 'number', 'count', 'amount', 'quantity'])
-        
-        # Extract potential answers
-        potential_answers = []
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                match = match.strip()
-                if match and len(match) < 100:  # Reasonable length
-                    potential_answers.append(match)
-        
-        # If it's a numeric question, prioritize numbers
-        if is_numeric_question:
-            numeric_answers = []
-            for answer in potential_answers:
-                # Try to extract numbers
-                numbers = re.findall(r'\d+', answer)
-                if numbers:
-                    numeric_answers.extend(numbers)
-            
-            if numeric_answers:
-                # Return the first number found
-                return numeric_answers[0]
-        
-        # For non-numeric questions or if no numbers found, return the first reasonable answer
-        for answer in potential_answers:
-            # Skip very short or very long answers
-            if 1 <= len(answer) <= 50:
-                return answer
-        
-        # If all else fails, return the original text
-        return text.strip()
+                return self._clean_final_answer_text(answer)
+        # Fallback: return the whole response, cleaning prefix if present
+        return self._clean_final_answer_text(text)
 
     def _post_process_answer(self, answer: str, question: str) -> str:
         """
         Post-process the answer to ensure it follows the system prompt formatting rules.
-        
         Args:
             answer (str): The raw answer from the LLM.
             question (str): The original question for context.
-            
         Returns:
             str: The properly formatted answer.
         """
         import re
-        
-        # Clean up the answer
-        answer = answer.strip()
-        
-        # Remove any "FINAL ANSWER:" prefix if present
-        answer = re.sub(r'^final answer\s?:?\s?', '', answer, flags=re.IGNORECASE)
-        answer = answer.strip()
-        
+        # Clean up the answer using the unified cleaning function
+        answer = self._clean_final_answer_text(answer)
         # Check if question asks for a number
         question_lower = question.lower()
         is_numeric_question = any(word in question_lower for word in ['how many', 'number', 'count', 'amount', 'quantity'])
-        
         if is_numeric_question:
             # Extract the first number from the answer
             numbers = re.findall(r'\d+', answer)
             if numbers:
                 return numbers[0]  # Return just the number
-        
-        # For non-numeric questions, clean up the answer
-        # Remove extra punctuation and normalize
-        answer = re.sub(r'[^\w\s,.-]', '', answer)  # Keep letters, numbers, spaces, commas, dots, hyphens
-        answer = re.sub(r'\s+', ' ', answer)  # Normalize whitespace
-        answer = answer.strip()
-        
         # If the answer is too long, try to extract the key part
         if len(answer) > 50:
             # Look for patterns that might indicate the actual answer
@@ -1015,7 +941,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 r'(\w+(?:\s+\w+){0,5})',  # Up to 6 words
                 r'(\d+(?:\s*,\s*\d+)*)',  # Numbers with commas
             ]
-            
             for pattern in patterns:
                 matches = re.findall(pattern, answer)
                 if matches:
@@ -1023,8 +948,38 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     for match in matches:
                         if 1 <= len(match) <= 30:
                             return match
-        
         return answer
+
+    def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
+        """
+        Use LLM summarization to extract the most likely final answer from the response, given the question and the system prompt.
+        This replaces the previous regex/pattern logic with a more robust LLM-based approach.
+        Args:
+            response (Any): The LLM response object.
+            question (str): The original question for context.
+        Returns:
+            str: The extracted final answer, as determined by the LLM summarizer.
+        """
+        if hasattr(response, 'content'):
+            text = response.content
+        elif isinstance(response, dict) and 'content' in response:
+            text = response['content']
+        else:
+            text = str(response)
+
+        # Compose a summarization prompt for the LLM
+        prompt = (
+            f"You are a helpful assistant. Given the following question, system prompt, and LLM response, extract the most likely FINAL ANSWER according to the system prompt's answer formatting rules.\n"
+            f"\nQUESTION:\n{question}\n"
+            f"\nSYSTEM PROMPT (answer formatting rules):\n{self.system_prompt}\n"
+            f"\nLLM RESPONSE:\n{text}\n"
+            f"\nReturn only the most likely final answer, formatted exactly as required by the system prompt."
+        )
+        print(f"[Agent] Summarization prompt for answer extraction:\n{prompt}")
+        # Use the summarization LLM (Groq preferred, fallback to Gemini)
+        summary = self._summarize_text_with_llm(prompt, max_tokens=128)
+        print(f"[Agent] LLM-based answer extraction summary: {summary}")
+        return summary.strip()
 
     def _answers_match(self, answer: str, reference: str) -> bool:
         """
