@@ -19,23 +19,38 @@ import subprocess
 # Always import the tool decorator - it's essential
 from langchain_core.tools import tool
 
+# Global configuration for search tools
+SEARCH_LIMIT = 5  # Maximum number of results for all search tools (Tavily, Wikipedia, Arxiv)
+
 # LangChain imports for search tools
 try:
-    from langchain_community.tools.tavily_search import TavilySearchResults
+    from langchain_tavily import TavilySearch
     TAVILY_AVAILABLE = True
 except ImportError:
     TAVILY_AVAILABLE = False
-    print("Warning: TavilySearchResults not available. Install with: pip install langchain-tavily")
+    print("Warning: TavilySearch not available. Install with: pip install langchain-tavily")
+
+# Try to import wikipedia-api as it's a common dependency
+try:
+    import wikipedia
+except ImportError as e:
+    print (f"Wikipedia search requires additional dependencies. Install with: pip install wikipedia-api. Error: {str(e)}")
 
 try:
-    from langchain.document_loaders import WikipediaLoader
+    from langchain_community.document_loaders import WikipediaLoader
     WIKILOADER_AVAILABLE = True
 except ImportError:
     WIKILOADER_AVAILABLE = False
     print("Warning: WikipediaLoader not available. Install with: pip install langchain-community")
 
+# Try to import arxiv as it's a common dependency
 try:
-    from langchain.document_loaders import ArxivLoader
+    import arxiv
+except ImportError as e:
+    print (f"Arxiv search requires additional dependencies. Install with: pip install arxiv. Error: {str(e)}")
+
+try:
+    from langchain_community.document_loaders import ArxivLoader
     ARXIVLOADER_AVAILABLE = True
 except ImportError:
     ARXIVLOADER_AVAILABLE = False
@@ -521,7 +536,7 @@ def wiki_search(query: str) -> str:
         if not WIKILOADER_AVAILABLE:
             return "Wikipedia search not available. Install with: pip install langchain-community"
         
-        search_docs = WikipediaLoader(query=query, load_max_docs=3).load()
+        search_docs = WikipediaLoader(query=query, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
                 f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
@@ -563,7 +578,7 @@ def web_search(query: str) -> str:
             return "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
         
         # Perform the search
-        search_docs = TavilySearchResults(max_results=3).invoke(query=query)
+        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(query=query)
         
         # Format the results
         formatted_results = "\n\n---\n\n".join(
@@ -594,7 +609,7 @@ def arxiv_search(query: str) -> str:
         if not ARXIVLOADER_AVAILABLE:
             return "Arxiv search not available. Install with: pip install langchain-community"
         
-        search_docs = ArxivLoader(query=query, load_max_docs=3).load()
+        search_docs = ArxivLoader(query=query, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
                 f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
