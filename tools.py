@@ -3,21 +3,17 @@
 
 import os
 import io
-import re
 import json
 import uuid
 import base64
 import shutil
 import requests
 import tempfile
-import contextlib
-import logging
 import urllib.parse
 import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
-import chess
 import subprocess
 
 # Always import the tool decorator - it's essential
