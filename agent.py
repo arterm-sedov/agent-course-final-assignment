@@ -22,6 +22,7 @@ import json
 import csv
 import time
 import random
+import hashlib
 from typing import List, Dict, Any, Optional
 from tools import *
 
@@ -46,6 +47,7 @@ class GaiaAgent:
       - Is modular and extensible for future tool/model additions
       - Includes rate limiting and retry logic for API calls
       - Uses Google Gemini for first attempt, Groq for retry
+      - Implements LLM-specific token management (no limits for Gemini, conservative for others)
 
     Args:
         provider (str): LLM provider to use. One of "google", "groq", or "huggingface".
@@ -65,6 +67,8 @@ class GaiaAgent:
         llm_third_fallback_with_tools: Third fallback LLM instance with tools bound for tool-calling.
         last_request_time (float): Timestamp of the last API request for rate limiting.
         min_request_interval (float): Minimum time between requests in seconds.
+        token_limits: Dictionary of token limits for different LLMs
+        max_message_history: Maximum number of messages to keep in history
     """
     def __init__(self, provider: str = "groq"):
         """
@@ -83,8 +87,16 @@ class GaiaAgent:
 
         # Rate limiting setup
         self.last_request_time = 0
-         # Minimum 1 second between requests
+        # Minimum 1 second between requests
         self.min_request_interval = 1
+
+        # Token management - LLM-specific limits
+        self.token_limits = {
+            "gemini": None,  # No limit for Gemini (2M token context)
+            "groq": 32000,   # Conservative for Groq
+            "huggingface": 16000  # Conservative for HuggingFace
+        }
+        self.max_message_history = 15  # Increased for better context retention
 
         # Set up embeddings and supabase retriever
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
@@ -115,6 +127,7 @@ class GaiaAgent:
                 model="gemini-2.5-pro", 
                 temperature=0, 
                 google_api_key=os.environ.get("GEMINI_KEY")
+                # No max_tokens limit for Gemini - let it use its full capability
             )
             print("✅ Primary LLM (Google Gemini) initialized successfully")
         except Exception as e:
@@ -122,7 +135,11 @@ class GaiaAgent:
             self.llm_primary = None
         
         try:
-            self.llm_fallback = ChatGroq(model="qwen-qwq-32b", temperature=0)
+            self.llm_fallback = ChatGroq(
+                model="qwen-qwq-32b", 
+                temperature=0,
+                max_tokens=1024  # Limit output tokens
+            )
             print("✅ Fallback LLM (Groq) initialized successfully")
         except Exception as e:
             print(f"⚠️ Failed to initialize Groq: {e}")
@@ -132,13 +149,13 @@ class GaiaAgent:
             self.llm_third_fallback = ChatHuggingFace(
                 llm=HuggingFaceEndpoint(
                     repo_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-                    task="text-generation",  # for chat‐style use "text-generation"
+                    task="text-generation",
                     max_new_tokens=1024,
                     do_sample=False,
                     repetition_penalty=1.03,
                     temperature=0,
                 ),
-            verbose=True,
+                verbose=True,
             )
             print("✅ Third fallback LLM (HuggingFace) initialized successfully")
         except Exception as e:
@@ -177,6 +194,59 @@ class GaiaAgent:
             time.sleep(sleep_time + jitter)
         self.last_request_time = time.time()
 
+    def _estimate_tokens(self, text: str) -> int:
+        """
+        Rough estimation of token count (4 chars per token is a reasonable approximation).
+        """
+        return len(text) // 4
+
+    def _truncate_messages(self, messages: List[Any], llm_type: str = None) -> List[Any]:
+        """
+        Truncate message history to prevent token overflow.
+        Keeps system message, last human message, and most recent tool messages.
+        More lenient for Gemini due to its large context window.
+        
+        Args:
+            messages: List of messages to truncate
+            llm_type: Type of LLM for context-aware truncation
+        """
+        # Determine max message history based on LLM type
+        if llm_type == "gemini":
+            max_history = 25  # More lenient for Gemini
+        else:
+            max_history = self.max_message_history
+        
+        if len(messages) <= max_history:
+            return messages
+        
+        # Always keep system message and last human message
+        system_msg = messages[0] if messages and hasattr(messages[0], 'type') and messages[0].type == 'system' else None
+        last_human_msg = None
+        tool_messages = []
+        
+        # Find last human message and collect tool messages
+        for msg in reversed(messages):
+            if hasattr(msg, 'type'):
+                if msg.type == 'human' and last_human_msg is None:
+                    last_human_msg = msg
+                elif msg.type == 'tool':
+                    tool_messages.append(msg)
+        
+        # Keep most recent tool messages (limit to prevent overflow)
+        max_tool_messages = max_history - 3  # System + Human + AI
+        if len(tool_messages) > max_tool_messages:
+            tool_messages = tool_messages[-max_tool_messages:]
+        
+        # Reconstruct message list
+        truncated_messages = []
+        if system_msg:
+            truncated_messages.append(system_msg)
+        truncated_messages.extend(tool_messages)
+        if last_human_msg:
+            truncated_messages.append(last_human_msg)
+        
+        return truncated_messages
+
     def _summarize_text_with_gemini(self, text, max_tokens=256):
         """
         Summarize a long tool result using Gemini (if available), otherwise fallback to truncation.
@@ -192,7 +262,7 @@ class GaiaAgent:
         # Fallback: simple truncation
         return text[:1000] + '... [truncated]'
 
-    def _run_tool_calling_loop(self, llm, messages, tool_registry):
+    def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
         For Groq LLM, tool results are summarized using Gemini (if available) or truncated to 1000 characters.
@@ -200,21 +270,58 @@ class GaiaAgent:
             llm: The LLM instance (with or without tools bound)
             messages: The message history (list)
             tool_registry: Dict mapping tool names to functions
+            llm_type: Type of LLM ("gemini", "groq", "huggingface", or "unknown")
         Returns:
             The final LLM response (with content)
         """
         max_steps = 5  # Prevent infinite loops
-        # Detect if this is Groq (by class name)
-        is_groq = llm.__class__.__name__.lower().startswith('chatgroq')
         
-        # Track repeated tool calls to detect infinite loops
-        repeated_tool_calls = {}
+        # Track which tools have been called to prevent duplicates
+        called_tools = set()
+        
+        # Track tool results for better fallback handling
+        tool_results_history = []
         
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1} - Invoking LLM with messages:")
+            
+            # Truncate messages to prevent token overflow
+            messages = self._truncate_messages(messages, llm_type)
+            
+            # Estimate token count and warn if too high
+            total_text = ""
+            for msg in messages:
+                if hasattr(msg, 'content') and msg.content:
+                    total_text += str(msg.content)
+            
+            estimated_tokens = self._estimate_tokens(total_text)
+            
+            # Get token limit for this LLM type
+            token_limit = self.token_limits.get(llm_type)
+            
+            if token_limit and estimated_tokens > token_limit:
+                print(f"⚠️ Warning: Estimated tokens ({estimated_tokens}) exceed limit ({token_limit}) for {llm_type}")
+                # Force summarization of tool results only for non-Gemini LLMs
+                if llm_type != "gemini":
+                    for msg in messages:
+                        if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
+                            if len(msg.content) > 500:
+                                print(f"📝 Summarizing long tool result for {llm_type}")
+                                msg.content = self._summarize_text_with_gemini(msg.content, max_tokens=300)
+            elif estimated_tokens > 10000:  # Log large contexts for debugging
+                print(f"📊 Large context detected: {estimated_tokens} estimated tokens for {llm_type}")
+            
             for i, msg in enumerate(messages):
                 print(f"  Message {i}: {msg}")
-            response = llm.invoke(messages)
+            
+            try:
+                response = llm.invoke(messages)
+            except Exception as e:
+                print(f"❌ LLM invocation failed: {e}")
+                # Return a synthetic response with error information
+                from langchain_core.messages import AIMessage
+                return AIMessage(content=f"Error during LLM processing: {str(e)}")
+            
             print(f"[Tool Loop] Raw LLM response: {response}")
             
             # Debug: Check response structure
@@ -236,47 +343,48 @@ class GaiaAgent:
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s): {tool_calls}")
                 
-                # Check for repeated tool calls with empty content (infinite loop detection)
-                if not hasattr(response, 'content') or not response.content:
-                    for tool_call in tool_calls:
-                        tool_name = tool_call.get('name')
-                        tool_args = tool_call.get('args', {})
-                        # Create a key for this tool call
-                        call_key = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                        
-                        if call_key in repeated_tool_calls:
-                            repeated_tool_calls[call_key] += 1
-                            if repeated_tool_calls[call_key] >= 2:  # Same tool call repeated 2+ times
-                                print(f"[Tool Loop] ⚠️ Detected infinite loop: {tool_name} called {repeated_tool_calls[call_key]} times with empty content")
-                                print(f"[Tool Loop] Breaking loop and returning last tool result")
-                                # Return a synthetic response with the last tool result
-                                if messages and hasattr(messages[-1], 'content'):
-                                    last_tool_result = messages[-1].content
-                                    # Create a synthetic response with the tool result as the answer
-                                    from langchain_core.messages import AIMessage
-                                    synthetic_response = AIMessage(content=f"Based on the tool result: {last_tool_result}")
-                                    return synthetic_response
-                        else:
-                            repeated_tool_calls[call_key] = 1
-                
-                # Additional safeguard: if we have multiple tool results and the LLM keeps returning empty content,
-                # try to construct a final answer from the tool results
-                if step >= 2 and (not hasattr(response, 'content') or not response.content):
-                    print(f"[Tool Loop] ⚠️ Multiple tool calls with empty content detected. Attempting to construct final answer.")
-                    # Look for the most recent tool result that might contain the answer
-                    for msg in reversed(messages):
-                        if hasattr(msg, 'content') and msg.content and "Teal'c responds" in msg.content:
-                            # Extract the answer from the tool result
-                            import re
-                            match = re.search(r"Teal'c responds?.*?['\"]([^'\"]+)['\"]", msg.content)
-                            if match:
-                                answer = match.group(1).strip()
-                                print(f"[Tool Loop] Extracted answer from tool result: {answer}")
-                                from langchain_core.messages import AIMessage
-                                synthetic_response = AIMessage(content=f"FINAL ANSWER: {answer}")
-                                return synthetic_response
-                
+                # Filter out duplicate tool calls
+                new_tool_calls = []
                 for tool_call in tool_calls:
+                    tool_name = tool_call.get('name')
+                    if tool_name not in called_tools:
+                        new_tool_calls.append(tool_call)
+                        called_tools.add(tool_name)
+                        print(f"[Tool Loop] ✅ New tool call: {tool_name}")
+                    else:
+                        print(f"[Tool Loop] ⚠️ Skipping duplicate tool call: {tool_name}")
+                
+                if not new_tool_calls:
+                    print(f"[Tool Loop] ⚠️ All tool calls were duplicates. Forcing final answer generation.")
+                    # Force the LLM to generate a final answer from existing tool results
+                    if tool_results_history:
+                        # Add a human message that forces the LLM to provide a final answer
+                        force_answer_msg = HumanMessage(content=f"""
+All necessary tools have been called. Based on the available tool results, provide your FINAL ANSWER according to the system prompt format.
+
+Remember to end with "FINAL ANSWER: [your answer]"
+""")
+                        messages.append(force_answer_msg)
+                        
+                        # Try one more time with the forced answer request
+                        try:
+                            final_response = llm.invoke(messages)
+                            if hasattr(final_response, 'content') and final_response.content:
+                                print(f"[Tool Loop] ✅ Forced final answer generated: {final_response.content}")
+                                return final_response
+                        except Exception as e:
+                            print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
+                    
+                    # If all else fails, use the best tool result
+                    if tool_results_history:
+                        best_result = max(tool_results_history, key=len)
+                        print(f"[Tool Loop] 📝 Using best tool result as final answer: {best_result}")
+                        from langchain_core.messages import AIMessage
+                        synthetic_response = AIMessage(content=f"FINAL ANSWER: {best_result}")
+                        return synthetic_response
+                
+                # Execute only new tool calls
+                for tool_call in new_tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
                     print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
@@ -290,12 +398,32 @@ class GaiaAgent:
                         tool_result = f"Tool '{tool_name}' not found."
                     else:
                         try:
-                            tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                            # Fix for BaseTool.invoke() error - ensure proper argument passing
+                            if hasattr(tool_func, 'invoke'):
+                                # It's a LangChain tool, use invoke method
+                                if isinstance(tool_args, dict):
+                                    tool_result = tool_func.invoke(tool_args)
+                                else:
+                                    tool_result = tool_func.invoke({"input": tool_args})
+                            else:
+                                # It's a regular function
+                                tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
                         except Exception as e:
                             tool_result = f"Error running tool '{tool_name}': {e}"
+                    
+                    # Store tool result in history for better fallback handling
+                    tool_results_history.append(str(tool_result))
+                    
                     # For Groq, summarize tool result if longer than 1000 chars
-                    if is_groq and isinstance(tool_result, str) and len(tool_result) > 1000:
-                        tool_result = self._summarize_text_with_gemini(tool_result)
+                    # For Gemini, allow longer results (up to 5000 chars) before summarizing
+                    if isinstance(tool_result, str):
+                        if llm_type == "groq" and len(tool_result) > 1000:
+                            tool_result = self._summarize_text_with_gemini(tool_result)
+                        elif llm_type == "huggingface" and len(tool_result) > 2000:
+                            tool_result = self._summarize_text_with_gemini(tool_result)
+                        elif llm_type == "gemini" and len(tool_result) > 5000:
+                            # Only summarize very long results for Gemini
+                            tool_result = self._summarize_text_with_gemini(tool_result, max_tokens=1000)
                     print(f"[Tool Loop] Tool result: {tool_result}")
                     # Add tool result as a ToolMessage
                     messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
@@ -309,6 +437,33 @@ class GaiaAgent:
             if function_call:
                 print(f"[Tool Loop] Detected function_call: {function_call}")
                 tool_name = function_call.get('name')
+                
+                # Check if this tool has already been called
+                if tool_name in called_tools:
+                    print(f"[Tool Loop] ⚠️ Skipping duplicate function call: {tool_name}")
+                    # Force final answer generation
+                    if tool_results_history:
+                        force_answer_msg = HumanMessage(content=f"""
+All necessary tools have been called. Based on the available tool results, provide your FINAL ANSWER according to the system prompt format.
+
+Remember to end with "FINAL ANSWER: [your answer]"
+""")
+                        messages.append(force_answer_msg)
+                        try:
+                            final_response = llm.invoke(messages)
+                            if hasattr(final_response, 'content') and final_response.content:
+                                return final_response
+                        except Exception as e:
+                            print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
+                    
+                    # Use best tool result as fallback
+                    if tool_results_history:
+                        best_result = max(tool_results_history, key=len)
+                        from langchain_core.messages import AIMessage
+                        return AIMessage(content=f"FINAL ANSWER: {best_result}")
+                    continue
+                
+                called_tools.add(tool_name)
                 tool_args = function_call.get('arguments', {})
                 print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
                 if isinstance(tool_args, str):
@@ -321,12 +476,32 @@ class GaiaAgent:
                     tool_result = f"Tool '{tool_name}' not found."
                 else:
                     try:
-                        tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                        # Fix for BaseTool.invoke() error - ensure proper argument passing
+                        if hasattr(tool_func, 'invoke'):
+                            # It's a LangChain tool, use invoke method
+                            if isinstance(tool_args, dict):
+                                tool_result = tool_func.invoke(tool_args)
+                            else:
+                                tool_result = tool_func.invoke({"input": tool_args})
+                        else:
+                            # It's a regular function
+                            tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
                     except Exception as e:
                         tool_result = f"Error running tool '{tool_name}': {e}"
+                
+                # Store tool result in history for better fallback handling
+                tool_results_history.append(str(tool_result))
+                
                 # For Groq, summarize tool result if longer than 1000 chars
-                if is_groq and isinstance(tool_result, str) and len(tool_result) > 1000:
-                    tool_result = self._summarize_text_with_gemini(tool_result)
+                # For Gemini, allow longer results (up to 5000 chars) before summarizing
+                if isinstance(tool_result, str):
+                    if llm_type == "groq" and len(tool_result) > 1000:
+                        tool_result = self._summarize_text_with_gemini(tool_result)
+                    elif llm_type == "huggingface" and len(tool_result) > 2000:
+                        tool_result = self._summarize_text_with_gemini(tool_result)
+                    elif llm_type == "gemini" and len(tool_result) > 5000:
+                        # Only summarize very long results for Gemini
+                        tool_result = self._summarize_text_with_gemini(tool_result, max_tokens=1000)
                 print(f"[Tool Loop] Tool result: {tool_result}")
                 messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
                 print(f"[Tool Loop] Messages after tool call:")
@@ -345,6 +520,16 @@ class GaiaAgent:
             
         # If we exit loop, return last response (may be empty)
         print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
+        
+        # NEW: If we have tool results but no final answer, use the best tool result
+        if tool_results_history and (not hasattr(response, 'content') or not response.content):
+            print(f"[Tool Loop] 📝 No final answer generated, using best tool result from history")
+            # Use the most comprehensive tool result as the final answer
+            best_result = max(tool_results_history, key=len)  # Use the longest/most detailed result
+            from langchain_core.messages import AIMessage
+            synthetic_response = AIMessage(content=f"FINAL ANSWER: {best_result}")
+            return synthetic_response
+        
         return response
 
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
@@ -367,12 +552,15 @@ class GaiaAgent:
         if llm_type == "primary":
             llm = self.llm_primary_with_tools if use_tools else self.llm_primary
             llm_name = "Google Gemini"
+            llm_type_str = "gemini"
         elif llm_type == "fallback":
             llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
             llm_name = "Groq"
+            llm_type_str = "groq"
         elif llm_type == "third_fallback":
             llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
             llm_name = "HuggingFace"
+            llm_type_str = "huggingface"
         else:
             raise ValueError(f"Invalid llm_type: {llm_type}")
         
@@ -388,7 +576,7 @@ class GaiaAgent:
             # Build tool registry (name -> function)
             tool_registry = {tool.__name__: tool for tool in self.tools}
             if use_tools:
-                response = self._run_tool_calling_loop(llm, messages, tool_registry)
+                response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
                 # If tool calling resulted in empty content, try without tools as fallback
                 if not hasattr(response, 'content') or not response.content:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
@@ -401,22 +589,36 @@ class GaiaAgent:
                         llm_no_tools = self.llm_third_fallback
                     
                     if llm_no_tools:
-                        # Add a message explaining the tool results
+                        # Extract tool results more robustly
                         tool_results = []
                         for msg in messages:
-                            if hasattr(msg, 'name') and msg.name:  # This is a tool message
-                                tool_results.append(f"Tool {msg.name} result: {msg.content}")
+                            if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
+                                tool_name = msg.name  # ToolMessage always has name attribute
+                                tool_results.append(f"Tool {tool_name} result: {msg.content}")
                         
                         if tool_results:
                             # Create a new message with tool results included
                             tool_summary = "\n".join(tool_results)
-                            enhanced_messages = messages[:-len(tool_results)] if tool_results else messages
-                            enhanced_messages.append(HumanMessage(content=f"Based on the following tool results, please provide your final answer:\n{tool_summary}"))
+                            # Remove tool messages and add enhanced context
+                            enhanced_messages = []
+                            for msg in messages:
+                                if not (hasattr(msg, 'type') and msg.type == 'tool'):
+                                    enhanced_messages.append(msg)
+                            
+                            # Add a clear instruction to generate final answer from tool results
+                            enhanced_messages.append(HumanMessage(content=f"""
+Based on the following tool results, provide your FINAL ANSWER according to the system prompt format:
+
+{tool_summary}
+
+Remember to end with "FINAL ANSWER: [your answer]"
+"""))
                             
                             print(f"🔄 Retrying {llm_name} without tools with enhanced context")
+                            print(f"📝 Tool results included: {len(tool_results)} tools")
                             response = llm_no_tools.invoke(enhanced_messages)
                         else:
-                            print(f"🔄 Retrying {llm_name} without tools")
+                            print(f"🔄 Retrying {llm_name} without tools (no tool results found)")
                             response = llm_no_tools.invoke(messages)
             else:
                 response = llm.invoke(messages)
@@ -424,7 +626,7 @@ class GaiaAgent:
             # Print only the first 1000 characters if response is long
             resp_str = str(response)
             if len(resp_str) > 1000:
-                print(resp_str[:1000] + "... [truncated]")
+                print(self._summarize_text_with_gemini(resp_str, max_tokens=300))
             else:
                 print(resp_str)
             return response
@@ -671,13 +873,15 @@ class GaiaAgent:
 
     def _extract_final_answer(self, response: Any) -> str:
         """
-        Extract the final answer from the LLM response, following the system prompt format.
+        Extract the final answer from the LLM response, removing only the "FINAL ANSWER:" prefix.
+        The LLM is responsible for following the system prompt formatting rules.
+        This method is used for validation against reference answers and submission.
 
         Args:
             response (Any): The LLM response object.
 
         Returns:
-            str: The extracted final answer string, normalized (no 'FINAL ANSWER:' prefix, trimmed, no trailing punctuation).
+            str: The extracted final answer string with "FINAL ANSWER:" prefix removed.
         """
         # Try to find the line starting with 'FINAL ANSWER:'
         if hasattr(response, 'content'):
@@ -687,41 +891,21 @@ class GaiaAgent:
         else:
             text = str(response)
             
-        # Handle synthetic responses from infinite loop detection
-        if text.startswith("Based on the tool result:"):
-            # Extract the tool result and use it as the answer
-            tool_result = text.replace("Based on the tool result:", "").strip()
-            # Clean up the tool result to extract just the answer
-            if "Teal'c responds" in tool_result:
-                # Extract just the response part
-                import re
-                match = re.search(r"Teal'c responds?.*?['\"]([^'\"]+)['\"]", tool_result)
-                if match:
-                    return match.group(1).strip()
-                # Fallback: extract the word after "responds"
-                match = re.search(r"responds?.*?['\"]([^'\"]+)['\"]", tool_result)
-                if match:
-                    return match.group(1).strip()
-            return tool_result.strip()
-            
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
                 answer = line.strip()
                 # Remove 'FINAL ANSWER:' or 'FINAL ANSWER' prefix (case-insensitive)
                 import re
-                answer = re.sub(r'^final answer\s*:?\s*', '', answer, flags=re.IGNORECASE)
-                # Remove trailing punctuation and whitespace
-                answer = answer.strip().rstrip('.').rstrip(',').strip()
-                return answer
+                answer = re.sub(r'^final answer\s?:?\s?', '', answer, flags=re.IGNORECASE)
+                return answer.strip()
                 
-        # Fallback: return the whole response, normalized
+        # Fallback: return the whole response, removing prefix if present
         import re
         answer = text.strip()
-        answer = re.sub(r'^final answer\s*:?\s*', '', answer, flags=re.IGNORECASE)
-        answer = answer.strip().rstrip('.').rstrip(',').strip()
-        return answer
-
+        answer = re.sub(r'^final answer\s?:?\s?', '', answer, flags=re.IGNORECASE)
+        return answer.strip()
+    
     def _answers_match(self, answer: str, reference: str) -> bool:
         """
         Use the LLM to validate whether the agent's answer matches the reference answer according to the system prompt rules.

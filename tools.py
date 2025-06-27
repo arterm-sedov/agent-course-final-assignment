@@ -37,14 +37,6 @@ except ImportError:
     GEMINI_AVAILABLE = False
     print("Warning: Google Gemini not available. Install with: pip install google-genai")
 
-# LiteLLM imports for chess move conversion
-try:
-    from litellm import completion
-    LITELLM_AVAILABLE = True
-except ImportError:
-    LITELLM_AVAILABLE = False
-    print("Warning: LiteLLM not available. Install with: pip install litellm")
-
 # Chess FEN prediction
 try:
     from board_to_fen.predict import get_fen_from_image_path
@@ -135,7 +127,271 @@ class CodeInterpreter:
             "Image": Image,
         }
         self.temp_sqlite_db = os.path.join(tempfile.gettempdir(), "code_exec.db")
-    # ... (methods omitted for brevity, see fisherman611/code_interpreter.py)
+    
+    def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]:
+        """
+        Execute code in the specified language with safety controls.
+        
+        Args:
+            code (str): The source code to execute
+            language (str): The programming language
+            
+        Returns:
+            Dict containing execution results, status, and outputs
+        """
+        try:
+            if language.lower() == "python":
+                return self._execute_python(code)
+            elif language.lower() == "bash":
+                return self._execute_bash(code)
+            elif language.lower() == "sql":
+                return self._execute_sql(code)
+            elif language.lower() == "c":
+                return self._execute_c(code)
+            elif language.lower() == "java":
+                return self._execute_java(code)
+            else:
+                return {"status": "error", "stderr": f"Unsupported language: {language}"}
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+    
+    def _execute_python(self, code: str) -> Dict[str, Any]:
+        """Execute Python code with safety controls."""
+        try:
+            # Create a copy of globals for this execution
+            local_globals = self.globals.copy()
+            local_globals['__name__'] = '__main__'
+            
+            # Execute the code
+            exec(code, local_globals)
+            
+            # Capture any variables that might be dataframes or plots
+            result = {"status": "success", "stdout": "", "stderr": "", "result": None}
+            
+            # Check for dataframes
+            dataframes = []
+            for name, value in local_globals.items():
+                if isinstance(value, pd.DataFrame):
+                    dataframes.append({
+                        "name": name,
+                        "shape": value.shape,
+                        "head": value.head().to_dict('records')
+                    })
+            if dataframes:
+                result["dataframes"] = dataframes
+            
+            # Check for plots
+            plots = []
+            if 'plt' in local_globals:
+                # Save any current plots
+                if plt.get_fignums():
+                    for fig_num in plt.get_fignums():
+                        fig = plt.figure(fig_num)
+                        plot_path = os.path.join(self.working_directory, f"plot_{fig_num}.png")
+                        fig.savefig(plot_path)
+                        plots.append(plot_path)
+                        plt.close(fig)
+            if plots:
+                result["plots"] = plots
+            
+            return result
+            
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+    
+    def _execute_bash(self, code: str) -> Dict[str, Any]:
+        """Execute Bash code."""
+        try:
+            import subprocess
+            result = subprocess.run(
+                code, 
+                shell=True, 
+                capture_output=True, 
+                text=True, 
+                timeout=self.max_execution_time
+            )
+            return {
+                "status": "success" if result.returncode == 0 else "error",
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode
+            }
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "stderr": "Execution timed out"}
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+    
+    def _execute_sql(self, code: str) -> Dict[str, Any]:
+        """Execute SQL code using SQLite."""
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.temp_sqlite_db)
+            cursor = conn.cursor()
+            
+            # Execute SQL
+            cursor.execute(code)
+            
+            # Fetch results if it's a SELECT
+            if code.strip().upper().startswith('SELECT'):
+                results = cursor.fetchall()
+                columns = [description[0] for description in cursor.description]
+                result = {"status": "success", "results": results, "columns": columns}
+            else:
+                conn.commit()
+                result = {"status": "success", "message": f"Executed: {code}"}
+            
+            conn.close()
+            return result
+            
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+    
+    def _execute_c(self, code: str) -> Dict[str, Any]:
+        """Execute C code by compiling and running."""
+        try:
+            import subprocess
+            
+            # Create temporary C file
+            c_file = os.path.join(self.working_directory, "temp_code.c")
+            with open(c_file, 'w') as f:
+                f.write(code)
+            
+            # Compile
+            compile_result = subprocess.run(
+                ["gcc", "-o", os.path.join(self.working_directory, "temp_program"), c_file],
+                capture_output=True,
+                text=True
+            )
+            
+            if compile_result.returncode != 0:
+                return {"status": "error", "stderr": f"Compilation failed: {compile_result.stderr}"}
+            
+            # Run
+            run_result = subprocess.run(
+                [os.path.join(self.working_directory, "temp_program")],
+                capture_output=True,
+                text=True,
+                timeout=self.max_execution_time
+            )
+            
+            return {
+                "status": "success",
+                "stdout": run_result.stdout,
+                "stderr": run_result.stderr,
+                "returncode": run_result.returncode
+            }
+            
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "stderr": "Execution timed out"}
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+    
+    def _execute_java(self, code: str) -> Dict[str, Any]:
+        """Execute Java code by compiling and running."""
+        try:
+            import subprocess
+            
+            # Create temporary Java file
+            java_file = os.path.join(self.working_directory, "TempCode.java")
+            with open(java_file, 'w') as f:
+                f.write(code)
+            
+            # Compile
+            compile_result = subprocess.run(
+                ["javac", java_file],
+                capture_output=True,
+                text=True
+            )
+            
+            if compile_result.returncode != 0:
+                return {"status": "error", "stderr": f"Compilation failed: {compile_result.stderr}"}
+            
+            # Run
+            run_result = subprocess.run(
+                ["java", "-cp", self.working_directory, "TempCode"],
+                capture_output=True,
+                text=True,
+                timeout=self.max_execution_time
+            )
+            
+            return {
+                "status": "success",
+                "stdout": run_result.stdout,
+                "stderr": run_result.stderr,
+                "returncode": run_result.returncode
+            }
+            
+        except subprocess.TimeoutExpired:
+            return {"status": "error", "stderr": "Execution timed out"}
+        except Exception as e:
+            return {"status": "error", "stderr": str(e)}
+
+# Create a global instance for use by tools
+interpreter_instance = CodeInterpreter()
+
+def execute_code_multilang(code: str, language: str = "python") -> str:
+    """Execute code in multiple languages (Python, Bash, SQL, C, Java) and return results.
+
+    Args:
+        code (str): The source code to execute.
+        language (str): The language of the code. Supported: "python", "bash", "sql", "c", "java".
+
+    Returns:
+        A string summarizing the execution results (stdout, stderr, errors, plots, dataframes if any).
+    """
+    supported_languages = ["python", "bash", "sql", "c", "java"]
+    language = language.lower()
+
+    if language not in supported_languages:
+        return f"❌ Unsupported language: {language}. Supported languages are: {', '.join(supported_languages)}"
+
+    result = interpreter_instance.execute_code(code, language=language)
+
+    response = []
+
+    if result["status"] == "success":
+        response.append(f"✅ Code executed successfully in **{language.upper()}**")
+
+        if result.get("stdout"):
+            response.append(
+                "\n**Standard Output:**\n```\n" + result["stdout"].strip() + "\n```"
+            )
+
+        if result.get("stderr"):
+            response.append(
+                "\n**Standard Error (if any):**\n```\n"
+                + result["stderr"].strip()
+                + "\n```"
+            )
+
+        if result.get("result") is not None:
+            response.append(
+                "\n**Execution Result:**\n```\n"
+                + str(result["result"]).strip()
+                + "\n```"
+            )
+
+        if result.get("dataframes"):
+            for df_info in result["dataframes"]:
+                response.append(
+                    f"\n**DataFrame `{df_info['name']}` (Shape: {df_info['shape']})**"
+                )
+                df_preview = pd.DataFrame(df_info["head"])
+                response.append("First 5 rows:\n```\n" + str(df_preview) + "\n```")
+
+        if result.get("plots"):
+            response.append(
+                f"\n**Generated {len(result['plots'])} plot(s)** (Image data returned separately)"
+            )
+
+    else:
+        response.append(f"❌ Code execution failed in **{language.upper()}**")
+        if result.get("stderr"):
+            response.append(
+                "\n**Error Log:**\n```\n" + result["stderr"].strip() + "\n```"
+            )
+
+    return "\n".join(response)
 
 # ========== MATH TOOLS ==========
 def multiply(a: float, b: float) -> float:
@@ -802,12 +1058,12 @@ def understand_audio(file_path: str, prompt: str) -> str:
 # ========== CHESS TOOLS ==========
 def convert_chess_move(piece_placement: str, move: str) -> str:
     """
-    Convert a chess move from coordinate notation to algebraic notation using LiteLLM.
+    Convert a chess move from coordinate notation to algebraic notation using Google Gemini.
     
-    This tool uses an LLM to convert chess moves between different notations.
+    This tool uses Google Gemini to convert chess moves between different notations.
     Coordinate notation uses square names (e.g., "e2e4"), while algebraic notation
     uses piece symbols and square names (e.g., "e4", "Nf3", "O-O").
-    The function constructs a prompt for the LLM and expects 
+    The function constructs a prompt for Gemini and expects 
     only the algebraic notation as output, with no extra commentary.
     
     Args:
@@ -818,29 +1074,29 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         str: The move in algebraic notation, or error message.
     
     Note:
-        Requires OPENROUTER_API_KEY environment variable to be set.
-        Install with: pip install litellm
+        Requires GEMINI_KEY environment variable to be set.
+        Install with: pip install google-genai
     """
-    if not LITELLM_AVAILABLE:
-        return "LiteLLM not available. Install with: pip install litellm"
+    if not GEMINI_AVAILABLE:
+        return "Google Gemini not available. Install with: pip install google-genai"
     try:
-        openrouter_key = os.environ.get("OPENROUTER_API_KEY")
-        if not openrouter_key:
-            return "OPENROUTER_API_KEY not found in environment variables."
+        gemini_key = os.environ.get("GEMINI_KEY")
+        if not gemini_key:
+            return "GEMINI_KEY not found in environment variables."
+        
+        client = genai.Client(api_key=gemini_key)
         move_message = (
             f"Convert this chess move from coordinate notation to algebraic "
             f"notation: {move}. Use the following piece placement: {piece_placement}. "
             f"Do not provide any additional thinking or commentary in the response, "
             f"just the algebraic notation only."
         )
-        messages = [{"content": move_message, "role": "user"}]
-        response = completion(
-            model="openai/gpt-4o-mini",
-            temperature=0.0,
-            messages=messages,
-            api_key=openrouter_key
+        
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",  # Use same model as agent for consistency
+            contents=move_message
         )
-        return response.choices[0].message.content
+        return response.text
     except Exception as e:
         return f"Error converting chess move: {str(e)}"
 
@@ -1080,7 +1336,7 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         str: The best move in algebraic notation with analysis, or error message.
     
     Note:
-        Requires board-to-fen, chess evaluation API, and LiteLLM to be available.
+        Requires board-to-fen, chess evaluation API, and Google Gemini to be available.
     """
     try:
         # Step 1: Get FEN from image
