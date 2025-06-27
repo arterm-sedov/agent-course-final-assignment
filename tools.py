@@ -17,17 +17,11 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
+import chess
+import subprocess
 
 # Always import the tool decorator - it's essential
 from langchain_core.tools import tool
-
-# Optional imports with fallbacks
-try:
-    import board_to_fen
-    BOARD_TO_FEN_AVAILABLE = True
-except ImportError:
-    BOARD_TO_FEN_AVAILABLE = False
-    print("Warning: board_to_fen not available. Install with: pip install board-to-fen")
 
 # LangChain imports for search tools
 try:
@@ -47,13 +41,6 @@ except ImportError:
     GEMINI_AVAILABLE = False
     print("Warning: Google Gemini not available. Install with: pip install google-genai")
 
-# Chess FEN prediction
-try:
-    from board_to_fen.predict import get_fen_from_image_path
-    CHESS_FEN_AVAILABLE = True
-except ImportError:
-    CHESS_FEN_AVAILABLE = False
-    print("Warning: board_to_fen not available. Install with: pip install board-to-fen")
 
 # ========== IMAGE PROCESSING HELPERS ==========
 def encode_image(image_path: str) -> str:
@@ -1164,9 +1151,6 @@ def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
     uses piece symbols and square names (e.g., "e4", "Nf3", "O-O").
     The function constructs a prompt for Gemini and expects 
     only the algebraic notation as output, with no extra commentary.
-    
-    
-
     """
     try:
         # Use Google Gemini to convert coordinate notation to algebraic notation
@@ -1285,99 +1269,6 @@ def get_best_chess_move(fen: str) -> str:
     return _get_best_chess_move_internal(fen)
 
 # ========== FEN PROCESSING HELPERS ==========
-def _expand_fen_rank(rank_str):
-    """
-    Expands a single rank string from FEN notation (e.g., 'p2b4')
-    into a list of 8 characters representing the squares
-    by replacing numbers with empty squares.
-    Uses ' ' for empty squares.
-    Example: "rnbqkbnr" -> ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']
-    Example: "4r3" -> [' ', ' ', ' ', ' ', 'r', ' ', ' ', ' ']
-    """
-    expanded_rank = []
-    for char in rank_str:
-        if char.isdigit():
-            # Add number of empty squares specified by the digit
-            expanded_rank.extend([' '] * int(char))
-        else:
-            # Add the piece character
-            expanded_rank.append(char)
-    # Validate rank length
-    if len(expanded_rank) != 8:
-        raise ValueError(f"Invalid FEN rank string (length != 8): {rank_str}")
-    return expanded_rank
-
-def _compress_fen_rank(rank_list):
-    """
-    Compresses a list of 8 characters (representing a rank)
-    back into FEN rank notation (e.g., turns [' ', 'K', ...] into '1K6').
-    Assumes ' ' represents an empty square.
-    """
-    if len(rank_list) != 8:
-        raise ValueError(f"Invalid rank list (length != 8): {rank_list}")
-    
-    compressed_rank = ""
-    empty_count = 0
-    
-    for char in rank_list:
-        if char == ' ':
-            empty_count += 1
-        else:
-            # If we encountered a piece after empty squares, add the count
-            if empty_count > 0:
-                compressed_rank += str(empty_count)
-                empty_count = 0
-            # Add the piece
-            compressed_rank += char
-    # If the rank ends with empty squares, add the final count
-    if empty_count > 0:
-        compressed_rank += str(empty_count)
-    return compressed_rank
-
-def _invert_mirror_fen(fen_string):
-    """
-    Takes a FEN string, inverts the board vertically, mirrors it horizontally,
-    and returns the new FEN string representing this transformed view.
-    The other FEN fields (turn, castling, etc.) are preserved.
-    """
-    try:
-        # 1. Split FEN into parts
-        parts = fen_string.strip().split(' ')
-        if len(parts) != 6:
-            raise ValueError("FEN string must have 6 space-separated fields.")
-        board_part = parts[0]
-        other_parts = parts[1:] # Side-to-move, castling, ep, halfmove, fullmove
-
-        # 2. Parse the board part into an 8x8 representation
-        rank_strings = board_part.split('/')
-        if len(rank_strings) != 8:
-            raise ValueError("FEN board part must have 8 ranks separated by '/'.")
-
-        # original_board[0] corresponds to rank 8, original_board[7] to rank 1
-        original_board = [_expand_fen_rank(r) for r in rank_strings]
-
-        # 3. Create a new empty 8x8 board for the transformed state
-        # Using ' ' as the placeholder for empty squares
-        transformed_board = [[' ' for _ in range(8)] for _ in range(8)]
-
-        # 4. Apply the inversion (vertical flip) and mirror (horizontal flip)
-        for r in range(8): # Iterate through original rows (ranks 8 down to 1)
-            for c in range(8): # Iterate through original columns (files a to h)
-                # The piece at original [r][c] moves to transformed [7-r][7-c]
-                transformed_board[7 - r][7 - c] = original_board[r][c]
-
-        # 5. Generate the new FEN board string from the transformed board
-        # Read ranks from top (index 0 = rank 8) to bottom (index 7 = rank 1)
-        new_rank_strings = [_compress_fen_rank(row) for row in transformed_board]
-        new_board_part = "/".join(new_rank_strings)
-
-        # 6. Reassemble the full FEN string
-        return " ".join([new_board_part] + other_parts)
-
-    except Exception as e:
-        # Return error message if parsing or processing fails
-        return f"Error processing FEN: {e}. Input: '{fen_string}'"
-
 def _add_fen_game_state(board_placement,
                     side_to_move,
                     castling="-",
@@ -1434,46 +1325,40 @@ def _add_fen_game_state(board_placement,
 def _get_chess_board_fen_internal(image_path: str, player_turn: str) -> str:
     """
     Internal function to get the FEN representation from an image of a chess board.
+    Uses linrock-chessboard-recognizer's recognize.py script via subprocess.
+    Args:
+        image_path (str): Path to the chessboard image file.
+        player_turn (str): The player with the next turn ("black" or "white").
+    Returns:
+        str: The FEN string predicted by the recognizer, or an error message.
     """
-    if not CHESS_FEN_AVAILABLE:
-        return "board-to-fen not available. Install with: pip install board-to-fen"
-    
     try:
-        side_to_move = "b" if player_turn.lower() == "black" else "w"
-        board_placement = get_fen_from_image_path(image_path)
-        
-        # Add game state information to the FEN
-        board_fen = _add_fen_game_state(board_placement, side_to_move)
-        
-        # Inversion makes board_to_fen output Stockfish compatible
-        board_fen_inverted = _invert_mirror_fen(board_fen)
-        
-        return board_fen_inverted
+        result = subprocess.run([
+            "python3", "chessboard-recognizer/recognize.py", image_path, "-q"
+        ], capture_output=True, text=True, check=True)
+        # The recognizer prints the FEN on the last line of stdout
+        lines = result.stdout.strip().splitlines()
+        for line in reversed(lines):
+            if "/" in line and len(line.split("/")) == 8:
+                return line.strip()
+        return f"Error: FEN not found in recognizer output. Output was: {result.stdout}"
+    except subprocess.CalledProcessError as e:
+        return f"Error running chessboard recognizer: {e.stderr or e.stdout}"
     except Exception as e:
-        return f"Error getting chess board FEN: {str(e)}"
+        return f"Error running chessboard recognizer: {str(e)}"
 
 
 @tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
-    Get the FEN representation from an image of a chess board using board-to-fen.
-    
+    Get the FEN representation from an image of a chess board.
     This tool uses computer vision to analyze a chess board image and convert it
-    to FEN (Forsyth-Edwards Notation) format. It can handle various board orientations
-    and automatically adjusts the FEN to be compatible with chess engines.
-    The function sets the side to move based on the player_turn argument 
-    and appends standard game state information.
-
+    to FEN (Forsyth-Edwards Notation) format.
     Args:
         image_path (str): The path to the chess board image file.
         player_turn (str): The player with the next turn ("black" or "white").
-
     Returns:
         str: The FEN representation of the chess position, or error message.
-    
-    Note:
-        Requires board-to-fen package to be installed.
-        Install with: pip install board-to-fen
     """
     return _get_chess_board_fen_internal(image_path, player_turn)
 
@@ -1481,55 +1366,45 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
 def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
     """
     Solve a chess position by analyzing the board image and finding the best move.
-    
     This comprehensive tool:
     1. Converts the chess board image to FEN notation
     2. Gets the best move from a chess evaluation API
     3. Converts the coordinate notation to algebraic notation
     4. Returns the solution with analysis
-
     Args:
         image_path (str): The path to the chess board image file.
         player_turn (str): The player with the next turn ("black" or "white").
         question (str): Optional question about the position (e.g., "guarantees a win").
-
     Returns:
         str: The best move in algebraic notation with analysis, or error message.
-    
     Note:
-        Requires board-to-fen, chess evaluation API, and Google Gemini to be available.
+        Requires image-to-FEN function, chess evaluation API, and Google Gemini to be available.
     """
     try:
         # Step 1: Get FEN from image (using internal function to avoid deprecation warning)
         fen = _get_chess_board_fen_internal(image_path, player_turn)
-        if fen.startswith("Error"):
+        if isinstance(fen, str) and fen.startswith("Error"):
             return f"Error getting FEN: {fen}"
-        
         # Step 2: Get best move in coordinate notation (using internal function)
         best_move_coord = _get_best_chess_move_internal(fen)
         if best_move_coord.startswith("Error"):
             return f"Error getting best move: {best_move_coord}"
-        
         # Step 3: Convert to algebraic notation (using internal function)
         # Create a simple piece placement description for the LLM
         piece_placement = f"FEN: {fen}"
         algebraic_move = _convert_chess_move_internal(piece_placement, best_move_coord)
         if algebraic_move.startswith("Error"):
             return f"Error converting move: {algebraic_move}"
-        
         # Step 4: Format the response
         result = f"Chess Position Analysis:\n"
         result += f"FEN: {fen}\n"
         result += f"Player to move: {player_turn}\n"
         result += f"Best move (coordinate): {best_move_coord}\n"
         result += f"Best move (algebraic): {algebraic_move}\n"
-        
         if question:
             result += f"\nQuestion: {question}\n"
             result += f"Answer: {algebraic_move}"
-        
         return result
-        
     except AttributeError as e:
         # Handle AttributeError specifically (like parent_run_id issues)
         error_msg = f"Tool execution error (AttributeError): {str(e)}"

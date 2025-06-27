@@ -21,6 +21,7 @@ pytesseract
 matplotlib
 pandas
 numpy
+tensorflow
 pillow
 jupyter
 openpyxl
@@ -29,14 +30,15 @@ lxml
 sentence-transformers
 google-genai
 litellm
-board_to_fen
-board-to-fen
+# board_to_fen
+# board-to-fen
 scipy
 scikit-learn
 sympy
 networkx
 nltk
 opencv-python
+chess
 
 # Optional: Only needed for local development
 # tensorflow-cpu  # Hugging Face Spaces have TensorFlow pre-installed

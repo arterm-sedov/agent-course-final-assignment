@@ -1,0 +1,1394 @@
+Directory structure:
+└── docs/
+    ├── changelog.rst
+    ├── conf.py
+    ├── core.rst
+    ├── engine.rst
+    ├── gaviota.rst
+    ├── index.rst
+    ├── make.bat
+    ├── Makefile
+    ├── pgn.rst
+    ├── polyglot.rst
+    ├── requirements.txt
+    ├── svg.rst
+    ├── syzygy.rst
+    └── variant.rst
+
+================================================
+FILE: docs/changelog.rst
+================================================
+.. include:: ../CHANGELOG.rst
+
+
+
+================================================
+FILE: docs/conf.py
+================================================
+import sys
+import os
+
+# Import the chess module.
+sys.path.insert(0, os.path.abspath(".."))
+import chess
+
+# Do not resolve these.
+autodoc_type_aliases = {
+    "Square": "chess.Square",
+    "Color": "chess.Color",
+    "PieceType": "chess.PieceType",
+    "Bitboard": "chess.Bitboard",
+    "IntoSquareSet": "chess.IntoSquareSet",
+}
+
+# Autodoc.
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinxcontrib.jquery"
+]
+autodoc_member_order = "bysource"
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+}
+
+# The suffix of source filenames.
+source_suffix = ".rst"
+
+# The master toctree document.
+master_doc = "index"
+
+# General information about the project.
+project = "python-chess"
+copyright = "2014–2024, Niklas Fiekas"
+
+# The version.
+version = chess.__version__
+release = chess.__version__
+
+# List of patterns, relative to source directory, that match files and
+# directories to ignore when looking for source files.
+exclude_patterns = ["_build"]
+
+# The name of the Pygments (syntax highlighting) style to use.
+pygments_style = "sphinx"
+
+# The theme to use for HTML and HTML Help pages. See the documentation for
+# a list of built-in themes.
+html_theme = "sphinx_rtd_theme"
+
+
+
+================================================
+FILE: docs/core.rst
+================================================
+Core
+====
+
+Colors
+------
+
+Constants for the side to move or the color of a piece.
+
+.. py:data:: chess.WHITE
+    :type: chess.Color
+    :value: True
+
+.. py:data:: chess.BLACK
+    :type: chess.Color
+    :value: False
+
+You can get the opposite *color* using ``not color``.
+
+Piece types
+-----------
+
+.. py:data:: chess.PAWN
+    :type: chess.PieceType
+    :value: 1
+.. py:data:: chess.KNIGHT
+    :type: chess.PieceType
+    :value: 2
+.. py:data:: chess.BISHOP
+    :type: chess.PieceType
+    :value: 3
+.. py:data:: chess.ROOK
+    :type: chess.PieceType
+    :value: 4
+.. py:data:: chess.QUEEN
+    :type: chess.PieceType
+    :value: 5
+.. py:data:: chess.KING
+    :type: chess.PieceType
+    :value: 6
+
+.. autofunction:: chess.piece_symbol
+
+.. autofunction:: chess.piece_name
+
+Squares
+-------
+
+.. py:data:: chess.A1
+    :type: chess.Square
+    :value: 0
+.. py:data:: chess.B1
+    :type: chess.Square
+    :value: 1
+
+and so on to
+
+.. py:data:: chess.G8
+    :type: chess.Square
+    :value: 62
+.. py:data:: chess.H8
+    :type: chess.Square
+    :value: 63
+
+.. py:data:: chess.SQUARES
+    :value: [chess.A1, chess.B1, ..., chess.G8, chess.H8]
+
+.. py:data:: chess.SQUARE_NAMES
+    :value: ['a1', 'b1', ..., 'g8', 'h8']
+
+.. py:data:: chess.FILE_NAMES
+    :value: ['a', 'b', ..., 'g', 'h']
+
+.. py:data:: chess.RANK_NAMES
+    :value: ['1', '2', ..., '7', '8']
+
+.. autofunction:: chess.parse_square
+
+.. autofunction:: chess.square_name
+
+.. autofunction:: chess.square
+
+.. autofunction:: chess.square_file
+
+.. autofunction:: chess.square_rank
+
+.. autofunction:: chess.square_distance
+
+.. autofunction:: chess.square_manhattan_distance
+
+.. autofunction:: chess.square_knight_distance
+
+.. autofunction:: chess.square_mirror
+
+Pieces
+------
+
+.. autoclass:: chess.Piece
+    :members:
+
+Moves
+-----
+
+.. autoclass:: chess.Move
+    :members:
+
+Board
+-----
+
+.. autodata:: chess.STARTING_FEN
+
+.. autodata:: chess.STARTING_BOARD_FEN
+
+.. autoclass:: chess.Board
+    :members:
+    :exclude-members: set_piece_at, remove_piece_at, reset_board, set_board_fen, set_piece_map, set_chess960_pos, apply_transform
+
+.. autoclass:: chess.BaseBoard
+    :members:
+
+Outcome
+-------
+
+.. autoclass:: chess.Outcome
+    :members:
+
+.. autoclass:: chess.Termination
+    :members:
+
+Square sets
+-----------
+
+.. autoclass:: chess.SquareSet
+    :members:
+
+Common integer masks are:
+
+.. py:data:: chess.BB_EMPTY
+    :type: chess.Bitboard
+    :value: 0
+.. py:data:: chess.BB_ALL
+    :type: chess.Bitboard
+    :value: 0xFFFF_FFFF_FFFF_FFFF
+
+Single squares:
+
+.. py:data:: chess.BB_SQUARES
+    :value: [chess.BB_A1, chess.BB_B1, ..., chess.BB_G8, chess.BB_H8]
+
+Ranks and files:
+
+.. py:data:: chess.BB_RANKS
+    :value: [chess.BB_RANK_1, ..., chess.BB_RANK_8]
+
+
+.. py:data:: chess.BB_FILES
+    :value: [chess.BB_FILE_A, ..., chess.BB_FILE_H]
+
+Other masks:
+
+.. py:data:: chess.BB_LIGHT_SQUARES
+    :type: chess.Bitboard
+    :value: 0x55AA_55AA_55AA_55AA
+.. py:data:: chess.BB_DARK_SQUARES
+    :type: chess.Bitboard
+    :value: 0xAA55_AA55_AA55_AA55
+
+.. py:data:: chess.BB_BACKRANKS
+    :value: chess.BB_RANK_1 | chess.BB_RANK_8
+
+.. py:data:: chess.BB_CORNERS
+    :value: chess.BB_A1 | chess.BB_H1 | chess.BB_A8 | chess.BB_H8
+.. py:data:: chess.BB_CENTER
+    :value: chess.BB_D4 | chess.BB_E4 | chess.BB_D5 | chess.BB_E5
+
+
+
+================================================
+FILE: docs/engine.rst
+================================================
+UCI/XBoard engine communication
+===============================
+
+The `Universal chess interface (UCI) <https://backscattering.de/chess/uci/>`_
+and `XBoard protocol <https://www.gnu.org/software/xboard/engine-intf.html>`_
+are standards for communicating with chess engines. This module
+implements an abstraction for playing moves and analysing positions with
+both kinds of engines.
+
+.. warning::
+    Many popular chess engines make no guarantees, not even memory
+    safety, when parameters and positions are not completely
+    :func:`valid <chess.Board.is_valid()>`. This module tries to deal with
+    benign misbehaving engines, but ultimately they are executables running
+    on your system.
+
+The preferred way to use the API is with an
+`asyncio <https://docs.python.org/3/library/asyncio.html>`_ event loop.
+The examples also show a synchronous wrapper
+:class:`~chess.engine.SimpleEngine` that automatically spawns an event loop
+in the background.
+:class:`~chess.engine.SimpleEngine` methods block until there is a result.
+
+Playing
+-------
+
+Example: Let Stockfish play against itself, 100 milliseconds per move.
+
+.. code-block:: python
+   :caption: Using synchronous :class:`~chess.engine.SimpleEngine`
+
+    import chess
+    import chess.engine
+
+    engine = chess.engine.SimpleEngine.popen_uci(r"C:\Users\xxxxx\Downloads\stockfish_14_win_x64\stockfish_14_win_x64_avx2.exe")
+
+    board = chess.Board()
+    while not board.is_game_over():
+        result = engine.play(board, chess.engine.Limit(time=0.1))
+        board.push(result.move)
+
+    engine.quit()
+
+.. code-block:: python
+   :caption: Using asyncio
+
+    import asyncio
+    import chess
+    import chess.engine
+
+    async def main() -> None:
+        transport, engine = await chess.engine.popen_uci(r"C:\Users\xxxxx\Downloads\stockfish_14_win_x64\stockfish_14_win_x64_avx2.exe")
+
+        board = chess.Board()
+        while not board.is_game_over():
+            result = await engine.play(board, chess.engine.Limit(time=0.1))
+            board.push(result.move)
+
+        await engine.quit()
+
+    asyncio.run(main())
+
+.. autoclass:: chess.engine.Protocol
+    :members: play
+
+.. autoclass:: chess.engine.Limit
+    :members:
+
+.. autoclass:: chess.engine.PlayResult
+    :members:
+
+.. autoclass:: chess.engine.Protocol
+    :members: send_opponent_information
+
+.. autoclass:: chess.engine.Opponent
+    :members:
+
+.. autoclass:: chess.engine.Protocol
+    :members: send_game_result
+
+Analysing and evaluating a position
+-----------------------------------
+
+Example:
+
+.. code-block:: python
+   :caption: Using synchronous :class:`~chess.engine.SimpleEngine`
+
+    import chess
+    import chess.engine
+
+    engine = chess.engine.SimpleEngine.popen_uci("/usr/bin/stockfish")
+
+    board = chess.Board()
+    info = engine.analyse(board, chess.engine.Limit(time=0.1))
+    print("Score:", info["score"])
+    # Score: PovScore(Cp(+20), WHITE)
+
+    board = chess.Board("r1bqkbnr/p1pp1ppp/1pn5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 4")
+    info = engine.analyse(board, chess.engine.Limit(depth=20))
+    print("Score:", info["score"])
+    # Score: PovScore(Mate(+1), WHITE)
+
+    engine.quit()
+
+.. code-block:: python
+   :caption: Using asyncio
+
+    import asyncio
+    import chess
+    import chess.engine
+
+    async def main() -> None:
+        transport, engine = await chess.engine.popen_uci("/usr/bin/stockfish")
+
+        board = chess.Board()
+        info = await engine.analyse(board, chess.engine.Limit(time=0.1))
+        print(info["score"])
+        # Score: PovScore(Cp(+20), WHITE)
+
+        board = chess.Board("r1bqkbnr/p1pp1ppp/1pn5/4p3/2B1P3/5Q2/PPPP1PPP/RNB1K1NR w KQkq - 2 4")
+        info = await engine.analyse(board, chess.engine.Limit(depth=20))
+        print(info["score"])
+        # Score: PovScore(Mate(+1), WHITE)
+
+        await engine.quit()
+
+    asyncio.run(main())
+
+.. autoclass:: chess.engine.Protocol
+    :members: analyse
+
+.. autoclass:: chess.engine.InfoDict
+
+.. autoclass:: chess.engine.PovScore
+    :members:
+
+.. autoclass:: chess.engine.Score
+    :members:
+
+.. autoclass:: chess.engine.PovWdl
+    :members:
+
+.. autoclass:: chess.engine.Wdl
+    :members:
+
+Indefinite or infinite analysis
+-------------------------------
+
+Example: Stream information from the engine and stop on an arbitrary condition.
+
+.. code-block:: python
+   :caption: Using synchronous :class:`~chess.engine.SimpleEngine`
+
+    import chess
+    import chess.engine
+
+    engine = chess.engine.SimpleEngine.popen_uci("/usr/bin/stockfish")
+
+    with engine.analysis(chess.Board()) as analysis:
+        for info in analysis:
+            print(info.get("score"), info.get("pv"))
+
+            # Arbitrary stop condition.
+            if info.get("seldepth", 0) > 20:
+                break
+
+    engine.quit()
+
+.. code-block:: python
+   :caption: Using asyncio
+
+    import asyncio
+    import chess
+    import chess.engine
+
+    async def main() -> None:
+        transport, engine = await chess.engine.popen_uci("/usr/bin/stockfish")
+
+        with await engine.analysis(chess.Board()) as analysis:
+            async for info in analysis:
+                print(info.get("score"), info.get("pv"))
+
+                # Arbitrary stop condition.
+                if info.get("seldepth", 0) > 20:
+                    break
+
+        await engine.quit()
+
+    asyncio.run(main())
+
+.. autoclass:: chess.engine.Protocol
+    :members: analysis
+
+.. autoclass:: chess.engine.AnalysisResult
+    :members:
+
+.. autoclass:: chess.engine.BestMove
+    :members:
+
+Options
+-------
+
+:func:`~chess.Protocol.configure()`,
+:func:`~chess.Protocol.play()`,
+:func:`~chess.Protocol.analyse()` and
+:func:`~chess.Protocol.analysis()` accept a dictionary of options.
+
+.. code-block:: python
+   :caption: Using synchronous :class:`~chess.engine.SimpleEngine`
+
+    import chess.engine
+
+    engine = chess.engine.SimpleEngine.popen_uci("/usr/bin/stockfish")
+
+    # Check available options.
+    engine.options["Hash"]
+    # Option(name='Hash', type='spin', default=16, min=1, max=131072, var=[])
+
+    # Set an option.
+    engine.configure({"Hash": 32})
+
+    # [...]
+
+.. code-block:: python
+   :caption: Using asyncio
+
+    import asyncio
+    import chess.engine
+
+    async def main() -> None:
+        transport, engine = await chess.engine.popen_uci("/usr/bin/stockfish")
+
+        # Check available options.
+        print(engine.options["Hash"])
+        # Option(name='Hash', type='spin', default=16, min=1, max=131072, var=[])
+
+        # Set an option.
+        await engine.configure({"Hash": 32})
+
+        # [...]
+
+    asyncio.run(main())
+
+.. autoclass:: chess.engine.Protocol
+    :members: options, configure
+
+.. autoclass:: chess.engine.Option
+    :members:
+
+Logging
+-------
+
+Communication is logged with debug level on a logger named ``chess.engine``.
+Debug logs are useful while troubleshooting. Please also provide them
+when submitting bug reports.
+
+.. code:: python
+
+    import logging
+
+    # Enable debug logging.
+    logging.basicConfig(level=logging.DEBUG)
+
+AsyncSSH
+--------
+
+:class:`chess.engine.Protocol` can also be used with
+`AsyncSSH <https://asyncssh.readthedocs.io/en/latest/>`_ (since 1.16.0)
+to communicate with an engine on a remote computer.
+
+.. code:: python
+
+    import asyncio
+    import asyncssh
+    import chess
+    import chess.engine
+
+    async def main() -> None:
+        async with asyncssh.connect("localhost") as conn:
+            channel, engine = await conn.create_subprocess(chess.engine.UciProtocol, "/usr/bin/stockfish")
+            await engine.initialize()
+
+            # Play, analyse, ...
+            await engine.ping()
+
+    asyncio.run(main())
+
+Reference
+---------
+
+.. autoclass:: chess.engine.EngineError
+
+.. autoclass:: chess.engine.EngineTerminatedError
+
+.. autoclass:: chess.engine.AnalysisComplete
+
+.. autofunction:: chess.engine.popen_uci
+
+.. autofunction:: chess.engine.popen_xboard
+
+.. autoclass:: chess.engine.Protocol
+    :members: id, returncode, initialize, ping, quit
+
+.. autoclass:: chess.engine.UciProtocol
+
+.. autoclass:: chess.engine.XBoardProtocol
+
+.. autoclass:: chess.engine.SimpleEngine
+    :members:
+
+.. autoclass:: chess.engine.SimpleAnalysisResult
+    :members:
+
+
+
+================================================
+FILE: docs/gaviota.rst
+================================================
+Gaviota endgame tablebase probing
+=================================
+
+Gaviota tablebases provide **WDL** (win/draw/loss) and **DTM** (depth to mate)
+information for all endgame positions with up to 5 pieces. Positions with
+castling rights are not included.
+
+.. warning::
+    Ensure tablebase files match the known checksums. Maliciously crafted
+    tablebase files may cause denial of service with
+    :class:`~chess.gaviota.PythonTablebase` and memory unsafety with
+    :class:`~chess.gaviota.NativeTablebase`.
+
+.. autofunction:: chess.gaviota.open_tablebase
+
+.. autoclass:: chess.gaviota.PythonTablebase
+    :members:
+
+libgtb
+------
+
+For faster access you can build and install
+a `shared library <https://github.com/michiguel/Gaviota-Tablebases>`_.
+Otherwise the pure Python probing code is used.
+
+.. code-block:: shell
+
+    git clone https://github.com/michiguel/Gaviota-Tablebases.git
+    cd Gaviota-Tablebases
+    make
+    sudo make install
+
+
+.. autofunction:: chess.gaviota.open_tablebase_native
+
+.. autoclass:: chess.gaviota.NativeTablebase
+    :members:
+
+
+
+================================================
+FILE: docs/index.rst
+================================================
+.. include:: ../README.rst
+
+Contents
+--------
+
+.. toctree::
+    :maxdepth: 2
+
+    core
+    pgn
+    polyglot
+    gaviota
+    syzygy
+    engine
+    svg
+    variant
+
+.. toctree::
+    :maxdepth: 1
+
+    changelog
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`search`
+
+
+
+================================================
+FILE: docs/make.bat
+================================================
+@ECHO OFF
+
+REM Command file for Sphinx documentation
+
+if "%SPHINXBUILD%" == "" (
+	set SPHINXBUILD=sphinx-build
+)
+set BUILDDIR=_build
+set ALLSPHINXOPTS=-d %BUILDDIR%/doctrees %SPHINXOPTS% .
+set I18NSPHINXOPTS=%SPHINXOPTS% .
+if NOT "%PAPER%" == "" (
+	set ALLSPHINXOPTS=-D latex_paper_size=%PAPER% %ALLSPHINXOPTS%
+	set I18NSPHINXOPTS=-D latex_paper_size=%PAPER% %I18NSPHINXOPTS%
+)
+
+if "%1" == "" goto help
+
+if "%1" == "help" (
+	:help
+	echo.Please use `make ^<target^>` where ^<target^> is one of
+	echo.  html       to make standalone HTML files
+	echo.  dirhtml    to make HTML files named index.html in directories
+	echo.  singlehtml to make a single large HTML file
+	echo.  pickle     to make pickle files
+	echo.  json       to make JSON files
+	echo.  htmlhelp   to make HTML files and a HTML help project
+	echo.  qthelp     to make HTML files and a qthelp project
+	echo.  devhelp    to make HTML files and a Devhelp project
+	echo.  epub       to make an epub
+	echo.  latex      to make LaTeX files, you can set PAPER=a4 or PAPER=letter
+	echo.  text       to make text files
+	echo.  man        to make manual pages
+	echo.  texinfo    to make Texinfo files
+	echo.  gettext    to make PO message catalogs
+	echo.  changes    to make an overview over all changed/added/deprecated items
+	echo.  xml        to make Docutils-native XML files
+	echo.  pseudoxml  to make pseudoxml-XML files for display purposes
+	echo.  linkcheck  to check all external links for integrity
+	echo.  doctest    to run all doctests embedded in the documentation if enabled
+	goto end
+)
+
+if "%1" == "clean" (
+	for /d %%i in (%BUILDDIR%\*) do rmdir /q /s %%i
+	del /q /s %BUILDDIR%\*
+	goto end
+)
+
+
+%SPHINXBUILD% 2> nul
+if errorlevel 9009 (
+	echo.
+	echo.The 'sphinx-build' command was not found. Make sure you have Sphinx
+	echo.installed, then set the SPHINXBUILD environment variable to point
+	echo.to the full path of the 'sphinx-build' executable. Alternatively you
+	echo.may add the Sphinx directory to PATH.
+	echo.
+	echo.If you don't have Sphinx installed, grab it from
+	echo.http://sphinx-doc.org/
+	exit /b 1
+)
+
+if "%1" == "html" (
+	%SPHINXBUILD% -b html %ALLSPHINXOPTS% %BUILDDIR%/html
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The HTML pages are in %BUILDDIR%/html.
+	goto end
+)
+
+if "%1" == "dirhtml" (
+	%SPHINXBUILD% -b dirhtml %ALLSPHINXOPTS% %BUILDDIR%/dirhtml
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The HTML pages are in %BUILDDIR%/dirhtml.
+	goto end
+)
+
+if "%1" == "singlehtml" (
+	%SPHINXBUILD% -b singlehtml %ALLSPHINXOPTS% %BUILDDIR%/singlehtml
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The HTML pages are in %BUILDDIR%/singlehtml.
+	goto end
+)
+
+if "%1" == "pickle" (
+	%SPHINXBUILD% -b pickle %ALLSPHINXOPTS% %BUILDDIR%/pickle
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished; now you can process the pickle files.
+	goto end
+)
+
+if "%1" == "json" (
+	%SPHINXBUILD% -b json %ALLSPHINXOPTS% %BUILDDIR%/json
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished; now you can process the JSON files.
+	goto end
+)
+
+if "%1" == "htmlhelp" (
+	%SPHINXBUILD% -b htmlhelp %ALLSPHINXOPTS% %BUILDDIR%/htmlhelp
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished; now you can run HTML Help Workshop with the ^
+.hhp project file in %BUILDDIR%/htmlhelp.
+	goto end
+)
+
+if "%1" == "qthelp" (
+	%SPHINXBUILD% -b qthelp %ALLSPHINXOPTS% %BUILDDIR%/qthelp
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished; now you can run "qcollectiongenerator" with the ^
+.qhcp project file in %BUILDDIR%/qthelp, like this:
+	echo.^> qcollectiongenerator %BUILDDIR%\qthelp\python-chess.qhcp
+	echo.To view the help file:
+	echo.^> assistant -collectionFile %BUILDDIR%\qthelp\python-chess.ghc
+	goto end
+)
+
+if "%1" == "devhelp" (
+	%SPHINXBUILD% -b devhelp %ALLSPHINXOPTS% %BUILDDIR%/devhelp
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished.
+	goto end
+)
+
+if "%1" == "epub" (
+	%SPHINXBUILD% -b epub %ALLSPHINXOPTS% %BUILDDIR%/epub
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The epub file is in %BUILDDIR%/epub.
+	goto end
+)
+
+if "%1" == "latex" (
+	%SPHINXBUILD% -b latex %ALLSPHINXOPTS% %BUILDDIR%/latex
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished; the LaTeX files are in %BUILDDIR%/latex.
+	goto end
+)
+
+if "%1" == "latexpdf" (
+	%SPHINXBUILD% -b latex %ALLSPHINXOPTS% %BUILDDIR%/latex
+	cd %BUILDDIR%/latex
+	make all-pdf
+	cd %BUILDDIR%/..
+	echo.
+	echo.Build finished; the PDF files are in %BUILDDIR%/latex.
+	goto end
+)
+
+if "%1" == "latexpdfja" (
+	%SPHINXBUILD% -b latex %ALLSPHINXOPTS% %BUILDDIR%/latex
+	cd %BUILDDIR%/latex
+	make all-pdf-ja
+	cd %BUILDDIR%/..
+	echo.
+	echo.Build finished; the PDF files are in %BUILDDIR%/latex.
+	goto end
+)
+
+if "%1" == "text" (
+	%SPHINXBUILD% -b text %ALLSPHINXOPTS% %BUILDDIR%/text
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The text files are in %BUILDDIR%/text.
+	goto end
+)
+
+if "%1" == "man" (
+	%SPHINXBUILD% -b man %ALLSPHINXOPTS% %BUILDDIR%/man
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The manual pages are in %BUILDDIR%/man.
+	goto end
+)
+
+if "%1" == "texinfo" (
+	%SPHINXBUILD% -b texinfo %ALLSPHINXOPTS% %BUILDDIR%/texinfo
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The Texinfo files are in %BUILDDIR%/texinfo.
+	goto end
+)
+
+if "%1" == "gettext" (
+	%SPHINXBUILD% -b gettext %I18NSPHINXOPTS% %BUILDDIR%/locale
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The message catalogs are in %BUILDDIR%/locale.
+	goto end
+)
+
+if "%1" == "changes" (
+	%SPHINXBUILD% -b changes %ALLSPHINXOPTS% %BUILDDIR%/changes
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.The overview file is in %BUILDDIR%/changes.
+	goto end
+)
+
+if "%1" == "linkcheck" (
+	%SPHINXBUILD% -b linkcheck %ALLSPHINXOPTS% %BUILDDIR%/linkcheck
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Link check complete; look for any errors in the above output ^
+or in %BUILDDIR%/linkcheck/output.txt.
+	goto end
+)
+
+if "%1" == "doctest" (
+	%SPHINXBUILD% -b doctest %ALLSPHINXOPTS% %BUILDDIR%/doctest
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Testing of doctests in the sources finished, look at the ^
+results in %BUILDDIR%/doctest/output.txt.
+	goto end
+)
+
+if "%1" == "xml" (
+	%SPHINXBUILD% -b xml %ALLSPHINXOPTS% %BUILDDIR%/xml
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The XML files are in %BUILDDIR%/xml.
+	goto end
+)
+
+if "%1" == "pseudoxml" (
+	%SPHINXBUILD% -b pseudoxml %ALLSPHINXOPTS% %BUILDDIR%/pseudoxml
+	if errorlevel 1 exit /b 1
+	echo.
+	echo.Build finished. The pseudo-XML files are in %BUILDDIR%/pseudoxml.
+	goto end
+)
+
+:end
+
+
+
+================================================
+FILE: docs/Makefile
+================================================
+# Makefile for Sphinx documentation
+#
+
+# You can set these variables from the command line.
+SPHINXOPTS    =
+SPHINXBUILD   = sphinx-build
+PAPER         =
+BUILDDIR      = _build
+
+# User-friendly check for sphinx-build
+ifeq ($(shell which $(SPHINXBUILD) >/dev/null 2>&1; echo $$?), 1)
+$(error The '$(SPHINXBUILD)' command was not found. Make sure you have Sphinx installed, then set the SPHINXBUILD environment variable to point to the full path of the '$(SPHINXBUILD)' executable. Alternatively you can add the directory with the executable to your PATH. If you don't have Sphinx installed, grab it from http://sphinx-doc.org/)
+endif
+
+# Internal variables.
+PAPEROPT_a4     = -D latex_paper_size=a4
+PAPEROPT_letter = -D latex_paper_size=letter
+ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
+# the i18n builder cannot share the environment and doctrees with the others
+I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) .
+
+.PHONY: help clean html dirhtml singlehtml pickle json htmlhelp qthelp devhelp epub latex latexpdf text man changes linkcheck doctest gettext
+
+help:
+	@echo "Please use \`make <target>' where <target> is one of"
+	@echo "  html       to make standalone HTML files"
+	@echo "  dirhtml    to make HTML files named index.html in directories"
+	@echo "  singlehtml to make a single large HTML file"
+	@echo "  pickle     to make pickle files"
+	@echo "  json       to make JSON files"
+	@echo "  htmlhelp   to make HTML files and a HTML help project"
+	@echo "  qthelp     to make HTML files and a qthelp project"
+	@echo "  devhelp    to make HTML files and a Devhelp project"
+	@echo "  epub       to make an epub"
+	@echo "  latex      to make LaTeX files, you can set PAPER=a4 or PAPER=letter"
+	@echo "  latexpdf   to make LaTeX files and run them through pdflatex"
+	@echo "  latexpdfja to make LaTeX files and run them through platex/dvipdfmx"
+	@echo "  text       to make text files"
+	@echo "  man        to make manual pages"
+	@echo "  texinfo    to make Texinfo files"
+	@echo "  info       to make Texinfo files and run them through makeinfo"
+	@echo "  gettext    to make PO message catalogs"
+	@echo "  changes    to make an overview of all changed/added/deprecated items"
+	@echo "  xml        to make Docutils-native XML files"
+	@echo "  pseudoxml  to make pseudoxml-XML files for display purposes"
+	@echo "  linkcheck  to check all external links for integrity"
+	@echo "  doctest    to run all doctests embedded in the documentation (if enabled)"
+
+clean:
+	rm -rf $(BUILDDIR)/*
+
+html:
+	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
+dirhtml:
+	$(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(BUILDDIR)/dirhtml
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/dirhtml."
+
+singlehtml:
+	$(SPHINXBUILD) -b singlehtml $(ALLSPHINXOPTS) $(BUILDDIR)/singlehtml
+	@echo
+	@echo "Build finished. The HTML page is in $(BUILDDIR)/singlehtml."
+
+pickle:
+	$(SPHINXBUILD) -b pickle $(ALLSPHINXOPTS) $(BUILDDIR)/pickle
+	@echo
+	@echo "Build finished; now you can process the pickle files."
+
+json:
+	$(SPHINXBUILD) -b json $(ALLSPHINXOPTS) $(BUILDDIR)/json
+	@echo
+	@echo "Build finished; now you can process the JSON files."
+
+htmlhelp:
+	$(SPHINXBUILD) -b htmlhelp $(ALLSPHINXOPTS) $(BUILDDIR)/htmlhelp
+	@echo
+	@echo "Build finished; now you can run HTML Help Workshop with the" \
+	      ".hhp project file in $(BUILDDIR)/htmlhelp."
+
+qthelp:
+	$(SPHINXBUILD) -b qthelp $(ALLSPHINXOPTS) $(BUILDDIR)/qthelp
+	@echo
+	@echo "Build finished; now you can run "qcollectiongenerator" with the" \
+	      ".qhcp project file in $(BUILDDIR)/qthelp, like this:"
+	@echo "# qcollectiongenerator $(BUILDDIR)/qthelp/python-chess.qhcp"
+	@echo "To view the help file:"
+	@echo "# assistant -collectionFile $(BUILDDIR)/qthelp/python-chess.qhc"
+
+devhelp:
+	$(SPHINXBUILD) -b devhelp $(ALLSPHINXOPTS) $(BUILDDIR)/devhelp
+	@echo
+	@echo "Build finished."
+	@echo "To view the help file:"
+	@echo "# mkdir -p $$HOME/.local/share/devhelp/python-chess"
+	@echo "# ln -s $(BUILDDIR)/devhelp $$HOME/.local/share/devhelp/python-chess"
+	@echo "# devhelp"
+
+epub:
+	$(SPHINXBUILD) -b epub $(ALLSPHINXOPTS) $(BUILDDIR)/epub
+	@echo
+	@echo "Build finished. The epub file is in $(BUILDDIR)/epub."
+
+latex:
+	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+	@echo
+	@echo "Build finished; the LaTeX files are in $(BUILDDIR)/latex."
+	@echo "Run \`make' in that directory to run these through (pdf)latex" \
+	      "(use \`make latexpdf' here to do that automatically)."
+
+latexpdf:
+	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+	@echo "Running LaTeX files through pdflatex..."
+	$(MAKE) -C $(BUILDDIR)/latex all-pdf
+	@echo "pdflatex finished; the PDF files are in $(BUILDDIR)/latex."
+
+latexpdfja:
+	$(SPHINXBUILD) -b latex $(ALLSPHINXOPTS) $(BUILDDIR)/latex
+	@echo "Running LaTeX files through platex and dvipdfmx..."
+	$(MAKE) -C $(BUILDDIR)/latex all-pdf-ja
+	@echo "pdflatex finished; the PDF files are in $(BUILDDIR)/latex."
+
+text:
+	$(SPHINXBUILD) -b text $(ALLSPHINXOPTS) $(BUILDDIR)/text
+	@echo
+	@echo "Build finished. The text files are in $(BUILDDIR)/text."
+
+man:
+	$(SPHINXBUILD) -b man $(ALLSPHINXOPTS) $(BUILDDIR)/man
+	@echo
+	@echo "Build finished. The manual pages are in $(BUILDDIR)/man."
+
+texinfo:
+	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(BUILDDIR)/texinfo
+	@echo
+	@echo "Build finished. The Texinfo files are in $(BUILDDIR)/texinfo."
+	@echo "Run \`make' in that directory to run these through makeinfo" \
+	      "(use \`make info' here to do that automatically)."
+
+info:
+	$(SPHINXBUILD) -b texinfo $(ALLSPHINXOPTS) $(BUILDDIR)/texinfo
+	@echo "Running Texinfo files through makeinfo..."
+	make -C $(BUILDDIR)/texinfo info
+	@echo "makeinfo finished; the Info files are in $(BUILDDIR)/texinfo."
+
+gettext:
+	$(SPHINXBUILD) -b gettext $(I18NSPHINXOPTS) $(BUILDDIR)/locale
+	@echo
+	@echo "Build finished. The message catalogs are in $(BUILDDIR)/locale."
+
+changes:
+	$(SPHINXBUILD) -b changes $(ALLSPHINXOPTS) $(BUILDDIR)/changes
+	@echo
+	@echo "The overview file is in $(BUILDDIR)/changes."
+
+linkcheck:
+	$(SPHINXBUILD) -b linkcheck $(ALLSPHINXOPTS) $(BUILDDIR)/linkcheck
+	@echo
+	@echo "Link check complete; look for any errors in the above output " \
+	      "or in $(BUILDDIR)/linkcheck/output.txt."
+
+doctest:
+	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDDIR)/doctest
+	@echo "Testing of doctests in the sources finished, look at the " \
+	      "results in $(BUILDDIR)/doctest/output.txt."
+
+xml:
+	$(SPHINXBUILD) -b xml $(ALLSPHINXOPTS) $(BUILDDIR)/xml
+	@echo
+	@echo "Build finished. The XML files are in $(BUILDDIR)/xml."
+
+pseudoxml:
+	$(SPHINXBUILD) -b pseudoxml $(ALLSPHINXOPTS) $(BUILDDIR)/pseudoxml
+	@echo
+	@echo "Build finished. The pseudo-XML files are in $(BUILDDIR)/pseudoxml."
+
+
+
+================================================
+FILE: docs/pgn.rst
+================================================
+PGN parsing and writing
+=======================
+
+Parsing
+-------
+
+.. autofunction:: chess.pgn.read_game
+
+Writing
+-------
+
+If you want to export your game with all headers, comments and variations,
+you can do it like this:
+
+>>> import chess
+>>> import chess.pgn
+>>>
+>>> game = chess.pgn.Game()
+>>> game.headers["Event"] = "Example"
+>>> node = game.add_variation(chess.Move.from_uci("e2e4"))
+>>> node = node.add_variation(chess.Move.from_uci("e7e5"))
+>>> node.comment = "Comment"
+>>>
+>>> print(game)
+[Event "Example"]
+[Site "?"]
+[Date "????.??.??"]
+[Round "?"]
+[White "?"]
+[Black "?"]
+[Result "*"]
+<BLANKLINE>
+1. e4 e5 { Comment } *
+
+Remember that games in files should be separated with extra blank lines.
+
+>>> print(game, file=open("/dev/null", "w"), end="\n\n")
+
+Use the :class:`~chess.pgn.StringExporter()` or
+:class:`~chess.pgn.FileExporter()` visitors if you need more control.
+
+Game model
+----------
+
+Games are represented as a tree of moves. Conceptually each node represents a
+position of the game. The tree consists of one root node
+(:class:`~chess.pgn.Game`, also holding game headers) and many child
+nodes (:class:`~chess.pgn.ChildNode`).
+Both extend :class:`~chess.pgn.GameNode`.
+
+.. note:: Some basic methods have complexity `O(n)` for a game with n moves.
+  When following a variation, it is often more efficient to use visitors
+  or incrementally update state (like board, ply counter, or turn).
+
+.. autoclass:: chess.pgn.GameNode
+    :members:
+
+.. autoclass:: chess.pgn.Game
+    :members: headers, errors, setup, accept, from_board, without_tag_roster
+
+.. autoclass:: chess.pgn.ChildNode
+    :members: parent, move, starting_comment, nags, san, uci, end
+
+Visitors
+--------
+
+Visitors are an advanced concept for game tree traversal.
+
+.. autoclass:: chess.pgn.BaseVisitor
+    :members:
+
+The following visitors are readily available.
+
+.. autoclass:: chess.pgn.GameBuilder
+    :members: handle_error, result
+
+.. autoclass:: chess.pgn.HeadersBuilder
+
+.. autoclass:: chess.pgn.BoardBuilder
+
+.. autoclass:: chess.pgn.SkipVisitor
+
+.. autoclass:: chess.pgn.StringExporter
+
+.. autoclass:: chess.pgn.FileExporter
+
+NAGs
+----
+
+Numeric anotation glyphs describe moves and positions using standardized codes
+that are understood by many chess programs. During PGN parsing, annotations
+like ``!``, ``?``, ``!!``, etc., are also converted to NAGs.
+
+.. autodata:: chess.pgn.NAG_GOOD_MOVE
+.. autodata:: chess.pgn.NAG_MISTAKE
+.. autodata:: chess.pgn.NAG_BRILLIANT_MOVE
+.. autodata:: chess.pgn.NAG_BLUNDER
+.. autodata:: chess.pgn.NAG_SPECULATIVE_MOVE
+.. autodata:: chess.pgn.NAG_DUBIOUS_MOVE
+
+Skimming
+--------
+
+These functions allow for quickly skimming games without fully parsing them.
+
+.. autofunction:: chess.pgn.read_headers
+
+.. autofunction:: chess.pgn.skip_game
+
+
+
+================================================
+FILE: docs/polyglot.rst
+================================================
+Polyglot opening book reading
+=============================
+
+.. autofunction:: chess.polyglot.open_reader
+
+.. autoclass:: chess.polyglot.Entry
+    :members:
+
+
+.. autoclass:: chess.polyglot.MemoryMappedReader
+    :members:
+
+.. py:data:: chess.polyglot.POLYGLOT_RANDOM_ARRAY
+    :value: [0x9D39247E33776D41, ..., 0xF8D626AAAF278509]
+
+    Array of 781 polyglot compatible pseudo random values for Zobrist hashing.
+
+.. autofunction:: chess.polyglot.zobrist_hash
+
+
+
+================================================
+FILE: docs/requirements.txt
+================================================
+Sphinx==8.1.2
+sphinxcontrib-jquery==4.1
+sphinx-rtd-theme==3.0.1
+
+
+
+================================================
+FILE: docs/svg.rst
+================================================
+SVG rendering
+=============
+
+The :mod:`chess.svg` module renders SVG Tiny 1.2 images
+(mostly for IPython/Jupyter Notebook integration).
+The piece images by
+`Colin M.L. Burnett <https://en.wikipedia.org/wiki/User:Cburnett>`_ are triple
+licensed under the GFDL, BSD and GPL.
+
+.. autofunction:: chess.svg.piece
+
+.. autofunction:: chess.svg.board
+
+.. autoclass:: chess.svg.Arrow
+    :members:
+
+
+
+================================================
+FILE: docs/syzygy.rst
+================================================
+Syzygy endgame tablebase probing
+================================
+
+Syzygy tablebases provide WDL\ :sub:`50` (win/draw/loss under the 50-move rule) and
+DTZ\ :sub:`50`'' (distance to zeroing) information with rounding for all endgame
+positions with up to 7 pieces. Positions with castling rights are not included.
+
+.. warning::
+    Ensure tablebase files match the known checksums. Maliciously crafted
+    tablebase files may cause denial of service.
+
+.. autofunction:: chess.syzygy.open_tablebase
+
+.. autoclass:: chess.syzygy.Tablebase
+    :members:
+
+
+
+================================================
+FILE: docs/variant.rst
+================================================
+Variants
+========
+
+python-chess supports several chess variants.
+
+>>> import chess.variant
+>>>
+>>> board = chess.variant.GiveawayBoard()
+
+>>> # General information about the variants.
+>>> type(board).uci_variant
+'giveaway'
+>>> type(board).xboard_variant
+'giveaway'
+>>> type(board).starting_fen
+'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1'
+
+================ ========================================= ============= ============
+Variant          Board class                               UCI/XBoard    Syzygy
+================ ========================================= ============= ============
+Standard         :class:`chess.Board`                      chess/normal  .rtbw, .rtbz
+Suicide          :class:`chess.variant.SuicideBoard`       suicide       .stbw, .stbz
+Giveaway         :class:`chess.variant.GiveawayBoard`      giveaway      .gtbw, .gtbz
+Antichess        :class:`chess.variant.AntichessBoard`     antichess     .gtbw, .gtbz
+Atomic           :class:`chess.variant.AtomicBoard`        atomic        .atbw, .atbz
+King of the Hill :class:`chess.variant.KingOfTheHillBoard` kingofthehill
+Racing Kings     :class:`chess.variant.RacingKingsBoard`   racingkings
+Horde            :class:`chess.variant.HordeBoard`         horde
+Three-check      :class:`chess.variant.ThreeCheckBoard`    3check
+Crazyhouse       :class:`chess.variant.CrazyhouseBoard`    crazyhouse
+================ ========================================= ============= ============
+
+.. autofunction:: chess.variant.find_variant
+
+Game end
+--------
+
+See :func:`chess.Board.is_variant_end()`, :func:`~chess.Board.is_variant_win()`,
+:func:`~chess.Board.is_variant_draw()`,
+or :func:`~chess.Board.is_variant_loss()` for special variant end conditions
+and results.
+
+Note that if all of them return ``False``, the game may still be over and
+decided by standard conditions like :func:`~chess.Board.is_checkmate()`,
+:func:`~chess.Board.is_stalemate()`,
+:func:`~chess.Board.is_insufficient_material()`, move counters, repetitions,
+and legitimate claims.
+
+Chess960
+--------
+
+Chess960 is orthogonal to all other variants.
+
+>>> chess.Board(chess960=True)
+Board('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', chess960=True)
+
+See :func:`chess.BaseBoard.set_chess960_pos()`,
+:func:`~chess.BaseBoard.chess960_pos()`, and
+:func:`~chess.BaseBoard.from_chess960_pos()` for dealing with Chess960 starting
+positions.
+
+Crazyhouse
+----------
+
+.. autoclass:: chess.variant.CrazyhousePocket
+    :members:
+
+.. autoclass:: chess.variant.CrazyhouseBoard
+    :members: legal_drop_squares
+
+    .. py:attribute:: pockets
+       :value: [chess.variant.CrazyhousePocket(), chess.variant.CrazyhousePocket()]
+
+        Pockets for each color. For example, ``board.pockets[chess.WHITE]``
+        are the pocket pieces available to White.
+
+Three-check
+-----------
+
+.. autoclass:: chess.variant.ThreeCheckBoard
+
+    .. py:attribute:: remaining_checks
+       :value: [3, 3]
+
+        Remaining checks until victory for each color. For example,
+        ``board.remaining_checks[chess.WHITE] == 0`` implies that White has won.
+
+UCI/XBoard
+----------
+
+`Multi-Variant Stockfish`_ and other engines have an ``UCI_Variant`` option.
+XBoard engines may declare support for ``variants``.
+This is automatically managed.
+
+>>> import chess.engine
+>>>
+>>> engine = chess.engine.SimpleEngine.popen_uci("stockfish-mv")
+>>>
+>>> board = chess.variant.RacingKingsBoard()
+>>> result = engine.play(board, chess.engine.Limit(time=1.0))
+
+Syzygy
+------
+
+Syzygy tablebases are available for suicide, giveaway and atomic chess.
+
+>>> import chess.syzygy
+>>> import chess.variant
+>>>
+>>> tables = chess.syzygy.open_tablebase("data/syzygy", VariantBoard=chess.variant.AtomicBoard)
+
+
+.. _Multi-Variant Stockfish: https://github.com/ddugovic/Stockfish
+
+
