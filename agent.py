@@ -1028,7 +1028,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         # Get all attributes from the tools module
         tool_list = []
         for name, obj in tools.__dict__.items():
-            # Only include callable objects that are functions (not classes, modules, or builtins)
+            # Only include callable objects that are functions or tool objects (not classes, modules, or builtins)
             if (callable(obj) and 
                 not name.startswith("_") and 
                 not isinstance(obj, type) and  # Exclude classes
@@ -1048,10 +1048,19 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position'
         ]
         
+        # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
+        def get_tool_name(tool):
+            return getattr(tool, "__name__", getattr(tool, "name", str(tool)))
+        tool_names = set(get_tool_name(tool) for tool in tool_list)
+        
         # Ensure all specific tools are included
         for tool_name in specific_tools:
-            if hasattr(tools, tool_name) and tool_name not in [tool.__name__ for tool in tool_list]:
-                tool_list.append(getattr(tools, tool_name))
+            if hasattr(tools, tool_name):
+                tool_obj = getattr(tools, tool_name)
+                name_val = get_tool_name(tool_obj)
+                if name_val not in tool_names:
+                    tool_list.append(tool_obj)
+                    tool_names.add(name_val)
         
-        print(f"✅ Gathered {len(tool_list)} tools: {[tool.__name__ for tool in tool_list]}")
+        print(f"✅ Gathered {len(tool_list)} tools: {[get_tool_name(tool) for tool in tool_list]}")
         return tool_list 
