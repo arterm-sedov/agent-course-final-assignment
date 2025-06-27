@@ -1284,24 +1284,8 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         """
         Create HuggingFace LLM with multiple fallback options to handle router issues.
         """
-        # List of models to try in order of preference (more reliable models first)
+        # List of models to try in order of preference (Qwen first since it's working well)
         models_to_try = [
-            {
-                "repo_id": "microsoft/DialoGPT-medium",
-                "task": "text-generation",
-                "max_new_tokens": 512,  # Shorter for reliability
-                "do_sample": False,
-                "temperature": 0,
-                "retry_on_error": True
-            },
-            {
-                "repo_id": "gpt2",
-                "task": "text-generation", 
-                "max_new_tokens": 256,  # Even shorter for basic model
-                "do_sample": False,
-                "temperature": 0,
-                "retry_on_error": True
-            },
             {
                 "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
                 "task": "text-generation",
@@ -1309,12 +1293,27 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 "do_sample": False,
                 "temperature": 0,
                 "retry_on_error": True
+                "temperature": 0
+            },
+            {
+                "repo_id": "microsoft/DialoGPT-medium",
+                "task": "text-generation",
+                "max_new_tokens": 512,  # Shorter for reliability
+                "do_sample": False,
+                "temperature": 0
+            },
+            {
+                "repo_id": "gpt2",
+                "task": "text-generation", 
+                "max_new_tokens": 256,  # Even shorter for basic model
+                "do_sample": False,
+                "temperature": 0
             }
         ]
         
         for model_config in models_to_try:
             try:
-                # Create the endpoint (without timeout parameter, but with retry_on_error)
+                # Create the endpoint (without retry_on_error to avoid warnings)
                 endpoint = HuggingFaceEndpoint(**model_config)
                 
                 # Create the chat model
@@ -1329,7 +1328,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     test_response = llm.invoke(test_message)
                     if test_response and hasattr(test_response, 'content') and test_response.content:
                         print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
-                        print (f'Test message: {test_message}. Test responce: {test_response}')
+                        print(f'Test message: {test_message}. Test response: {test_response}')
                         return llm
                     else:
                         print(f"⚠️ {model_config['repo_id']} returned empty response")
