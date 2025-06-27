@@ -21,7 +21,7 @@ import board_to_fen
 
 # LangChain imports for search tools and tool decorator
 try:
-    from langchain_community.tools.tavily_search import TavilySearchResults
+    from langchain_tavily import TavilySearchResults
     from langchain_community.document_loaders import WikipediaLoader, ArxivLoader
     from langchain_core.tools import tool
     TAVILY_AVAILABLE = True
@@ -1147,6 +1147,41 @@ def understand_audio(file_path: str, prompt: str) -> str:
         return f"Error understanding audio: {str(e)}"
 
 # ========== CHESS TOOLS ==========
+def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
+    """
+    Internal function to convert chess moves from coordinate notation to algebraic notation.
+    Uses Google Gemini to convert chess moves between different notations.
+    Coordinate notation uses square names (e.g., "e2e4"), while algebraic notation
+    uses piece symbols and square names (e.g., "e4", "Nf3", "O-O").
+    The function constructs a prompt for Gemini and expects 
+    only the algebraic notation as output, with no extra commentary.
+    
+    
+
+    """
+    try:
+        # Use Google Gemini to convert coordinate notation to algebraic notation
+        if not GEMINI_AVAILABLE:
+            return "Google Gemini not available for chess move conversion"
+        
+        genai.configure(api_key=os.environ.get("GEMINI_KEY"))
+        model = genai.GenerativeModel('gemini-2.5-pro')
+        
+        prompt = f"""
+        Convert this chess move from coordinate notation to algebraic notation.
+        
+        Piece placement: {piece_placement}
+        Move in coordinate notation: {move}
+        
+        Return only the algebraic notation (e.g., "e4", "Nf3", "O-O", "Qxd5", etc.)
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text.strip()
+        
+    except Exception as e:
+        return f"Error converting chess move: {str(e)}"
+
 @tool
 def convert_chess_move(piece_placement: str, move: str) -> str:
     """
@@ -1161,7 +1196,7 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
     Args:
         piece_placement (str): The chess piece placement in plain text or FEN format.
         move (str): The move in coordinate notation (e.g., "e2e4").
-    
+
     Returns:
         str: The move in algebraic notation, or error message.
     
@@ -1176,7 +1211,7 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         if not gemini_key:
             return "GEMINI_KEY not found in environment variables."
         
-        client = genai.Client(api_key=gemini_key)
+        client = genai.Client(api_key=GEMINI_KEY)
         move_message = (
             f"Convert this chess move from coordinate notation to algebraic "
             f"notation: {move}. Use the following piece placement: {piece_placement}. "
@@ -1192,25 +1227,9 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
     except Exception as e:
         return f"Error converting chess move: {str(e)}"
 
-@tool
-def get_best_chess_move(fen: str) -> str:
+def _get_best_chess_move_internal(fen: str) -> str:
     """
-    Get the best chess move in coordinate notation based on a FEN representation
-    using a chess evaluation API.
-    
-    This tool uses a chess evaluation API (default: Lichess cloud eval) 
-    to find the best move for a given position.
-    The FEN (Forsyth-Edwards Notation) describes the current chess position.
-    Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
-
-    Args:
-        fen (str): The FEN representation of the chess position.
-
-    Returns:
-        str: The best move in coordinate notation, or error message.
-    
-    Note:
-        Requires CHESS_EVAL_URL environment variable to be set.
+    Internal function to get the best chess move for a given FEN position.
     """
     try:
         chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
@@ -1233,11 +1252,38 @@ def get_best_chess_move(fen: str) -> str:
 
 
 # ========== FEN HELPER FUNCTIONS ==========
+
+@tool
+def get_best_chess_move(fen: str) -> str:
+    """
+    Get the best chess move in coordinate notation based on a FEN representation
+    using a chess evaluation API.
+    
+    This tool uses a chess evaluation API (default: Lichess cloud eval) 
+    to find the best move for a given position.
+    The FEN (Forsyth-Edwards Notation) describes the current chess position.
+    Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
+
+    Args:
+        fen (str): The chess position in FEN (Forsyth-Edwards Notation) format.
+
+    Returns:
+        str: The best move in coordinate notation (e.g., "e2e4"), or an error message.
+    
+    Note:
+        Requires CHESS_EVAL_URL environment variable to be set.
+    """
+    return _get_best_chess_move_internal(fen)
+
+# ========== FEN PROCESSING HELPERS ==========
 def _expand_fen_rank(rank_str):
     """
     Expands a single rank string from FEN notation (e.g., 'p2b4')
-    into a list of 8 characters representing the squares.
+    into a list of 8 characters representing the squares
+    by replacing numbers with empty squares.
     Uses ' ' for empty squares.
+    Example: "rnbqkbnr" -> ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r']
+    Example: "4r3" -> [' ', ' ', ' ', ' ', 'r', ' ', ' ', ' ']
     """
     expanded_rank = []
     for char in rank_str:
@@ -1260,9 +1306,10 @@ def _compress_fen_rank(rank_list):
     """
     if len(rank_list) != 8:
         raise ValueError(f"Invalid rank list (length != 8): {rank_list}")
-
+    
     compressed_rank = ""
     empty_count = 0
+    
     for char in rank_list:
         if char == ' ':
             empty_count += 1
@@ -1375,6 +1422,28 @@ def _add_fen_game_state(board_placement,
 
     return full_fen
 
+def _get_chess_board_fen_internal(image_path: str, player_turn: str) -> str:
+    """
+    Internal function to get the FEN representation from an image of a chess board.
+    """
+    if not CHESS_FEN_AVAILABLE:
+        return "board-to-fen not available. Install with: pip install board-to-fen"
+    
+    try:
+        side_to_move = "b" if player_turn.lower() == "black" else "w"
+        board_placement = get_fen_from_image_path(image_path)
+        
+        # Add game state information to the FEN
+        board_fen = _add_fen_game_state(board_placement, side_to_move)
+        
+        # Inversion makes board_to_fen output Stockfish compatible
+        board_fen_inverted = _invert_mirror_fen(board_fen)
+        
+        return board_fen_inverted
+    except Exception as e:
+        return f"Error getting chess board FEN: {str(e)}"
+
+
 @tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
@@ -1397,22 +1466,7 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
         Requires board-to-fen package to be installed.
         Install with: pip install board-to-fen
     """
-    if not CHESS_FEN_AVAILABLE:
-        return "board-to-fen not available. Install with: pip install board-to-fen"
-    
-    try:
-        side_to_move = "b" if player_turn.lower() == "black" else "w"
-        board_placement = get_fen_from_image_path(image_path)
-        
-        # Add game state information to the FEN
-        board_fen = _add_fen_game_state(board_placement, side_to_move)
-        
-        # Inversion makes board_to_fen output Stockfish compatible
-        board_fen_inverted = _invert_mirror_fen(board_fen)
-        
-        return board_fen_inverted
-    except Exception as e:
-        return f"Error getting chess board FEN: {str(e)}"
+    return _get_chess_board_fen_internal(image_path, player_turn)
 
 @tool
 def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
@@ -1437,20 +1491,20 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         Requires board-to-fen, chess evaluation API, and Google Gemini to be available.
     """
     try:
-        # Step 1: Get FEN from image
-        fen = get_chess_board_fen(image_path, player_turn)
+        # Step 1: Get FEN from image (using internal function to avoid deprecation warning)
+        fen = _get_chess_board_fen_internal(image_path, player_turn)
         if fen.startswith("Error"):
             return f"Error getting FEN: {fen}"
         
-        # Step 2: Get best move in coordinate notation
-        best_move_coord = get_best_chess_move(fen)
+        # Step 2: Get best move in coordinate notation (using internal function)
+        best_move_coord = _get_best_chess_move_internal(fen)
         if best_move_coord.startswith("Error"):
             return f"Error getting best move: {best_move_coord}"
         
-        # Step 3: Convert to algebraic notation
+        # Step 3: Convert to algebraic notation (using internal function)
         # Create a simple piece placement description for the LLM
         piece_placement = f"FEN: {fen}"
-        algebraic_move = convert_chess_move(piece_placement, best_move_coord)
+        algebraic_move = _convert_chess_move_internal(piece_placement, best_move_coord)
         if algebraic_move.startswith("Error"):
             return f"Error converting move: {algebraic_move}"
         
@@ -1467,7 +1521,14 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         
         return result
         
+    except AttributeError as e:
+        # Handle AttributeError specifically (like parent_run_id issues)
+        error_msg = f"Tool execution error (AttributeError): {str(e)}"
+        print(f"[Chess Tool] {error_msg}")
+        return error_msg
     except Exception as e:
-        return f"Error solving chess position: {str(e)}"
+        error_msg = f"Error solving chess position: {str(e)}"
+        print(f"[Chess Tool] {error_msg}")
+        return error_msg
 
 # ========== END OF TOOLS.PY ========== 

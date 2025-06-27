@@ -450,13 +450,18 @@ class GaiaAgent:
                         print(f"[Tool Loop] Tool '{tool_name}' not found.")
                     else:
                         try:
-                            if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
+                            # Check if it's a proper LangChain tool (has invoke method and tool attributes)
+                            if (hasattr(tool_func, 'invoke') and 
+                                hasattr(tool_func, 'name') and 
+                                hasattr(tool_func, 'description')):
+                                # This is a proper LangChain tool, use invoke method
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
                                     # For non-dict args, assume it's a single value that should be passed as 'input'
                                     tool_result = tool_func.invoke({"input": tool_args})
                             else:
+                                # This is a regular function, call it directly
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func(**tool_args)
                                 else:
@@ -512,13 +517,18 @@ class GaiaAgent:
                         if isinstance(tool_args, dict):
                             tool_args = self._inject_file_data_to_tool_args(tool_name, tool_args)
                         
-                        if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
+                        # Check if it's a proper LangChain tool (has invoke method and tool attributes)
+                        if (hasattr(tool_func, 'invoke') and 
+                            hasattr(tool_func, 'name') and 
+                            hasattr(tool_func, 'description')):
+                            # This is a proper LangChain tool, use invoke method
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func.invoke(tool_args)
                             else:
                                 # For non-dict args, assume it's a single value that should be passed as 'input'
                                 tool_result = tool_func.invoke({"input": tool_args})
                         else:
+                            # This is a regular function, call it directly
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func(**tool_args)
                             else:
@@ -1108,18 +1118,37 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         """
         # Import tools module to get its functions
         import tools
+        from langchain_core.tools import BaseTool
         
         # Get all attributes from the tools module
         tool_list = []
         for name, obj in tools.__dict__.items():
-            # Only include callable objects that are functions or tool objects (not classes, modules, or builtins)
+            # Only include actual tool objects (decorated with @tool) or callable functions
+            # that are not classes, modules, or builtins
             if (callable(obj) and 
                 not name.startswith("_") and 
                 not isinstance(obj, type) and  # Exclude classes
                 hasattr(obj, '__module__') and  # Must have __module__ attribute
                 obj.__module__ == 'tools' and  # Must be from tools module
                 name not in ["GaiaAgent", "CodeInterpreter"]):  # Exclude specific classes
-                tool_list.append(obj)
+                
+                # Check if it's a proper tool object (has the tool attributes)
+                if hasattr(obj, 'name') and hasattr(obj, 'description'):
+                    # This is a proper @tool decorated function
+                    tool_list.append(obj)
+                elif callable(obj) and not name.startswith("_"):
+                    # This is a regular function that might be a tool
+                    # Only include if it's not an internal function
+                    if not name.startswith("_") and name not in [
+                        "_convert_chess_move_internal", 
+                        "_get_best_chess_move_internal", 
+                        "_get_chess_board_fen_internal",
+                        "_expand_fen_rank",
+                        "_compress_fen_rank", 
+                        "_invert_mirror_fen",
+                        "_add_fen_game_state"
+                    ]:
+                        tool_list.append(obj)
         
         # Add specific tools that might be missed
         specific_tools = [
@@ -1129,12 +1158,19 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file',
             'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images',
             'understand_video', 'understand_audio',
-            'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position'
+            'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position',
+            'execute_code_multilang'
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
         def get_tool_name(tool):
-            return getattr(tool, "name", getattr(tool, "__name__", str(tool)))
+            if hasattr(tool, 'name'):
+                return tool.name
+            elif hasattr(tool, '__name__'):
+                return tool.__name__
+            else:
+                return str(tool)
+        
         tool_names = set(get_tool_name(tool) for tool in tool_list)
         
         # Ensure all specific tools are included
@@ -1146,8 +1182,18 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     tool_list.append(tool_obj)
                     tool_names.add(name_val)
         
-        print(f"✅ Gathered {len(tool_list)} tools: {[get_tool_name(tool) for tool in tool_list]}")
-        return tool_list 
+        # Filter out any tools that don't have proper tool attributes
+        final_tool_list = []
+        for tool in tool_list:
+            if hasattr(tool, 'name') and hasattr(tool, 'description'):
+                # This is a proper tool object
+                final_tool_list.append(tool)
+            elif callable(tool) and not get_tool_name(tool).startswith("_"):
+                # This is a callable function that should be a tool
+                final_tool_list.append(tool)
+        
+        print(f"✅ Gathered {len(final_tool_list)} tools: {[get_tool_name(tool) for tool in final_tool_list]}")
+        return final_tool_list
 
     def _inject_file_data_to_tool_args(self, tool_name: str, tool_args: dict) -> dict:
         """
