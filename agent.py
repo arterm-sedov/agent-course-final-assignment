@@ -523,7 +523,9 @@ class GaiaAgent:
             for i, msg in enumerate(messages):
                 print(f"Message {i}: {msg}")
             # Build tool registry (name -> function)
-            tool_registry = {tool.__name__: tool for tool in self.tools}
+            def get_tool_name(tool):
+                return getattr(tool, "name", getattr(tool, "__name__", str(tool)))
+            tool_registry = {get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
                 # If tool calling resulted in empty content, try without tools as fallback
@@ -1050,7 +1052,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
         def get_tool_name(tool):
-            return getattr(tool, "__name__", getattr(tool, "name", str(tool)))
+            return getattr(tool, "name", getattr(tool, "__name__", str(tool)))
         tool_names = set(get_tool_name(tool) for tool in tool_list)
         
         # Ensure all specific tools are included
