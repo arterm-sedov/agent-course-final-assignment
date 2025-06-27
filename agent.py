@@ -132,9 +132,10 @@ class GaiaAgent:
         )
 
         # Set HuggingFace API token if available
-        hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY")
-        if hf_token:
-            os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_token
+        if os.environ.get("HUGGINGFACEHUB_API_TOKEN") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY"):
+            print("✅ HuggingFace API token configured")
+        else:
+            print("⚠️ No HuggingFace API token found - HuggingFace LLM may not work")
 
         # Set up primary LLM (Google Gemini) and fallback LLM (Groq)
         try:
@@ -161,17 +162,7 @@ class GaiaAgent:
             self.llm_fallback = None
         
         try:
-            self.llm_third_fallback = ChatHuggingFace(
-                llm=HuggingFaceEndpoint(
-                    repo_id="Qwen/Qwen2.5-Coder-32B-Instruct",
-                    task="text-generation",
-                    max_new_tokens=1024,
-                    do_sample=False,
-                    repetition_penalty=1.03,
-                    temperature=0,
-                ),
-                verbose=True,
-            )
+            self.llm_third_fallback = self._create_huggingface_llm()
             print("✅ Third fallback LLM (HuggingFace) initialized successfully")
         except Exception as e:
             print(f"⚠️ Failed to initialize HuggingFace: {e}")
@@ -1242,3 +1233,48 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 print(f"[Tool Loop] Created temporary file {temp_file_path} for {tool_name}")
         
         return tool_args 
+
+    def _create_huggingface_llm(self):
+        """
+        Create HuggingFace LLM with multiple fallback options to handle router issues.
+        """
+        # List of models to try in order of preference
+        models_to_try = [
+            {
+                "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                "endpoint_url": "https://api-inference.huggingface.co/models/Qwen/Qwen2.5-Coder-32B-Instruct"
+            },
+            {
+                "repo_id": "microsoft/DialoGPT-medium",
+                "endpoint_url": "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+            },
+            {
+                "repo_id": "gpt2",
+                "endpoint_url": "https://api-inference.huggingface.co/models/gpt2"
+            }
+        ]
+        
+        for model_config in models_to_try:
+            try:
+                config = {
+                    "repo_id": model_config["repo_id"],
+                    "task": "text-generation",
+                    "max_new_tokens": 1024,
+                    "do_sample": False,
+                    "temperature": 0,
+                    "endpoint_url": model_config["endpoint_url"],
+                }
+                
+                llm = ChatHuggingFace(
+                    llm=HuggingFaceEndpoint(**config),
+                    verbose=True,
+                )
+                print(f"✅ HuggingFace LLM initialized with {model_config['repo_id']}")
+                return llm
+                
+            except Exception as e:
+                print(f"⚠️ Failed to initialize {model_config['repo_id']}: {e}")
+                continue
+        
+        print("❌ All HuggingFace models failed to initialize")
+        return None 
