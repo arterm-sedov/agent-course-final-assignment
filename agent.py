@@ -368,7 +368,7 @@ IMPORTANT FORMATTING RULES:
 - If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise
 - Your answer must end with "FINAL ANSWER: [your answer]"
 
-For example, if the answer is 3, write: FINAL ANSWER: 3
+For example, if the answer is three, write: FINAL ANSWER: 3
 """)
                         messages.append(force_answer_msg)
                         
@@ -404,16 +404,20 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                         tool_result = f"Tool '{tool_name}' not found."
                     else:
                         try:
-                            # Fix for BaseTool.invoke() error - ensure proper argument passing
-                            if hasattr(tool_func, 'invoke'):
+                            # Handle both LangChain tools and regular functions
+                            if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
                                 # It's a LangChain tool, use invoke method
                                 if isinstance(tool_args, dict):
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
                                     tool_result = tool_func.invoke({"input": tool_args})
                             else:
-                                # It's a regular function
-                                tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                                # It's a regular function (including @tool decorated functions)
+                                if isinstance(tool_args, dict):
+                                    tool_result = tool_func(**tool_args)
+                                else:
+                                    # Handle single argument case
+                                    tool_result = tool_func(tool_args)
                         except Exception as e:
                             tool_result = f"Error running tool '{tool_name}': {e}"
                     
@@ -488,16 +492,20 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                     tool_result = f"Tool '{tool_name}' not found."
                 else:
                     try:
-                        # Fix for BaseTool.invoke() error - ensure proper argument passing
-                        if hasattr(tool_func, 'invoke'):
+                        # Handle both LangChain tools and regular functions
+                        if hasattr(tool_func, 'invoke') and hasattr(tool_func, 'name'):
                             # It's a LangChain tool, use invoke method
                             if isinstance(tool_args, dict):
                                 tool_result = tool_func.invoke(tool_args)
                             else:
                                 tool_result = tool_func.invoke({"input": tool_args})
                         else:
-                            # It's a regular function
-                            tool_result = tool_func(**tool_args) if isinstance(tool_args, dict) else tool_func(tool_args)
+                            # It's a regular function (including @tool decorated functions)
+                            if isinstance(tool_args, dict):
+                                tool_result = tool_func(**tool_args)
+                            else:
+                                # Handle single argument case
+                                tool_result = tool_func(tool_args)
                     except Exception as e:
                         tool_result = f"Error running tool '{tool_name}': {e}"
                 
@@ -642,11 +650,11 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
             # Print only the first 1000 characters if response is long
-            resp_str = str(response)
-            if len(resp_str) > 1000:
-                print(self._summarize_text_with_gemini(resp_str, max_tokens=300))
-            else:
-                print(resp_str)
+            # resp_str = str(response)
+            # if len(resp_str) > 1000:
+            #     print(self._summarize_text_with_gemini(resp_str, max_tokens=300))
+            # else:
+            #     print(resp_str)
             return response
         except Exception as e:
             raise Exception(f"{llm_name} failed: {e}")
