@@ -21,13 +21,25 @@ from langchain_core.tools import tool
 
 # LangChain imports for search tools
 try:
-    from langchain_tavily import TavilySearchResults
-    from langchain_community.document_loaders import WikipediaLoader, ArxivLoader
+    from langchain_community.tools.tavily_search import TavilySearchResults
     TAVILY_AVAILABLE = True
 except ImportError:
     TAVILY_AVAILABLE = False
     print("Warning: TavilySearchResults not available. Install with: pip install langchain-tavily")
 
+try:
+    from langchain.document_loaders import WikipediaLoader
+    WIKILOADER_AVAILABLE = True
+except ImportError:
+    WIKILOADER_AVAILABLE = False
+    print("Warning: WikipediaLoader not available. Install with: pip install langchain-community")
+
+try:
+    from langchain.document_loaders import ArxivLoader
+    ARXIVLOADER_AVAILABLE = True
+except ImportError:
+    ARXIVLOADER_AVAILABLE = False
+    print("Warning: ArxivLoader not available. Install with: pip install langchain-community")
 # Google Gemini imports for video/audio understanding
 try:
     from google import genai
@@ -505,6 +517,10 @@ def wiki_search(query: str) -> str:
         str: Formatted search results from Wikipedia with source information and content.
     """
     try:
+        # Check if WikipediaLoader is available
+        if not WIKILOADER_AVAILABLE:
+            return "Wikipedia search not available. Install with: pip install langchain-community"
+        
         search_docs = WikipediaLoader(query=query, load_max_docs=3).load()
         formatted_results = "\n\n---\n\n".join(
             [
@@ -574,6 +590,10 @@ def arxiv_search(query: str) -> str:
         str: Formatted search results from Arxiv with paper metadata and abstracts.
     """
     try:
+        # Check if ArxivLoader is available
+        if not ARXIVLOADER_AVAILABLE:
+            return "Arxiv search not available. Install with: pip install langchain-community"
+        
         search_docs = ArxivLoader(query=query, load_max_docs=3).load()
         formatted_results = "\n\n---\n\n".join(
             [
@@ -1318,19 +1338,24 @@ def _add_fen_game_state(board_placement,
 
     return full_fen
 
-def _get_chess_board_fen_internal(image_path: str) -> str:
+def _get_chess_board_fen_internal(image_input: str) -> str:
     """
     Internal function to get the FEN representation from an image of a chess board.
     Uses the DerekLiu35-ImageToFen Hugging Face Space API.
     Args:
-        image_path (str): Path to the chessboard image file.
+        image_input (str): Path to the chessboard image file or base64-encoded image data.
     Returns:
         str: The FEN string predicted by the recognizer, or an error message.
     """
     api_url = "https://DerekLiu35-ImageToFen.hf.space/api/predict"
     try:
-        with open(image_path, "rb") as f:
-            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        # Detect if input is a file path or base64 data
+        if os.path.exists(image_input):
+            with open(image_input, "rb") as f:
+                img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        else:
+            img_b64 = image_input
+            
         payload = {"data": [img_b64]}
         response = requests.post(api_url, json=payload, timeout=60)
         if response.ok:
@@ -1350,7 +1375,6 @@ def _get_chess_board_fen_internal(image_path: str) -> str:
             return f"Error: API call failed: {response.text}"
     except Exception as e:
         return f"Error running image-to-FEN API: {str(e)}"
-
 
 @tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
@@ -1376,7 +1400,7 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
     3. Converts the coordinate notation to algebraic notation
     4. Returns the solution with analysis
     Args:
-        image_path (str): The path to the chess board image file.
+        image_path (str): The path to the chess board image file or base64-encoded image data.
         player_turn (str): The player with the next turn ("black" or "white").
         question (str): Optional question about the position (e.g., "guarantees a win").
     Returns:
@@ -1385,7 +1409,7 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         Requires image-to-FEN function, chess evaluation API, and Google Gemini to be available.
     """
     try:
-        # Step 1: Get FEN from image (using internal function to avoid deprecation warning)
+        # Step 1: Get FEN from image - the internal function handles both file paths and base64 data
         fen = _get_chess_board_fen_internal(image_path)
         if isinstance(fen, str) and fen.startswith("Error"):
             return f"Error getting FEN: {fen}"
