@@ -1099,7 +1099,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
             return "GEMINI_KEY not found in environment variables."
         client = genai.Client(api_key=gemini_key)
         video_description = client.models.generate_content(
-            model="gemini-2.5-pro",  # Use same model as agent for consistency
+            model="gemini-2.5-flash",  # Use same model as agent for consistency
             contents=types.Content(
                 parts=[
                     types.Part(file_data=types.FileData(file_uri=youtube_url)),
@@ -1166,7 +1166,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
                 return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
         
         audio_description = client.models.generate_content(
-            model="gemini-2.5-pro",  # Use same model as agent for consistency
+            model="gemini-2.5-flash",  # Use same model as agent for consistency
             contents=[prompt, mp3_file]
         )
         return audio_description.text
@@ -1189,7 +1189,7 @@ def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
             return "Google Gemini not available for chess move conversion"
         
         genai.configure(api_key=os.environ.get("GEMINI_KEY"))
-        model = genai.GenerativeModel('gemini-2.5-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = f"""
         Convert this chess move from coordinate notation to algebraic notation.
@@ -1244,7 +1244,7 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         )
         
         response = client.models.generate_content(
-            model="gemini-2.5-pro",  # Use same model as agent for consistency
+            model="gemini-2.5-flash",  # Use same model as agent for consistency
             contents=move_message
         )
         return response.text
