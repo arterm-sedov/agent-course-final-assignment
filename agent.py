@@ -22,10 +22,12 @@ import json
 import csv
 import time
 import random
-import hashlib
+#import hashlib
 from typing import List, Dict, Any, Optional
 from tools import *
-
+# Import tools module to get its functions
+import tools
+from langchain_core.tools import BaseTool
 # For LLM and retriever integration
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
@@ -611,6 +613,23 @@ class GaiaAgent:
         print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
         return response
 
+    def _select_llm(self, llm_type, use_tools):
+        if llm_type == "primary":
+            llm = self.llm_primary_with_tools if use_tools else self.llm_primary
+            llm_name = "Google Gemini"
+            llm_type_str = "gemini"
+        elif llm_type == "fallback":
+            llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
+            llm_name = "Groq"
+            llm_type_str = "groq"
+        elif llm_type == "third_fallback":
+            llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
+            llm_name = "HuggingFace"
+            llm_type_str = "huggingface"
+        else:
+            raise ValueError(f"Invalid llm_type: {llm_type}")
+        return llm, llm_name, llm_type_str
+
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
         """
         Make an LLM request with rate limiting.
@@ -627,22 +646,7 @@ class GaiaAgent:
         Raises:
             Exception: If the LLM fails
         """
-        # Select which LLM to use
-        if llm_type == "primary":
-            llm = self.llm_primary_with_tools if use_tools else self.llm_primary
-            llm_name = "Google Gemini"
-            llm_type_str = "gemini"
-        elif llm_type == "fallback":
-            llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
-            llm_name = "Groq"
-            llm_type_str = "groq"
-        elif llm_type == "third_fallback":
-            llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
-            llm_name = "HuggingFace"
-            llm_type_str = "huggingface"
-        else:
-            raise ValueError(f"Invalid llm_type: {llm_type}")
-        
+        llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
             raise Exception(f"{llm_name} LLM not available")
         
@@ -652,48 +656,31 @@ class GaiaAgent:
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
                 print(f"Message {i}: {msg}")
-            # Build tool registry (name -> function)
-            def get_tool_name(tool):
-                return getattr(tool, "name", getattr(tool, "__name__", str(tool)))
-            tool_registry = {get_tool_name(tool): tool for tool in self.tools}
+            tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
                 # If tool calling resulted in empty content, try without tools as fallback
                 if not hasattr(response, 'content') or not response.content:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
-                    # Get the LLM without tools
-                    if llm_type == "primary":
-                        llm_no_tools = self.llm_primary
-                    elif llm_type == "fallback":
-                        llm_no_tools = self.llm_fallback
-                    elif llm_type == "third_fallback":
-                        llm_no_tools = self.llm_third_fallback
-                    
+                    llm_no_tools, _, _ = self._select_llm(llm_type, False)
                     if llm_no_tools:
-                        # Extract tool results more robustly
                         tool_results = []
                         for msg in messages:
                             if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
-                                tool_name = msg.name  # ToolMessage always has name attribute
+                                tool_name = msg.name
                                 tool_results.append(f"Tool {tool_name} result: {msg.content}")
-                        
                         if tool_results:
-                            # Create a new message with tool results included
                             tool_summary = "\n".join(tool_results)
-                            # Remove tool messages and add enhanced context
                             enhanced_messages = []
                             for msg in messages:
                                 if not (hasattr(msg, 'type') and msg.type == 'tool'):
                                     enhanced_messages.append(msg)
-                            
-                            # Add a clear instruction to generate final answer from tool results
                             enhanced_messages.append(HumanMessage(content=f"""
 Based on the following tool results, provide your FINAL ANSWER according to the system prompt format:
 
 {tool_summary}
 
 """))
-                            
                             print(f"🔄 Retrying {llm_name} without tools with enhanced context")
                             print(f"📝 Tool results included: {len(tool_results)} tools")
                             response = llm_no_tools.invoke(enhanced_messages)
@@ -703,12 +690,6 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             else:
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
-            # Print only the first 1000 characters if response is long
-            # resp_str = str(response)
-            # if len(resp_str) > 1000:
-            #     print(self._summarize_text_with_gemini(resp_str, max_tokens=300))
-            # else:
-            #     print(resp_str)
             return response
         except Exception as e:
             # Special handling for HuggingFace router errors
@@ -750,11 +731,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         # Filter out unavailable LLMs
         available_llms = []
         for llm_type, llm_name in llm_sequence:
-            if llm_type == "primary" and (self.llm_primary or self.llm_primary_with_tools):
-                available_llms.append((llm_type, llm_name))
-            elif llm_type == "fallback" and (self.llm_fallback or self.llm_fallback_with_tools):
-                available_llms.append((llm_type, llm_name))
-            elif llm_type == "third_fallback" and (self.llm_third_fallback or self.llm_third_fallback_with_tools):
+            llm, _, _ = self._select_llm(llm_type, True)
+            if llm:
                 available_llms.append((llm_type, llm_name))
             else:
                 print(f"⚠️ {llm_name} not available, skipping...")
@@ -869,36 +847,34 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             messages.append(HumanMessage(content=f"Reference answer: {reference}"))
         return messages
 
+    def _normalize_answer(self, ans: str) -> str:
+        """
+        Normalize answer by removing common prefixes, normalizing whitespace, and removing punctuation for comparison.
+        """
+        import re
+        ans = ans.strip().lower()
+        if ans.startswith("final answer:"):
+            ans = ans[12:].strip()
+        elif ans.startswith("final answer"):
+            ans = ans[11:].strip()
+        ans = re.sub(r'[^\w\s]', '', ans)
+        ans = re.sub(r'\s+', ' ', ans).strip()
+        return ans
+
+    def _get_tool_name(self, tool):
+        if hasattr(tool, 'name'):
+            return tool.name
+        elif hasattr(tool, '__name__'):
+            return tool.__name__
+        else:
+            return str(tool)
+
     def _simple_answers_match(self, answer: str, reference: str) -> bool:
-        """
-        Use vectorized similarity comparison with the same embedding engine as Supabase.
-        This provides semantic similarity matching instead of rigid string matching.
-        
-        Args:
-            answer (str): The agent's answer.
-            reference (str): The reference answer.
-            
-        Returns:
-            bool: True if answers are semantically similar (similarity > threshold), False otherwise.
-        """
         try:
-            # Normalize answers by removing common prefixes
-            def normalize_answer(ans):
-                ans = ans.strip()
-                if ans.lower().startswith("final answer:"):
-                    ans = ans[12:].strip()
-                elif ans.lower().startswith("final answer"):
-                    ans = ans[11:].strip()
-                return ans
-            
-            norm_answer = normalize_answer(answer)
-            norm_reference = normalize_answer(reference)
-            
-            # If answers are identical after normalization, return True immediately
-            if norm_answer.lower() == norm_reference.lower():
+            norm_answer = self._normalize_answer(answer)
+            norm_reference = self._normalize_answer(reference)
+            if norm_answer == norm_reference:
                 return True
-            
-            # Use the same embedding engine as Supabase for consistency
             embeddings = self.embeddings
             
             # Get embeddings for both answers
@@ -912,54 +888,20 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             
             # Cosine similarity calculation
             dot_product = np.dot(answer_array, reference_array)
-            norm_answer = np.linalg.norm(answer_array)
-            norm_reference = np.linalg.norm(reference_array)
-            
-            if norm_answer == 0 or norm_reference == 0:
+            norm_a = np.linalg.norm(answer_array)
+            norm_r = np.linalg.norm(reference_array)
+            if norm_a == 0 or norm_r == 0:
                 return False
-            
-            cosine_similarity = dot_product / (norm_answer * norm_reference)
-            
-            # Use global similarity threshold
-            
+            cosine_similarity = dot_product / (norm_a * norm_r)
             print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
-            
             return cosine_similarity >= self.similarity_threshold
-            
         except Exception as e:
             print(f"⚠️ Error in vector similarity matching: {e}")
             # Fallback to simple string matching if embedding fails
             return self._fallback_string_match(answer, reference)
-    
     def _fallback_string_match(self, answer: str, reference: str) -> bool:
-        """
-        Fallback string matching method for when vector similarity fails.
-        
-        Args:
-            answer (str): The agent's answer.
-            reference (str): The reference answer.
-            
-        Returns:
-            bool: True if answers appear to match using string comparison.
-        """
-        # Normalize both answers for comparison
-        def normalize_answer(ans):
-            # Remove common prefixes and normalize whitespace
-            ans = ans.strip().lower()
-            if ans.startswith("final answer:"):
-                ans = ans[12:].strip()
-            elif ans.startswith("final answer"):
-                ans = ans[11:].strip()
-            # Remove punctuation and extra whitespace
-            import re
-            ans = re.sub(r'[^\w\s]', '', ans)
-            ans = re.sub(r'\s+', ' ', ans).strip()
-            return ans
-        
-        norm_answer = normalize_answer(answer)
-        norm_reference = normalize_answer(reference)
-        
-        # Check for exact match
+        norm_answer = self._normalize_answer(answer)
+        norm_reference = self._normalize_answer(reference)
         if norm_answer == norm_reference:
             return True
         
@@ -973,12 +915,10 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             import re
             answer_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_answer)]
             reference_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_reference)]
-            
             if answer_nums and reference_nums and answer_nums == reference_nums:
                 return True
         except:
             pass
-        
         return False
 
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
@@ -1164,10 +1104,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Returns:
             list: List of tool functions.
         """
-        # Import tools module to get its functions
-        import tools
-        from langchain_core.tools import BaseTool
-        
+       
         # Get all attributes from the tools module
         tool_list = []
         for name, obj in tools.__dict__.items():
@@ -1211,21 +1148,13 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
-        def get_tool_name(tool):
-            if hasattr(tool, 'name'):
-                return tool.name
-            elif hasattr(tool, '__name__'):
-                return tool.__name__
-            else:
-                return str(tool)
-        
-        tool_names = set(get_tool_name(tool) for tool in tool_list)
+        tool_names = set(self._get_tool_name(tool) for tool in tool_list)
         
         # Ensure all specific tools are included
         for tool_name in specific_tools:
             if hasattr(tools, tool_name):
                 tool_obj = getattr(tools, tool_name)
-                name_val = get_tool_name(tool_obj)
+                name_val = self._get_tool_name(tool_obj)
                 if name_val not in tool_names:
                     tool_list.append(tool_obj)
                     tool_names.add(name_val)
@@ -1236,11 +1165,11 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             if hasattr(tool, 'name') and hasattr(tool, 'description'):
                 # This is a proper tool object
                 final_tool_list.append(tool)
-            elif callable(tool) and not get_tool_name(tool).startswith("_"):
+            elif callable(tool) and not self._get_tool_name(tool).startswith("_"):
                 # This is a callable function that should be a tool
                 final_tool_list.append(tool)
         
-        print(f"✅ Gathered {len(final_tool_list)} tools: {[get_tool_name(tool) for tool in final_tool_list]}")
+        print(f"✅ Gathered {len(final_tool_list)} tools: {[self._get_tool_name(tool) for tool in final_tool_list]}")
         return final_tool_list
 
     def _inject_file_data_to_tool_args(self, tool_name: str, tool_args: dict) -> dict:
