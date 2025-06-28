@@ -395,7 +395,7 @@ class GaiaAgent:
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
                 print(f"[Tool Loop] Final answer detected: {response.content}")
                 # --- NEW LOGIC: Check for 'FINAL ANSWER' marker ---
-                if self._extract_final_answer(response):
+                if self._has_final_answer_marker(response):
                     return response
                 else:
                     print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
@@ -1039,9 +1039,45 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
 
+    def _extract_text_from_response(self, response: Any) -> str:
+        """
+        Helper method to extract text content from various response object types.
+        
+        Args:
+            response (Any): The response object (could be LLM response, dict, or string)
+            
+        Returns:
+            str: The text content from the response
+        """
+        if hasattr(response, 'content'):
+            return response.content
+        elif isinstance(response, dict) and 'content' in response:
+            return response['content']
+        else:
+            return str(response)
+
+    def _has_final_answer_marker(self, response: Any) -> bool:
+        """
+        Check if the LLM response contains a "FINAL ANSWER:" marker.
+        This is used in the tool calling loop to determine if the response is a final answer.
+
+        Args:
+            response (Any): The LLM response object.
+
+        Returns:
+            bool: True if the response contains "FINAL ANSWER:" marker, False otherwise.
+        """
+        text = self._extract_text_from_response(response)
+        
+        # Check if any line starts with "FINAL ANSWER" (case-insensitive)
+        for line in text.splitlines():
+            if line.strip().upper().startswith("FINAL ANSWER"):
+                return True
+        return False
+
     def _extract_final_answer(self, response: Any) -> str:
         """
-        Extract the final answer from the LLM response, removing only the "FINAL ANSWER:" prefix.
+        Extract the final answer from the LLM response, removing the "FINAL ANSWER:" prefix.
         The LLM is responsible for following the system prompt formatting rules.
         This method is used for validation against reference answers and submission.
 
@@ -1049,20 +1085,15 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             response (Any): The LLM response object.
 
         Returns:
-            str: The extracted final answer string with "FINAL ANSWER:" prefix removed.
+            str: The extracted final answer string with "FINAL ANSWER:" prefix removed, or None if not found.
         """
-        if hasattr(response, 'content'):
-            text = response.content
-        elif isinstance(response, dict) and 'content' in response:
-            text = response['content']
-        else:
-            text = str(response)
-        # Find the line with 'FINAL ANSWER' (case-insensitive)
-        for line in text.splitlines():
-            if line.strip().upper().startswith("FINAL ANSWER"):
-                # Return the whole response, cleaning prefix if present
-                return self._clean_final_answer_text(line.strip())
-        return None
+        # First check if there's a final answer marker
+        if not self._has_final_answer_marker(response):
+            return None
+        
+        # Extract text from response and clean it using the existing regex logic
+        text = self._extract_text_from_response(response)
+        return self._clean_final_answer_text(text)
 
     def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
         """
@@ -1074,12 +1105,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Returns:
             str: The extracted final answer, as determined by the LLM summarizer.
         """
-        if hasattr(response, 'content'):
-            text = response.content
-        elif isinstance(response, dict) and 'content' in response:
-            text = response['content']
-        else:
-            text = str(response)
+        text = self._extract_text_from_response(response)
 
         # Compose a summarization prompt for the LLM
         prompt_dict = {
@@ -1118,12 +1144,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         validation_msg = [HumanMessage(content=validation_prompt)]
         try:
             response = self._try_llm_sequence(validation_msg, use_tools=False)
-            if hasattr(response, 'content'):
-                result = response.content.strip().lower()
-            elif isinstance(response, dict) and 'content' in response:
-                result = response['content'].strip().lower()
-            else:
-                result = str(response).strip().lower()
+            result = self._extract_text_from_response(response).strip().lower()
             return result.startswith('true')
         except Exception as e:
             # Fallback: conservative, treat as not matching if validation fails
