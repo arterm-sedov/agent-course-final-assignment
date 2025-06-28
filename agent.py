@@ -407,12 +407,81 @@ class GaiaAgent:
         Returns:
             Response from LLM or fallback answer
         """
-        print(f"[Tool Loop] All tool calls were duplicates. Appending system prompt for final answer.")
-        messages.append(HumanMessage(content=f"{self.system_prompt}"))
+        print(f"[Tool Loop] All tool calls were duplicates. Forcing final answer with tool results.")
+        
+        # Find the original question
+        original_question = None
+        for msg in messages:
+            if hasattr(msg, 'type') and msg.type == 'human':
+                original_question = msg.content
+                break
+        if not original_question:
+            original_question = "[Original question not found]"
+        
+        # Create a comprehensive context with all tool results
+        tool_results_summary = ""
+        if tool_results_history:
+            # Summarize all tool results for additional context (not replacement)
+            all_results = "\n".join([f"Tool result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
+            tool_results_summary = self._summarize_text_with_llm(
+                all_results, 
+                max_tokens=self.max_summary_tokens, 
+                question=original_question
+            )
+        
+        # Compose a comprehensive final answer request
+        final_answer_prompt = (
+            f"Based on the following tool results, provide your FINAL ANSWER to the question.\n\n"
+            f"QUESTION:\n{original_question}\n\n"
+        )
+        
+        if tool_results_summary:
+            final_answer_prompt += f"TOOL RESULTS SUMMARY (for context):\n{tool_results_summary}\n\n"
+        
+        final_answer_prompt += (
+            f"Please analyze the tool results and provide your final answer in the required format.\n"
+            f"Your answer must follow the system prompt formatting rules."
+        )
+        
+        # Create new message list with system prompt, question, and tool results
+        final_messages = [self.sys_msg, HumanMessage(content=final_answer_prompt)]
+        
+        # Add the actual full tool results as separate messages
+        if tool_results_history:
+            for i, tool_result in enumerate(tool_results_history):
+                # Create a tool message with the full result
+                from langchain_core.messages import ToolMessage
+                tool_message = ToolMessage(
+                    content=tool_result,
+                    name=f"tool_result_{i+1}",
+                    tool_call_id=f"tool_result_{i+1}"
+                )
+                final_messages.append(tool_message)
+                print(f"[Tool Loop] Added full tool result {i+1} to final messages")
+        
         try:
-            final_response = llm.invoke(messages)
+            final_response = llm.invoke(final_messages)
             if hasattr(final_response, 'content') and final_response.content:
                 print(f"[Tool Loop] ✅ Forced final answer generated: {final_response.content}")
+                
+                # Check if the response has the required FINAL ANSWER marker
+                if self._has_final_answer_marker(final_response):
+                    return final_response
+                else:
+                    print("[Tool Loop] Forced response missing FINAL ANSWER marker. Adding explicit reminder.")
+                    # Add explicit reminder about the required format
+                    explicit_reminder = (
+                        f"Please provide your final answer in the correct format based on the tool results provided."
+                    )
+                    final_messages.append(HumanMessage(content=explicit_reminder))
+                    try:
+                        explicit_response = llm.invoke(final_messages)
+                        if hasattr(explicit_response, 'content') and explicit_response.content:
+                            print(f"[Tool Loop] ✅ Explicit reminder response: {explicit_response.content}")
+                            return explicit_response
+                    except Exception as e:
+                        print(f"[Tool Loop] ❌ Failed to get explicit reminder response: {e}")
+                
                 return final_response
         except Exception as e:
             print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
@@ -536,10 +605,13 @@ class GaiaAgent:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
                 # Filter out duplicate tool calls (by name and args)
                 new_tool_calls = []
+                duplicate_count = 0
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
                     args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+                    
+                    # Check if this exact tool call has been made before
                     if (tool_name, args_key) not in called_tools:
                         # New tool call
                         print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
@@ -547,15 +619,33 @@ class GaiaAgent:
                         called_tools.add((tool_name, args_key))
                     else:
                         # Duplicate tool call
+                        duplicate_count += 1
                         print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
-                        reminder = f"You have already called tool '{tool_name}' with arguments {tool_args}. Please use the previous result."
-                        messages.append(HumanMessage(content=reminder))
+                        
+                        # Only add reminder if this is the first duplicate in this step
+                        if duplicate_count == 1:
+                            reminder = (
+                                f"You have already called tool '{tool_name}' with arguments {tool_args}. "
+                                f"Please use the previous result or call a different tool if needed."
+                            )
+                            messages.append(HumanMessage(content=reminder))
                 
-                if not new_tool_calls:
-                    # All tool calls were duplicates, handle with helper method
+                # Only force final answer if ALL tool calls were duplicates AND we have tool results
+                if not new_tool_calls and tool_results_history:
+                    print(f"[Tool Loop] All {len(tool_calls)} tool calls were duplicates and we have {len(tool_results_history)} tool results. Forcing final answer.")
                     result = self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                     if result:
                         return result
+                elif not new_tool_calls and not tool_results_history:
+                    # No new tool calls and no previous results - this might be a stuck state
+                    print(f"[Tool Loop] All tool calls were duplicates but no previous results. Adding reminder to use available tools.")
+                    reminder = (
+                        f"You have called tools that were already executed. "
+                        f"Please either provide your FINAL ANSWER based on the available information, "
+                        f"or call a different tool that hasn't been used yet."
+                    )
+                    messages.append(HumanMessage(content=reminder))
+                    continue
                 
                 # Execute only new tool calls
                 for tool_call in new_tool_calls:
@@ -581,13 +671,26 @@ class GaiaAgent:
                 args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
                 if (tool_name, args_key) in called_tools:
                     print(f"[Tool Loop] Duplicate function_call detected: {tool_name} with args: {tool_args}")
-                    reminder = f"You have already called tool '{tool_name}' with arguments {tool_args}. Please use the previous result."
+                    reminder = (
+                        f"You have already called tool '{tool_name}' with arguments {tool_args}. "
+                        f"Please use the previous result or call a different tool if needed."
+                    )
                     messages.append(HumanMessage(content=reminder))
                     
-                    # Handle duplicate function call with helper method
-                    result = self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
-                    if result:
-                        return result
+                    # Only force final answer if we have tool results
+                    if tool_results_history:
+                        print(f"[Tool Loop] Duplicate function_call with {len(tool_results_history)} tool results. Forcing final answer.")
+                        result = self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        if result:
+                            return result
+                    else:
+                        # No previous results - add reminder and continue
+                        reminder = (
+                            f"You have called a tool that was already executed. "
+                            f"Please either provide your FINAL ANSWER based on the available information, "
+                            f"or call a different tool that hasn't been used yet."
+                        )
+                        messages.append(HumanMessage(content=reminder))
                     continue
                 
                 called_tools.add((tool_name, args_key))
