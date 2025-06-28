@@ -521,12 +521,12 @@ def square_root(a: float) -> float:
 
 # ========== WEB/SEARCH TOOLS ==========
 @tool
-def wiki_search(query: str) -> str:
+def wiki_search(input: str) -> str:
     """
     Search Wikipedia for a query and return up to 3 results as formatted text.
 
     Args:
-        query (str): The search query string for Wikipedia.
+        input (str): The search query string for Wikipedia.
 
     Returns:
         str: Formatted search results from Wikipedia with source information and content.
@@ -536,7 +536,7 @@ def wiki_search(query: str) -> str:
         if not WIKILOADER_AVAILABLE:
             return "Wikipedia search not available. Install with: pip install langchain-community"
         
-        search_docs = WikipediaLoader(query=query, load_max_docs=SEARCH_LIMIT).load()
+        search_docs = WikipediaLoader(query=input, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
                 f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
@@ -548,7 +548,7 @@ def wiki_search(query: str) -> str:
         return f"Error in Wikipedia search: {str(e)}"
 
 @tool
-def web_search(query: str) -> str:
+def web_search(input: str) -> str:
     """
     Search the web using Tavily for a query and return up to 3 results as formatted text.
     
@@ -559,7 +559,7 @@ def web_search(query: str) -> str:
     - Researching topics that may not be covered in Wikipedia or academic papers
 
     Args:
-        query (str): The search query string to search for on the web.
+        input (str): The search query string to search for on the web.
 
     Returns:
         str: Formatted search results from Tavily with source URLs and content snippets.
@@ -578,7 +578,7 @@ def web_search(query: str) -> str:
             return "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
         
         # Perform the search
-        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(query=query)
+        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(query=input)
         
         # Format the results
         formatted_results = "\n\n---\n\n".join(
@@ -594,12 +594,12 @@ def web_search(query: str) -> str:
         return f"Error in web search: {str(e)}"
 
 @tool
-def arxiv_search(query: str) -> str:
+def arxiv_search(input: str) -> str:
     """
     Search Arxiv for academic papers and return up to 3 results as formatted text.
 
     Args:
-        query (str): The search query string for academic papers.
+        input (str): The search query string for academic papers.
 
     Returns:
         str: Formatted search results from Arxiv with paper metadata and abstracts.
@@ -609,7 +609,7 @@ def arxiv_search(query: str) -> str:
         if not ARXIVLOADER_AVAILABLE:
             return "Arxiv search not available. Install with: pip install langchain-community"
         
-        search_docs = ArxivLoader(query=query, load_max_docs=SEARCH_LIMIT).load()
+        search_docs = ArxivLoader(query=input, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
                 f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'

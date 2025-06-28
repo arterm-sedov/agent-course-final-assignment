@@ -486,9 +486,6 @@ class GaiaAgent:
                                 hasattr(tool_func, 'description')):
                                 # This is a proper LangChain tool, use invoke method
                                 if isinstance(tool_args, dict):
-                                    # Patch: If 'query' is present but 'input' is required, map 'query' to 'input'
-                                    if 'query' in tool_args and 'input' not in tool_args:
-                                        tool_args = {'input': tool_args['query']}
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
                                     # For non-dict args, assume it's a single value that should be passed as 'input'
@@ -561,9 +558,6 @@ class GaiaAgent:
                             hasattr(tool_func, 'description')):
                             # This is a proper LangChain tool, use invoke method
                             if isinstance(tool_args, dict):
-                                # Patch: If 'query' is present but 'input' is required, map 'query' to 'input'
-                                if 'query' in tool_args and 'input' not in tool_args:
-                                    tool_args = {'input': tool_args['query']}
                                 tool_result = tool_func.invoke(tool_args)
                             else:
                                 # For non-dict args, assume it's a single value that should be passed as 'input'
