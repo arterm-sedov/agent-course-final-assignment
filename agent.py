@@ -137,6 +137,10 @@ class GaiaAgent:
                 # No max_tokens limit for Gemini - let it use its full capability
             )
             print("✅ Primary LLM (Google Gemini) initialized successfully")
+            # Test the LLM with Hello message
+            if not self._ping_llm(self.llm_primary, "Primary LLM (Google Gemini)"):
+                print("⚠️ Primary LLM test failed, setting to None")
+                self.llm_primary = None
         except Exception as e:
             print(f"⚠️ Failed to initialize Google Gemini: {e}")
             self.llm_primary = None
@@ -148,6 +152,10 @@ class GaiaAgent:
                 max_tokens=1024  # Limit output tokens
             )
             print("✅ Fallback LLM (Groq) initialized successfully")
+            # Test the LLM with Hello message
+            if not self._ping_llm(self.llm_fallback, "Fallback LLM (Groq)"):
+                print("⚠️ Fallback LLM test failed, setting to None")
+                self.llm_fallback = None
         except Exception as e:
             print(f"⚠️ Failed to initialize Groq: {e}")
             self.llm_fallback = None
@@ -156,6 +164,7 @@ class GaiaAgent:
             self.llm_third_fallback = self._create_huggingface_llm()
             if self.llm_third_fallback is not None:
                 print("✅ Third fallback LLM (HuggingFace) initialized successfully")
+                # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
             else:
                 print("❌ Third fallback LLM (HuggingFace) failed to initialize")
         except Exception as e:
@@ -1313,19 +1322,13 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                     verbose=True,
                 )
                 
-                # Test the model with a simple request
-                test_message = [HumanMessage(content="Hello")]
-                try:
-                    test_response = llm.invoke(test_message)
-                    if test_response and hasattr(test_response, 'content') and test_response.content:
-                        print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
-                        print(f'Test message: {test_message}. Test response: {test_response}')
-                        return llm
-                    else:
-                        print(f"⚠️ {model_config['repo_id']} returned empty response")
-                        continue
-                except Exception as test_error:
-                    print(f"⚠️ {model_config['repo_id']} test failed: {test_error}")
+                # Test the model using the standardized test function
+                model_name = f"HuggingFace ({model_config['repo_id']})"
+                if self._ping_llm(llm, model_name):
+                    print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
+                    return llm
+                else:
+                    print(f"⚠️ {model_config['repo_id']} test failed, trying next model...")
                     continue
                 
             except Exception as e:
@@ -1333,4 +1336,41 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 continue
         
         print("❌ All HuggingFace models failed to initialize")
-        return None 
+        return None
+
+    def _ping_llm(self, llm, llm_name: str) -> bool:
+        """
+        Test an LLM with a simple "Hello" message to verify it's working.
+        
+        Args:
+            llm: The LLM instance to test
+            llm_name: Name of the LLM for logging purposes
+            
+        Returns:
+            bool: True if test passes, False otherwise
+        """
+        if llm is None:
+            print(f"❌ {llm_name} is None - cannot test")
+            return False
+            
+        try:
+            test_message = [HumanMessage(content="Hello, report about yourself briefly.")]
+            print(f"🧪 Testing {llm_name} with 'Hello' message...")
+            
+            start_time = time.time()
+            test_response = llm.invoke(test_message)
+            end_time = time.time()
+            
+            if test_response and hasattr(test_response, 'content') and test_response.content:
+                print(f"✅ {llm_name} test successful!")
+                print(f"   Response time: {end_time - start_time:.2f}s")
+                print(f"   Test message: {test_message}")
+                print(f"   Test response: {test_response}")
+                return True
+            else:
+                print(f"❌ {llm_name} returned empty response")
+                return False
+                
+        except Exception as e:
+            print(f"❌ {llm_name} test failed: {e}")
+            return False 
