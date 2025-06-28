@@ -264,13 +264,13 @@ class GaiaAgent:
 
     def _summarize_tool_result_with_llm(self, text, max_tokens=None, question=None):
         """
-        Summarize a long tool result using LLM
-        Include the original question for more focused summarization.
+        Summarize a long tool result using Gemini, then Groq (if available), otherwise HuggingFace, otherwise fallback to truncation.
+        Optionally include the original question for more focused summarization.
         """
         # Structure the prompt as JSON for LLM convenience
         prompt_dict = {
-            "task": "Summarize the following tool result for use as LLM context. The tool result pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
-            "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question** if it is present.",
+            "task": "Summarize the following tool result for use as LLM context. The result pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
+            "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
             "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
             "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
             "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
@@ -278,9 +278,9 @@ class GaiaAgent:
             "tool_result_to_summarize": text
         }
         
-        prompt = f"Summarization Request (JSON):\n" + _json.dumps(prompt_dict, indent=2)
+        prompt = f"Summarization Request (JSON):\n" + json.dumps(prompt_dict, indent=2)
         
-        return _summarize_text_with_llm(prompt, max_tokens, question)
+        return self._summarize_text_with_llm(prompt, max_tokens, question)
     
     def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dic_override=None):
         """
@@ -303,8 +303,7 @@ class GaiaAgent:
             }
         # Remove None fields for cleanliness
         prompt_dict = {k: v for k, v in prompt_dict.items() if v is not None}
-        import json as _json
-        prompt = f"Summarization Request (JSON):\n" + _json.dumps(prompt_dict, indent=2)
+        prompt = f"Summarization Request (JSON):\n" + json.dumps(prompt_dict, indent=2)
         try:
             if self.llm_primary_with_tools:
                 response = self.llm_primary_with_tools.invoke([HumanMessage(content=prompt)])
