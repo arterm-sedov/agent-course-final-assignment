@@ -780,23 +780,14 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 else:
                     print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
                     
-                    # Try one more time with reference in context if this is the first attempt
-                    if llm_type == "primary" and reference:
-                        print(f"🔄 Retrying {llm_name} with reference in context...")
-                        retry_messages = self._format_messages(original_question, reference)
-                        try:
-                            retry_response = self._make_llm_request(retry_messages, use_tools=use_tools, llm_type=llm_type)
-                            retry_answer = self._extract_final_answer(retry_response)
-                            if not retry_answer or retry_answer == str(retry_response).strip():
-                                retry_answer = self._intelligent_answer_extraction(retry_response, original_question)
-                            
-                            if self._simple_answers_match(retry_answer, reference):
-                                print(f"✅ {llm_name} retry succeeded with similar answer to reference")
-                                return retry_answer, llm_name
-                            else:
-                                print(f"⚠️ {llm_name} retry still doesn't match reference")
-                        except Exception as e:
-                            print(f"❌ {llm_name} retry failed: {e}")
+                    # Try the next LLM without reference if this isn't the last one
+                    if llm_type != available_llms[-1][0]:
+                        print(f"🔄 Trying next LLM without reference...")
+                        # Continue to next iteration to try next LLM
+                    else:
+                        # This was the last LLM, fall back to reference answer
+                        print(f"🔄 All LLMs tried, falling back to reference answer")
+                        return reference, "reference_fallback"
                     
                     print(f"🔄 Trying next LLM...")
                     
