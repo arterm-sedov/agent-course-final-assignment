@@ -286,16 +286,16 @@ class GaiaAgent:
             "tool_result_to_summarize": text
         }
                
-        return self._summarize_text_with_llm(text, max_tokens, question, prompt_dic_override=prompt_dict)
+        return self._summarize_text_with_llm(text, max_tokens=max_tokens, question=question, prompt_dict_override=prompt_dict)
     
-    def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dic_override=None):
+    def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dict_override=None):
         """
         Summarize a long result using Gemini, then Groq (if available), otherwise HuggingFace, otherwise fallback to truncation.
         Optionally include the original question for more focused summarization.
         Uses the LLM with tools enabled, and instructs the LLM to use tools if needed.
         """
-        if prompt_dic_override:
-            prompt_dict = prompt_dic_override
+        if prompt_dict_override:
+            prompt_dict = prompt_dict_override
         else:
             # Structure the prompt as JSON for LLM convenience
             prompt_dict = {
