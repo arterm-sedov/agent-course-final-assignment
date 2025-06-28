@@ -738,9 +738,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 if not answer or answer == str(response).strip():
                     answer = self._intelligent_answer_extraction(response, original_question)
                 
-                # Post-process the answer to ensure proper formatting
-                answer = self._post_process_answer(answer, original_question)
-                
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
                 
@@ -766,9 +763,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                             if not retry_answer or retry_answer == str(retry_response).strip():
                                 retry_answer = self._intelligent_answer_extraction(retry_response, original_question)
                             
-                            # Post-process the retry answer
-                            retry_answer = self._post_process_answer(retry_answer, original_question)
-                            
                             if self._simple_answers_match(retry_answer, reference):
                                 print(f"✅ {llm_name} retry succeeded with similar answer to reference")
                                 return retry_answer, llm_name
@@ -792,7 +786,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                         answer = self._extract_final_answer(response)
                         if not answer or answer == str(response).strip():
                             answer = self._intelligent_answer_extraction(response, original_question)
-                        answer = self._post_process_answer(answer, original_question)
                         print(f"✅ HuggingFace retry succeeded: {answer}")
                         return answer, llm_name
                     except Exception as retry_error:
@@ -1048,42 +1041,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
                 return self._clean_final_answer_text(answer)
         # Fallback: return the whole response, cleaning prefix if present
         return self._clean_final_answer_text(text)
-
-    def _post_process_answer(self, answer: str, question: str) -> str:
-        """
-        Post-process the answer to ensure it follows the system prompt formatting rules.
-        Args:
-            answer (str): The raw answer from the LLM.
-            question (str): The original question for context.
-        Returns:
-            str: The properly formatted answer.
-        """
-        import re
-        # Clean up the answer using the unified cleaning function
-        answer = self._clean_final_answer_text(answer)
-        # Check if question asks for a number
-        question_lower = question.lower()
-        is_numeric_question = any(word in question_lower for word in ['how many', 'number', 'count', 'amount', 'quantity'])
-        if is_numeric_question:
-            # Extract the first number from the answer
-            numbers = re.findall(r'\d+', answer)
-            if numbers:
-                return numbers[0]  # Return just the number
-        # If the answer is too long, try to extract the key part
-        if len(answer) > 50:
-            # Look for patterns that might indicate the actual answer
-            patterns = [
-                r'(\w+(?:\s+\w+){0,5})',  # Up to 6 words
-                r'(\d+(?:\s*,\s*\d+)*)',  # Numbers with commas
-            ]
-            for pattern in patterns:
-                matches = re.findall(pattern, answer)
-                if matches:
-                    # Return the first reasonable match
-                    for match in matches:
-                        if 1 <= len(match) <= 30:
-                            return match
-        return answer
 
     def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
         """
