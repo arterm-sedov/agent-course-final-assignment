@@ -1284,8 +1284,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 "task": "text-generation",
                 "max_new_tokens": 1024,
                 "do_sample": False,
-                "temperature": 0,
-                "retry_on_error": True
+                "temperature": 0
             },
             {
                 "repo_id": "microsoft/DialoGPT-medium",
@@ -1305,7 +1304,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         
         for model_config in models_to_try:
             try:
-                # Create the endpoint (without retry_on_error to avoid warnings)
+                # Create the endpoint
                 endpoint = HuggingFaceEndpoint(**model_config)
                 
                 # Create the chat model
