@@ -997,9 +997,8 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
     def _clean_final_answer_text(self, text: str) -> str:
         """
         Cleans up the answer text by:
-        - Removing everything before and including the first 'FINAL ANSWER' (case-insensitive, with/without colon/space)
+        - Removing everything before and including the first 'FINAL ANSWER:' (case-insensitive, with/without colon/space)
         - Stripping leading/trailing whitespace
-        - Removing extra punctuation (except for commas, dots, hyphens)
         - Normalizing whitespace
         """
         import re
@@ -1009,8 +1008,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         if match:
             # Only keep what comes after 'FINAL ANSWER'
             text = text[match.end():]
-        # Remove extra punctuation except for commas, dots, hyphens
-        text = re.sub(r'[^\w\s,.-]', '', text)
         # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
@@ -1037,9 +1034,9 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
-                answer = line.strip()
-                return self._clean_final_answer_text(answer)
-        # Fallback: return the whole response, cleaning prefix if present
+                text = line.strip()
+                break
+        # Return the whole response, cleaning prefix if present
         return self._clean_final_answer_text(text)
 
     def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
