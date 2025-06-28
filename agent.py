@@ -519,7 +519,6 @@ class GaiaAgent:
                     reminder = (
                         f"You did not provide your answer in the required format.\n"
                         f"Please answer the following question in the required format, strictly following the system prompt.\n\n"
-                        f"SYSTEM PROMPT (answer formatting rules):\n{self.system_prompt}\n\n"
                         f"QUESTION:\n{original_question}\n\n"
                         f"CONTEXT SUMMARY (tool results, previous reasoning):\n{summarized_context}\n\n"
                         f"Remember: Your answer must start with 'FINAL ANSWER:' and follow the formatting rules."
@@ -605,8 +604,6 @@ class GaiaAgent:
                 messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_name))
                 continue
             if hasattr(response, 'content') and response.content:
-                print(f"[Tool Loop] Injecting system prompt before final answer.")
-                messages.append(HumanMessage(content=f"Before answering, remember:\n{self.system_prompt}"))
                 return response
             print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
             break
@@ -769,7 +766,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                     return answer, llm_name
                 
                 # Check similarity with reference
-                if self._simple_answers_match(answer, reference):
+                if self._vector_answers_match(answer, reference):
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
                     return answer, llm_name
                 else:
@@ -869,7 +866,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         else:
             return str(tool)
 
-    def _simple_answers_match(self, answer: str, reference: str) -> bool:
+    def _vector_answers_match(self, answer: str, reference: str) -> bool:
         try:
             norm_answer = self._normalize_answer(answer)
             norm_reference = self._normalize_answer(reference)
@@ -1060,15 +1057,14 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 "purpose": f"Extract the FINAL ANSWER per the system prompt.",
                 "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
                 "question": question if question else None,
-                "response_to_analyze": text,
-                "system_prompt": self.system_prompt
+                "response_to_analyze": text
         }
         print(f"[Agent] Summarization prompt for answer extraction:\n{prompt_dict}")
         summary = self._summarize_text_with_llm(text, max_tokens=self.max_summary_tokens, question=self.original_question, prompt_dict_override=prompt_dict)
         print(f"[Agent] LLM-based answer extraction summary: {summary}")
         return summary.strip()
 
-    def _answers_match(self, answer: str, reference: str) -> bool:
+    def _llm_answers_match(self, answer: str, reference: str) -> bool:
         """
         Use the LLM to validate whether the agent's answer matches the reference answer according to the system prompt rules.
         This method is kept for compatibility but should be avoided due to rate limiting.
@@ -1081,20 +1077,19 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             bool: True if the LLM determines the answers match, False otherwise.
         """
         validation_prompt = (
-            f"System prompt (answer formatting rules):\n{self.system_prompt}\n\n"
             f"Agent's answer:\n{answer}\n\n"
             f"Reference answer:\n{reference}\n\n"
             "Question: Does the agent's answer match the reference answer exactly, following the system prompt's answer formatting and constraints? "
             "Reply with only 'true' or 'false'."
         )
-        validation_msg = [HumanMessage(content=validation_prompt)]
+        validation_msg = [SystemMessage (content=self.system_prompt), HumanMessage(content=validation_prompt)]
         try:
             response = self._try_llm_sequence(validation_msg, use_tools=False)
             result = self._extract_text_from_response(response).strip().lower()
             return result.startswith('true')
         except Exception as e:
             # Fallback: conservative, treat as not matching if validation fails
-            print(f"LLM validation error in _answers_match: {e}")
+            print(f"LLM validation error in _llm_answers_match: {e}")
             return False
 
     def _gather_tools(self) -> List[Any]:
