@@ -277,7 +277,7 @@ class GaiaAgent:
             "tool_result_to_summarize": text
         }
                
-        return self._summarize_text_with_llm(prompt, max_tokens, question, prompt_dic_override=prompt_dict)
+        return self._summarize_text_with_llm(text, max_tokens, question, prompt_dic_override=prompt_dict)
     
     def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dic_override=None):
         """
