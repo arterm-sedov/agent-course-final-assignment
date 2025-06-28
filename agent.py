@@ -262,21 +262,45 @@ class GaiaAgent:
         
         return truncated_messages
 
-    def _summarize_text_with_llm(self, text, max_tokens=None, question=None):
+    def _summarize_tool_result_with_llm(self, text, max_tokens=None, question=None):
         """
-        Summarize a long tool result using Groq (if available), otherwise HuggingFace, then Gemini, otherwise fallback to truncation.
-        Optionally include the original question for more focused summarization.
-        Uses the LLM with tools enabled, and instructs the LLM to use tools if needed.
+        Summarize a long tool result using LLM
+        Include the original question for more focused summarization.
         """
         # Structure the prompt as JSON for LLM convenience
         prompt_dict = {
-            "task": "Summarize the following tool result for use as LLM context.",
-            "tool_result": text,
-            "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**. Limit to {max_tokens} tokens.",
-            "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question.",
+            "task": "Summarize the following tool result for use as LLM context. The tool result pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
+            "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question** if it is present.",
+            "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
+            "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
+            "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
             "question": question if question else None,
-            "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed."
+            "tool_result_to_summarize": text
         }
+        
+        prompt = f"Summarization Request (JSON):\n" + _json.dumps(prompt_dict, indent=2)
+        
+        return _summarize_text_with_llm(prompt, max_tokens, question)
+    
+    def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dic_override=None):
+        """
+        Summarize a long result using Gemini, then Groq (if available), otherwise HuggingFace, otherwise fallback to truncation.
+        Optionally include the original question for more focused summarization.
+        Uses the LLM with tools enabled, and instructs the LLM to use tools if needed.
+        """
+        if prompt_dic_override:
+            prompt_dict = prompt_dic_override
+        else:
+            # Structure the prompt as JSON for LLM convenience
+            prompt_dict = {
+                "task": "Summarize the following response for use as LLM context. The response pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
+                "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
+                "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
+                "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
+                "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
+                "question": question if question else None,
+                "text_to_summarize": text,
+            }
         # Remove None fields for cleanliness
         prompt_dict = {k: v for k, v in prompt_dict.items() if v is not None}
         import json as _json
@@ -354,12 +378,12 @@ class GaiaAgent:
             estimated_tokens = self._estimate_tokens(total_text)
             token_limit = self.token_limits.get(llm_type)
             if token_limit and estimated_tokens > token_limit:
-                print(f"[Tool Loop] Truncating messages: estimated {estimated_tokens} tokens (limit {token_limit})")
+                print(f"[Tool Loop] Trying to summarize long result: estimated {estimated_tokens} tokens (limit {token_limit})")
                 for msg in messages:
                     if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
                         if len(msg.content) > 500:
                             print(f"[Tool Loop] Summarizing long tool result for token limit")
-                            msg.content = self._summarize_text_with_llm(msg.content, max_tokens=self.max_summary_tokens, question=self.original_question)
+                            msg.content = self._summarize_tool_result_with_llm(msg.content, max_tokens=self.max_summary_tokens, question=self.original_question)
             try:
                 response = llm.invoke(messages)
             except Exception as e:
@@ -487,7 +511,8 @@ class GaiaAgent:
                             print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                     tool_results_history.append(str(tool_result))
                     # Summarize tool result and inject as message for LLM context
-                    summary = self._summarize_text_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
+                    print(f"[Tool Loop] Summarizing long tool result for token limit")
+                    summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
                     print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
                     summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
                     messages.append(summary_msg)
@@ -553,7 +578,8 @@ class GaiaAgent:
                         tool_result = f"Error running tool '{tool_name}': {e}"
                         print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                 tool_results_history.append(str(tool_result))
-                summary = self._summarize_text_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=self.original_question)
+                print(f"[Tool Loop] Summarizing long tool result for token limit")
+                summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=self.original_question)
                 print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
                 summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Short summarized result: {summary}")
                 messages.append(summary_msg)
@@ -1063,16 +1089,17 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             text = str(response)
 
         # Compose a summarization prompt for the LLM
-        prompt = (
-            f"You are a helpful assistant. Given the following question, system prompt, and LLM response, extract the most likely FINAL ANSWER according to the system prompt's answer formatting rules.\n"
-            f"\nQUESTION:\n{question}\n"
-            f"\nSYSTEM PROMPT (answer formatting rules):\n{self.system_prompt}\n"
-            f"\nLLM RESPONSE:\n{text}\n"
-            f"\nReturn only the most likely final answer, formatted exactly as required by the system prompt."
-        )
+        prompt_dict = {
+                "task": "Extract the FINAL answer from the given LLM response (response_to_analyze). The response pertains to the optional **question** provided. If **question** is not present, proceed with extracting per the system prompt. From the response, extract the the most likely FINAL ANSWER according to the system prompt's answer formatting rules. Return only the most likely final answer, formatted exactly as required by the system prompt.",
+                "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
+                "purpose": f"Extract the FINAL ANSWER per the system prompt.",
+                "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
+                "question": question if question else None,
+                "response_to_analyze": text,
+                "system_prompt": self.system_prompt
+        }
         print(f"[Agent] Summarization prompt for answer extraction:\n{prompt}")
-        # Use the summarization LLM (Groq preferred, fallback to Gemini)
-        summary = self._summarize_text_with_llm(prompt, max_tokens=self.max_summary_tokens, question=self.original_question)
+        summary = self._summarize_text_with_llm(text, max_tokens=self.max_summary_tokens, question=self.original_question, prompt_dict_override=prompt_dict)
         print(f"[Agent] LLM-based answer extraction summary: {summary}")
         return summary.strip()
 
