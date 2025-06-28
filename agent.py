@@ -1034,10 +1034,9 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
-                text = line.strip()
-                break
+                return self._clean_final_answer_text(line.strip())
         # Return the whole response, cleaning prefix if present
-        return self._clean_final_answer_text(text)
+        return None
 
     def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
         """
