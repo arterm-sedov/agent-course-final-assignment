@@ -269,8 +269,8 @@ class GaiaAgent:
             tool_messages = tool_messages[-max_tool_messages:]
         
         # For Groq, also truncate long tool messages to prevent TPM issues
-        if llm_type == "groq":
-            self._summarize_long_tool_messages(tool_messages, llm_type, self.max_summary_tokens)
+        # if llm_type == "groq":
+        #     self._summarize_long_tool_messages(tool_messages, llm_type, self.max_summary_tokens)
         
         # Reconstruct message list
         truncated_messages = []
@@ -420,14 +420,14 @@ class GaiaAgent:
         
         # Create a comprehensive context with all tool results
         tool_results_summary = ""
-        if tool_results_history:
-            # Summarize all tool results for additional context (not replacement)
-            all_results = "\n".join([f"Tool result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
-            tool_results_summary = self._summarize_text_with_llm(
-                all_results, 
-                max_tokens=self.max_summary_tokens, 
-                question=original_question
-            )
+        # if tool_results_history:
+        #     # Summarize all tool results for additional context (not replacement)
+        #     all_results = "\n".join([f"Tool result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
+        #     tool_results_summary = self._summarize_text_with_llm(
+        #         all_results, 
+        #         max_tokens=self.max_summary_tokens, 
+        #         question=original_question
+        #     )
         
         # Compose a comprehensive final answer request
         final_answer_prompt = (
@@ -545,7 +545,7 @@ class GaiaAgent:
             
             if token_limit and estimated_tokens > token_limit:
                 print(f"[Tool Loop] Token limit exceeded: {estimated_tokens} > {token_limit}. Summarizing...")
-                self._summarize_long_tool_messages(messages, llm_type, self.max_summary_tokens)
+                # self._summarize_long_tool_messages(messages, llm_type, self.max_summary_tokens)
             
             try:
                 response = llm.invoke(messages)
@@ -574,8 +574,8 @@ class GaiaAgent:
                 else:
                     print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
                     # Summarize the context (all tool results and messages so far)
-                    context_text = "\n".join(str(getattr(msg, 'content', '')) for msg in messages if hasattr(msg, 'content'))
-                    summarized_context = self._summarize_text_with_llm(context_text, max_tokens=self.max_summary_tokens, question=self.original_question)
+                    # context_text = "\n".join(str(getattr(msg, 'content', '')) for msg in messages if hasattr(msg, 'content'))
+                    # summarized_context = self._summarize_text_with_llm(context_text, max_tokens=self.max_summary_tokens, question=self.original_question)
                     # Find the original question
                     original_question = None
                     for msg in messages:
@@ -589,7 +589,7 @@ class GaiaAgent:
                         f"You did not provide your answer in the required format.\n"
                         f"Please answer the following question in the required format, strictly following the system prompt.\n\n"
                         f"QUESTION:\n{original_question}\n\n"
-                        f"CONTEXT SUMMARY (tool results, previous reasoning):\n{summarized_context}\n\n"
+                        # f"CONTEXT SUMMARY (tool results, previous reasoning):\n{summarized_context}\n\n"
                         f"Remember: Your answer must start with 'FINAL ANSWER:' and follow the formatting rules."
                     )
                     reiterate_messages = [self.sys_msg, HumanMessage(content=reminder)]
@@ -857,8 +857,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 answer = self._extract_final_answer(response)
                 
                 # If standard extraction didn't work well, try intelligent extraction
-                if not answer or answer == str(response).strip():
-                    answer = self._intelligent_answer_extraction(response, original_question)
+                # if not answer or answer == str(response).strip():
+                #     answer = self._intelligent_answer_extraction(response, original_question)
                 
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
@@ -895,10 +895,11 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                         time.sleep(2)  # Wait 2 seconds before retry
                         response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                         answer = self._extract_final_answer(response)
-                        if not answer or answer == str(response).strip():
-                            answer = self._intelligent_answer_extraction(response, original_question)
-                        print(f"✅ HuggingFace retry succeeded: {answer}")
-                        return answer, llm_name
+                        # if not answer or answer == str(response).strip():
+                        #     answer = self._intelligent_answer_extraction(response, original_question)
+                        if answer and not answer == str(response).strip():
+                            print(f"✅ HuggingFace retry succeeded: {answer}")
+                            return answer, llm_name
                     except Exception as retry_error:
                         print(f"❌ HuggingFace retry also failed: {retry_error}")
                 
