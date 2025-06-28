@@ -347,8 +347,12 @@ class GaiaAgent:
         max_steps = 5  # Prevent infinite loops
         called_tools = set()  # Track which tools have been called to prevent duplicates
         tool_results_history = []  # Track tool results for better fallback handling
+        current_step_tool_results = []  # Track results from current step only
+        
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1} - Using LLM: {llm_type}")
+            current_step_tool_results = []  # Reset for this step
+            
             # Truncate messages to prevent token overflow
             messages = self._truncate_messages(messages, llm_type)
             total_text = "".join(str(getattr(msg, 'content', '')) for msg in messages)
@@ -445,10 +449,12 @@ class GaiaAgent:
                     except Exception as e:
                         print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
                     if tool_results_history:
-                        best_result = max(tool_results_history, key=len)
-                        print(f"[Tool Loop] 📝 Using best tool result as final answer: {best_result}")
+                        # Use the most recent successful result instead of the longest
+                        best_result = tool_results_history[-1] if tool_results_history else "No result available"
+                        print(f"[Tool Loop] 📝 Using most recent tool result as final answer: {best_result}")
                         from langchain_core.messages import AIMessage
-                        return AIMessage(content=f"FINAL ANSWER: {best_result}")
+                        # Return the raw result without any marker - let the LLM handle formatting
+                        return AIMessage(content=best_result)
                 # Execute only new tool calls
                 for tool_call in new_tool_calls:
                     tool_name = tool_call.get('name')
@@ -489,13 +495,16 @@ class GaiaAgent:
                         except Exception as e:
                             tool_result = f"Error running tool '{tool_name}': {e}"
                             print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
+                    
+                    # Store the raw result for this step
+                    current_step_tool_results.append(str(tool_result))
                     tool_results_history.append(str(tool_result))
-                    # Summarize tool result and inject as message for LLM context
-                    print(f"[Tool Loop] Summarizing long tool result for token limit")
-                    summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
-                    print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
-                    summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
-                    messages.append(summary_msg)
+                    
+                    # Report tool result
+                    tool_result_str = str(tool_result)
+                    print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result_str}")
+                    # summary_msg = HumanMessage(content=f"Tool called: '{tool_name}'. Result: {summary}")
+                    # messages.append(summary_msg)
                     messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
                 continue  # Next LLM call
             # Gemini (and some LLMs) may use 'function_call' instead of 'tool_calls'
@@ -519,8 +528,9 @@ class GaiaAgent:
                         except Exception as e:
                             print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
                     if tool_results_history:
-                        best_result = max(tool_results_history, key=len)
-                        print(f"[Tool Loop] 📝 Using best tool result as final answer: {best_result}")
+                        # Use the most recent successful result instead of the longest
+                        best_result = tool_results_history[-1] if tool_results_history else "No result available"
+                        print(f"[Tool Loop] 📝 Using most recent tool result as final answer: {best_result}")
                         from langchain_core.messages import AIMessage
                         return AIMessage(content=f"FINAL ANSWER: {best_result}")
                     continue
@@ -560,12 +570,16 @@ class GaiaAgent:
                     except Exception as e:
                         tool_result = f"Error running tool '{tool_name}': {e}"
                         print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
+                
+                # Store the raw result for this step
+                current_step_tool_results.append(str(tool_result))
                 tool_results_history.append(str(tool_result))
-                print(f"[Tool Loop] Summarizing long tool result for token limit")
-                summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
-                print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
-                summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Short summarized result: {summary}")
-                messages.append(summary_msg)
+                
+                # Report tool result
+                tool_result_str = str(tool_result)
+                print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result_str}")
+                # summary_msg = HumanMessage(content=f"Tool called: '{tool_name}'. Result: {summary}")
+                # messages.append(summary_msg)
                 messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
                 continue
             if hasattr(response, 'content') and response.content:
@@ -1034,7 +1048,6 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Returns:
             str: The extracted final answer string with "FINAL ANSWER:" prefix removed.
         """
-        # Try to find the line starting with 'FINAL ANSWER:'
         if hasattr(response, 'content'):
             text = response.content
         elif isinstance(response, dict) and 'content' in response:
@@ -1044,8 +1057,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         # Find the line with 'FINAL ANSWER' (case-insensitive)
         for line in text.splitlines():
             if line.strip().upper().startswith("FINAL ANSWER"):
+                # Return the whole response, cleaning prefix if present
                 return self._clean_final_answer_text(line.strip())
-        # Return the whole response, cleaning prefix if present
         return None
 
     def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
@@ -1222,7 +1235,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             'analyze_csv_file': 'file_path',
             'analyze_excel_file': 'file_path',
             'get_chess_board_fen': 'image_path',
-            'solve_chess_position': 'image_path'
+            'solve_chess_position': 'image_path',
+            'execute_code_multilang': 'code'  # Add support for code injection
         }
         
         if tool_name in file_tools and self.current_file_data and self.current_file_name:
@@ -1245,8 +1259,19 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 
                 tool_args[param_name] = temp_file_path
                 print(f"[Tool Loop] Created temporary file {temp_file_path} for {tool_name}")
+            # For code tools, decode and inject the code content
+            elif param_name == 'code':
+                import base64
+                try:
+                    # Decode base64 file data to get the actual code content
+                    file_data = base64.b64decode(self.current_file_data)
+                    code_content = file_data.decode('utf-8')
+                    tool_args[param_name] = code_content
+                    print(f"[Tool Loop] Injected code from attached file for {tool_name}: {len(code_content)} characters")
+                except Exception as e:
+                    print(f"[Tool Loop] Failed to decode file data for code injection: {e}")
         
-        return tool_args 
+        return tool_args
 
     def _create_huggingface_llm(self):
         """
