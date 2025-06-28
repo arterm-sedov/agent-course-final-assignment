@@ -264,7 +264,7 @@ class GaiaAgent:
 
     def _summarize_text_with_llm(self, text, max_tokens=None, question=None):
         """
-        Summarize a long tool result using Groq (if available), otherwise Gemini, otherwise fallback to truncation.
+        Summarize a long tool result using Groq (if available), otherwise HuggingFace, then Gemini, otherwise fallback to truncation.
         Optionally include the original question for more focused summarization.
         Uses the LLM with tools enabled, and instructs the LLM to use tools if needed.
         """
@@ -289,6 +289,13 @@ class GaiaAgent:
         except Exception as e:
             print(f"[Summarization] Groq summarization with tools failed: {e}")
         try:
+            if self.llm_third_fallback_with_tools:
+                response = self.llm_third_fallback_with_tools.invoke([HumanMessage(content=prompt)])
+                if hasattr(response, 'content') and response.content:
+                    return response.content.strip()
+        except Exception as e:
+            print(f"[Summarization] HuggingFace summarization with tools failed: {e}")
+        try:
             if self.llm_primary_with_tools:
                 response = self.llm_primary_with_tools.invoke([HumanMessage(content=prompt)])
                 if hasattr(response, 'content') and response.content:
@@ -304,13 +311,20 @@ class GaiaAgent:
         except Exception as e:
             print(f"[Summarization] Groq summarization failed: {e}")
         try:
+            if self.llm_third_fallback:
+                response = self.llm_third_fallback.invoke([HumanMessage(content=prompt)])
+                if hasattr(response, 'content') and response.content:
+                    return response.content.strip()
+        except Exception as e:
+            print(f"[Summarization] HuggingFace summarization failed: {e}")
+        try:
             if self.llm_primary:
                 response = self.llm_primary.invoke([HumanMessage(content=prompt)])
                 if hasattr(response, 'content') and response.content:
                     return response.content.strip()
         except Exception as e:
             print(f"[Summarization] Gemini summarization failed: {e}")
-        return text[:1000] + '... [truncated]'
+        return text[:1000] + '... [Summary is truncated]'
 
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
@@ -367,7 +381,7 @@ class GaiaAgent:
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
                 print(f"[Tool Loop] Final answer detected: {response.content}")
                 # --- NEW LOGIC: Check for 'FINAL ANSWER' marker ---
-                if "final answer" in response.content.lower():
+                if self._extract_final_answer(response):
                     return response
                 else:
                     print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
@@ -541,7 +555,7 @@ class GaiaAgent:
                 tool_results_history.append(str(tool_result))
                 summary = self._summarize_text_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=self.original_question)
                 print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
-                summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
+                summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Short summarized result: {summary}")
                 messages.append(summary_msg)
                 messages.append(ToolMessage(content=str(tool_result), name=tool_name, tool_call_id=tool_name))
                 continue
@@ -641,13 +655,6 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
 
 {tool_summary}
 
-IMPORTANT FORMATTING RULES:
-- YOUR FINAL ANSWER should be a number OR as few words as possible OR a comma separated list of numbers and/or strings
-- If you are asked for a number, don't use comma to write your number neither use units such as $ or percent sign unless specified otherwise
-- If you are asked for a string, don't use articles, neither abbreviations (e.g. for cities), and write the digits in plain text unless specified otherwise
-- Your answer must end with "FINAL ANSWER: [your answer]"
-
-For example, if the answer is 3, write: FINAL ANSWER: 3
 """))
                             
                             print(f"🔄 Retrying {llm_name} without tools with enhanced context")
