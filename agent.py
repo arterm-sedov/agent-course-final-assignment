@@ -264,7 +264,7 @@ class GaiaAgent:
 
     def _summarize_tool_result_with_llm(self, text, max_tokens=None, question=None):
         """
-        Summarize a long tool result using Gemini, then Groq (if available), otherwise HuggingFace, otherwise fallback to truncation.
+        Summarize a long tool result.
         Optionally include the original question for more focused summarization.
         """
         # Structure the prompt as JSON for LLM convenience
@@ -273,14 +273,11 @@ class GaiaAgent:
             "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
             "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
             "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
-            "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
             "question": question if question else None,
             "tool_result_to_summarize": text
         }
-        
-        prompt = f"Summarization Request (JSON):\n" + json.dumps(prompt_dict, indent=2)
-        
-        return self._summarize_text_with_llm(prompt, max_tokens, question)
+               
+        return self._summarize_text_with_llm(prompt, max_tokens, question, prompt_dic_override=prompt_dict)
     
     def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dic_override=None):
         """
@@ -297,36 +294,14 @@ class GaiaAgent:
                 "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
                 "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
                 "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
-                "tool_calls": "You may use any available tools to analyze, extract, or process the tool_result if needed.",
+                "tool_calls": "Do not use tools.",
                 "question": question if question else None,
                 "text_to_summarize": text,
             }
         # Remove None fields for cleanliness
         prompt_dict = {k: v for k, v in prompt_dict.items() if v is not None}
         prompt = f"Summarization Request (JSON):\n" + json.dumps(prompt_dict, indent=2)
-        try:
-            if self.llm_primary_with_tools:
-                response = self.llm_primary_with_tools.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] Gemini summarization with tools failed: {e}")
-        try:
-            if self.llm_fallback_with_tools:
-                response = self.llm_fallback_with_tools.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] Groq summarization with tools failed: {e}")
-        try:
-            if self.llm_third_fallback_with_tools:
-                response = self.llm_third_fallback_with_tools.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] HuggingFace summarization with tools failed: {e}")
         
-        # Fallback to plain LLMs if tool-enabled LLMs fail
         try:
             if self.llm_primary:
                 response = self.llm_primary.invoke([HumanMessage(content=prompt)])
@@ -581,7 +556,7 @@ class GaiaAgent:
                         print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                 tool_results_history.append(str(tool_result))
                 print(f"[Tool Loop] Summarizing long tool result for token limit")
-                summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=self.original_question)
+                summary = self._summarize_tool_result_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
                 print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
                 summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Short summarized result: {summary}")
                 messages.append(summary_msg)
@@ -593,12 +568,6 @@ class GaiaAgent:
                 return response
             print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
             break
-        if tool_results_history and (not hasattr(response, 'content') or not response.content):
-            best_result = max(tool_results_history, key=len)
-            print(f"[Tool Loop] 📝 No final answer generated, using best tool result from history: {best_result}")
-            from langchain_core.messages import AIMessage
-            synthetic_response = AIMessage(content=f"FINAL ANSWER: {best_result}")
-            return synthetic_response
         print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
         return response
 
