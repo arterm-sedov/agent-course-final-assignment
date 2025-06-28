@@ -15,7 +15,7 @@ Environment Variables:
     - SUPABASE_KEY: Key for Supabase access
 
 Files required in the same directory:
-    - system_prompt.txt
+    - system_prompt.md
 """
 import os
 import json
@@ -36,20 +36,6 @@ from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 
-# === GLOBAL SYSTEM PROMPT LOADING ===
-SYSTEM_PROMPT = None
-ANSWER_FORMATTING_RULES = None
-SIMILARITY_THRESHOLD = 0.9  # Global threshold for answer similarity
-MAX_SUMMARY_TOKENS = 255    # Global token limit for summaries
-
-def _load_system_prompt():
-    global SYSTEM_PROMPT, ANSWER_FORMATTING_RULES
-    if SYSTEM_PROMPT is None:
-        with open("system_prompt.txt", "r", encoding="utf-8") as f:
-            SYSTEM_PROMPT = f.read()
-        ANSWER_FORMATTING_RULES = SYSTEM_PROMPT
-_load_system_prompt()
-
 class GaiaAgent:
     """
     Main agent for the GAIA Unit 4 benchmark.
@@ -57,7 +43,7 @@ class GaiaAgent:
     This agent:
       - Uses the tools.py (math, code, file, image, web, etc.)
       - Integrates a supabase retriever for similar Q/A and context
-      - Strictly follows the system prompt in system_prompt.txt
+      - Strictly follows the system prompt in system_prompt
       - Is modular and extensible for future tool/model additions
       - Includes rate limiting and retry logic for API calls
       - Uses Google Gemini for first attempt, Groq for retry
@@ -95,10 +81,15 @@ class GaiaAgent:
         Raises:
             ValueError: If an invalid provider is specified.
         """
-        _load_system_prompt()
-        self.system_prompt = SYSTEM_PROMPT
+        
+        self.system_prompt = self._load_system_prompt()
         self.sys_msg = SystemMessage(content=self.system_prompt)
-        self.original_question = None  # Store the original question for reuse
+        # Store the original question for reuse
+        self.original_question = None
+        # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
+        self.similarity_threshold = 0.9
+        # Global token limit for summaries
+        self.max_summary_tokens = 255
 
         # Rate limiting setup
         self.last_request_time = 0
@@ -189,6 +180,21 @@ class GaiaAgent:
         else:
             self.llm_third_fallback_with_tools = None
 
+    def _load_system_prompt(self):
+        """
+        Load the system prompt from the system_prompt.md file.
+        """        
+        try:
+            with open("system_prompt.md", "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            print("⚠️ system_prompt.md not found, using default system prompt")
+            
+        except Exception as e:
+            print(f"⚠️ Error reading system_prompt.md: {e}")
+        
+        return "You are a helpful assistant. Please provide clear and accurate responses."
+    
     def _rate_limit(self):
         """
         Implement rate limiting to avoid hitting API limits.
@@ -256,7 +262,7 @@ class GaiaAgent:
         
         return truncated_messages
 
-    def _summarize_text_with_llm(self, text, max_tokens=MAX_SUMMARY_TOKENS, question=None):
+    def _summarize_text_with_llm(self, text, max_tokens=None, question=None):
         """
         Summarize a long tool result using Groq (if available), otherwise Gemini, otherwise fallback to truncation.
         Optionally include the original question for more focused summarization.
@@ -339,7 +345,7 @@ class GaiaAgent:
                     if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
                         if len(msg.content) > 500:
                             print(f"[Tool Loop] Summarizing long tool result for token limit")
-                            msg.content = self._summarize_text_with_llm(msg.content, max_tokens=MAX_SUMMARY_TOKENS, question=self.original_question)
+                            msg.content = self._summarize_text_with_llm(msg.content, max_tokens=self.max_summary_tokens, question=self.original_question)
             try:
                 response = llm.invoke(messages)
             except Exception as e:
@@ -367,7 +373,7 @@ class GaiaAgent:
                     print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
                     # Summarize the context (all tool results and messages so far)
                     context_text = "\n".join(str(getattr(msg, 'content', '')) for msg in messages if hasattr(msg, 'content'))
-                    summarized_context = self._summarize_text_with_llm(context_text, max_tokens=MAX_SUMMARY_TOKENS, question=self.original_question)
+                    summarized_context = self._summarize_text_with_llm(context_text, max_tokens=self.max_summary_tokens, question=self.original_question)
                     # Find the original question
                     original_question = None
                     for msg in messages:
@@ -467,7 +473,7 @@ class GaiaAgent:
                             print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                     tool_results_history.append(str(tool_result))
                     # Summarize tool result and inject as message for LLM context
-                    summary = self._summarize_text_with_llm(str(tool_result), max_tokens=MAX_SUMMARY_TOKENS, question=None)
+                    summary = self._summarize_text_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=None)
                     print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
                     summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
                     messages.append(summary_msg)
@@ -533,7 +539,7 @@ class GaiaAgent:
                         tool_result = f"Error running tool '{tool_name}': {e}"
                         print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
                 tool_results_history.append(str(tool_result))
-                summary = self._summarize_text_with_llm(str(tool_result), max_tokens=MAX_SUMMARY_TOKENS, question=self.original_question)
+                summary = self._summarize_text_with_llm(str(tool_result), max_tokens=self.max_summary_tokens, question=self.original_question)
                 print(f"[Tool Loop] Injecting tool result summary for '{tool_name}': {summary}")
                 summary_msg = HumanMessage(content=f"Tool '{tool_name}' called with {tool_args}. Result: {summary}")
                 messages.append(summary_msg)
@@ -675,7 +681,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             else:
                 raise Exception(f"{llm_name} failed: {e}")
 
-    def _try_llm_sequence(self, messages, use_tools=True, reference=None, similarity_threshold=SIMILARITY_THRESHOLD):
+    def _try_llm_sequence(self, messages, use_tools=True, reference=None):
         """
         Try multiple LLMs in sequence until one succeeds and produces a similar answer to reference.
         Only one attempt per LLM, then move to the next.
@@ -684,7 +690,6 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             messages: The messages to send to the LLM
             use_tools (bool): Whether to use tools
             reference (str, optional): Reference answer to compare against
-            similarity_threshold (float): Minimum similarity score (0.0-1.0) to consider answers similar
             
         Returns:
             tuple: (answer, llm_used) where answer is the final answer and llm_used is the name of the LLM that succeeded
@@ -889,12 +894,11 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             
             cosine_similarity = dot_product / (norm_answer * norm_reference)
             
-            # Set similarity threshold (use global)
-            similarity_threshold = SIMILARITY_THRESHOLD
+            # Use global similarity threshold
             
-            print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {similarity_threshold})")
+            print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
             
-            return cosine_similarity >= similarity_threshold
+            return cosine_similarity >= self.similarity_threshold
             
         except Exception as e:
             print(f"⚠️ Error in vector similarity matching: {e}")
@@ -961,7 +965,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
             file_name (str, optional): Name of the attached file.
 
         Returns:
-            str: The agent's final answer, formatted per system_prompt.txt.
+            str: The agent's final answer, formatted per system_prompt.
 
         Workflow:
             1. Store file data for use by tools.
@@ -1108,7 +1112,7 @@ For example, if the answer is 3, write: FINAL ANSWER: 3
         )
         print(f"[Agent] Summarization prompt for answer extraction:\n{prompt}")
         # Use the summarization LLM (Groq preferred, fallback to Gemini)
-        summary = self._summarize_text_with_llm(prompt, max_tokens=MAX_SUMMARY_TOKENS, question=self.original_question)
+        summary = self._summarize_text_with_llm(prompt, max_tokens=self.max_summary_tokens, question=self.original_question)
         print(f"[Agent] LLM-based answer extraction summary: {summary}")
         return summary.strip()
 
