@@ -306,6 +306,13 @@ class GaiaAgent:
         import json as _json
         prompt = f"Summarization Request (JSON):\n" + _json.dumps(prompt_dict, indent=2)
         try:
+            if self.llm_primary_with_tools:
+                response = self.llm_primary_with_tools.invoke([HumanMessage(content=prompt)])
+                if hasattr(response, 'content') and response.content:
+                    return response.content.strip()
+        except Exception as e:
+            print(f"[Summarization] Gemini summarization with tools failed: {e}")
+        try:
             if self.llm_fallback_with_tools:
                 response = self.llm_fallback_with_tools.invoke([HumanMessage(content=prompt)])
                 if hasattr(response, 'content') and response.content:
@@ -319,14 +326,15 @@ class GaiaAgent:
                     return response.content.strip()
         except Exception as e:
             print(f"[Summarization] HuggingFace summarization with tools failed: {e}")
+        
+        # Fallback to plain LLMs if tool-enabled LLMs fail
         try:
-            if self.llm_primary_with_tools:
-                response = self.llm_primary_with_tools.invoke([HumanMessage(content=prompt)])
+            if self.llm_primary:
+                response = self.llm_primary.invoke([HumanMessage(content=prompt)])
                 if hasattr(response, 'content') and response.content:
                     return response.content.strip()
         except Exception as e:
-            print(f"[Summarization] Gemini summarization with tools failed: {e}")
-        # Fallback to plain LLMs if tool-enabled LLMs fail
+            print(f"[Summarization] Gemini summarization failed: {e}")
         try:
             if self.llm_fallback:
                 response = self.llm_fallback.invoke([HumanMessage(content=prompt)])
@@ -341,13 +349,8 @@ class GaiaAgent:
                     return response.content.strip()
         except Exception as e:
             print(f"[Summarization] HuggingFace summarization failed: {e}")
-        try:
-            if self.llm_primary:
-                response = self.llm_primary.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] Gemini summarization failed: {e}")
+        
+        print(f"[Summarization] LLM summarization failed, truncating")
         return text[:1000] + '... [Summary is truncated]'
 
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
