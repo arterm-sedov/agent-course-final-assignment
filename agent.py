@@ -471,10 +471,13 @@ class GaiaAgent:
                                 hasattr(tool_func, 'description')):
                                 # This is a proper LangChain tool, use invoke method
                                 if isinstance(tool_args, dict):
+                                    # Patch: If 'query' is present but 'input' is required, map 'query' to 'input'
+                                    if 'query' in tool_args and 'input' not in tool_args:
+                                        tool_args = {'input': tool_args['query']}
                                     tool_result = tool_func.invoke(tool_args)
                                 else:
                                     # For non-dict args, assume it's a single value that should be passed as 'input'
-                                    tool_result = tool_func.invoke({"input": tool_args})
+                                    tool_result = tool_func.invoke({'input': tool_args})
                             else:
                                 # This is a regular function, call it directly
                                 if isinstance(tool_args, dict):
@@ -539,10 +542,13 @@ class GaiaAgent:
                             hasattr(tool_func, 'description')):
                             # This is a proper LangChain tool, use invoke method
                             if isinstance(tool_args, dict):
+                                # Patch: If 'query' is present but 'input' is required, map 'query' to 'input'
+                                if 'query' in tool_args and 'input' not in tool_args:
+                                    tool_args = {'input': tool_args['query']}
                                 tool_result = tool_func.invoke(tool_args)
                             else:
                                 # For non-dict args, assume it's a single value that should be passed as 'input'
-                                tool_result = tool_func.invoke({"input": tool_args})
+                                tool_result = tool_func.invoke({'input': tool_args})
                         else:
                             # This is a regular function, call it directly
                             if isinstance(tool_args, dict):
@@ -1069,7 +1075,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 "response_to_analyze": text,
                 "system_prompt": self.system_prompt
         }
-        print(f"[Agent] Summarization prompt for answer extraction:\n{prompt}")
+        print(f"[Agent] Summarization prompt for answer extraction:\n{prompt_dict}")
         summary = self._summarize_text_with_llm(text, max_tokens=self.max_summary_tokens, question=self.original_question, prompt_dict_override=prompt_dict)
         print(f"[Agent] LLM-based answer extraction summary: {summary}")
         return summary.strip()
