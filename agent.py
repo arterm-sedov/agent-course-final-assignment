@@ -142,6 +142,8 @@ class GaiaAgent:
         "groq", 
         #"huggingface"
     ]
+    # Print truncation length for debug output
+    MAX_PRINT_LEN = 100
     
     def __init__(self, provider: str = "groq"):
         """
@@ -707,14 +709,25 @@ class GaiaAgent:
                     return AIMessage(content=f"Error: Hit token limit for {llm_type} LLM. Cannot complete reasoning.")
 
             # === DEBUG OUTPUT ===
-            print(f"[Tool Loop] Raw LLM response: {response}")
+            # Print LLM response (truncated if long)
+            resp_str = str(response)
+            if len(resp_str) > self.MAX_PRINT_LEN:
+                resp_str = resp_str[:self.MAX_PRINT_LEN] + "...(truncated)"
+            print(f"[Tool Loop] Raw LLM response: {resp_str}")
             print(f"[Tool Loop] Response type: {type(response)}")
             print(f"[Tool Loop] Response has content: {hasattr(response, 'content')}")
             if hasattr(response, 'content'):
+                content_str = response.content if response.content else ''
+                if len(content_str) > self.MAX_PRINT_LEN:
+                    content_str = content_str[:self.MAX_PRINT_LEN] + "...(truncated)"
                 print(f"[Tool Loop] Content length: {len(response.content) if response.content else 0}")
+                print(f"[Tool Loop] Content (truncated): {content_str}")
             print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
             if hasattr(response, 'tool_calls'):
-                print(f"[Tool Loop] Tool calls: {response.tool_calls}")
+                tool_calls_str = str(response.tool_calls)
+                if len(tool_calls_str) > self.MAX_PRINT_LEN:
+                    tool_calls_str = tool_calls_str[:self.MAX_PRINT_LEN] + "...(truncated)"
+                print(f"[Tool Loop] Tool calls: {tool_calls_str}")
 
             # Check for empty response
             if not hasattr(response, 'content') or not response.content:
@@ -889,10 +902,9 @@ class GaiaAgent:
                     total_tool_calls += 1  # Increment total tool call counter
                     
                     # Report tool result
-                    max_print_len = 100
                     display_result = tool_result
-                    if isinstance(display_result, str) and len(display_result) > max_print_len:
-                        display_result = display_result[:max_print_len] + "...(truncated)"
+                    if isinstance(display_result, str) and len(display_result) > self.MAX_PRINT_LEN:
+                        display_result = display_result[:self.MAX_PRINT_LEN] + "...(truncated)"
                     print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
                     messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
                 continue  # Next LLM call
@@ -951,10 +963,9 @@ class GaiaAgent:
                 total_tool_calls += 1  # Increment total tool call counter
                 
                 # Report tool result (for function_call branch)
-                max_print_len = 100
                 display_result = tool_result
-                if isinstance(display_result, str) and len(display_result) > max_print_len:
-                    display_result = display_result[:max_print_len] + "...(truncated)"
+                if isinstance(display_result, str) and len(display_result) > self.MAX_PRINT_LEN:
+                    display_result = display_result[:self.MAX_PRINT_LEN] + "...(truncated)"
                 print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
                 messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_name))
                 continue
