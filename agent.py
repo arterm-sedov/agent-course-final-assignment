@@ -143,7 +143,7 @@ class GaiaAgent:
         #"huggingface"
     ]
     # Print truncation length for debug output
-    MAX_PRINT_LEN = 200
+    MAX_PRINT_LEN = 100
     
     def __init__(self, provider: str = "groq"):
         """
@@ -1700,7 +1700,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             if test_response and hasattr(test_response, 'content') and test_response.content:
                 print(f"✅ {llm_name} test successful!")
                 print(f"   Response time: {end_time - start_time:.2f}s")
-                print(f"   Test message: {test_message}")
+                print(f"   Test message details:")
+                self._print_message_components(test_message[0], "test_input")
                 print(f"   Test response details:")
                 self._print_message_components(test_response, "test")
                 return True
