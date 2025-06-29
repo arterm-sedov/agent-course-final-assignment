@@ -657,7 +657,7 @@ class GaiaAgent:
                             reminder_type="final_answer_prompt",
                             messages=messages
                         )
-                        reiterate_messages = [self.sys_msg, HumanMessage(content=reminder)]
+                        reiterate_messages = [self.system_prompt, HumanMessage(content=reminder)]
                         try:
                             reiterate_response = llm.invoke(reiterate_messages)
                             print(f"[Tool Loop] Reiterated response: {reiterate_response.content if hasattr(reiterate_response, 'content') else reiterate_response}")
@@ -889,7 +889,7 @@ class GaiaAgent:
                                 tools=self.tools,
                                 tool_results_history=tool_results_history
                             )
-                            enhanced_messages = [self.sys_msg, HumanMessage(content=reminder)]
+                            enhanced_messages = [self.system_prompt, HumanMessage(content=reminder)]
                             response = llm_no_tools.invoke(enhanced_messages)
                         else:
                             print(f"⚠️ Retrying {llm_name} without tools (no tool results found)")
