@@ -578,17 +578,24 @@ def web_search(input: str) -> str:
             return "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
         
         # Perform the search - pass input as positional argument
-        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(input)
+        search_result = TavilySearch(max_results=SEARCH_LIMIT).invoke(input)
         
-        # Format the results
-        formatted_results = "\n\n---\n\n".join(
-            [
-                f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
-                for doc in search_docs
-            ]
-        )
-        
-        return {"web_results": formatted_results}
+        # Handle different response types
+        if isinstance(search_result, str):
+            # If Tavily returned a string (error message or direct answer)
+            return {"web_results": search_result}
+        elif isinstance(search_result, list):
+            # If Tavily returned a list of Document objects
+            formatted_results = "\n\n---\n\n".join(
+                [
+                    f'<Document source="{doc.metadata["source"]}" page="{doc.metadata.get("page", "")}"/>\n{doc.page_content}'
+                    for doc in search_result
+                ]
+            )
+            return {"web_results": formatted_results}
+        else:
+            # Handle other response types
+            return {"web_results": str(search_result)}
         
     except Exception as e:
         return f"Error in web search: {str(e)}"
