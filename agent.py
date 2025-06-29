@@ -77,6 +77,7 @@ class GaiaAgent:
         max_message_history: Maximum number of messages to keep in history
         original_question: Store the original question for reuse
         similarity_threshold: Minimum similarity score (0.0-1.0) to consider answers similar
+        tool_calls_similarity_threshold: Silarity for tool deduplication
         max_summary_tokens: Global token limit for summaries
     """
     
@@ -166,6 +167,8 @@ class GaiaAgent:
         self.original_question = None
         # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
         self.similarity_threshold = 0.9
+        # Tool calls deduplication threshold
+        self.tool_calls_similarity_threshold=0.90
         # Global token limit for summaries
         self.max_summary_tokens = 255
 
@@ -1564,7 +1567,7 @@ class GaiaAgent:
                 
                 # Compare with stored embedding using vector similarity
                 cosine_similarity = self._calculate_cosine_similarity(current_embedding, called_tool['embedding'])
-                if cosine_similarity >= self.similarity_threshold:
+                if cosine_similarity >= self.tool_calls_similarity_threshold:
                     print(f"[Tool Loop] Vector similarity duplicate detected: {tool_name} (similarity: {cosine_similarity:.3f})")
                     return True
         
