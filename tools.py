@@ -1146,7 +1146,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
     try:
         client = _get_gemini_client()
         video_description = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=types.Content(
                 parts=[
                     types.Part(file_data=types.FileData(file_uri=youtube_url)),
@@ -1208,7 +1208,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
         contents = [prompt, mp3_file]
         try:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.5-pro",
                 contents=contents
             )
             return response.text
