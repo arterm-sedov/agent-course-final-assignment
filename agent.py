@@ -75,6 +75,42 @@ class GaiaAgent:
         similarity_threshold: Minimum similarity score (0.0-1.0) to consider answers similar
         max_summary_tokens: Global token limit for summaries
     """
+    
+    # Single source of truth for LLM configuration
+    LLM_CONFIG = {
+        "primary": {
+            "name": "Google Gemini",
+            "type_str": "gemini",
+            "model": "gemini-2.5-pro",
+            "temperature": 0,
+            "api_key_env": "GEMINI_KEY",
+            "token_limit": None  # No limit for Gemini (2M token context)
+        },
+        "fallback": {
+            "name": "Groq",
+            "type_str": "groq", 
+            "model": "qwen-qwq-32b",
+            "temperature": 0,
+            "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
+            "token_limit": 8000  # Increased from 5000 to allow longer reasoning
+        },
+        "third_fallback": {
+            "name": "HuggingFace",
+            "type_str": "huggingface",
+            "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
+            "temperature": 0,
+            "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
+            "token_limit": 16000  # Conservative for HuggingFace
+        }
+    }
+    
+    # Default LLM sequence order
+    DEFAULT_LLM_SEQUENCE = [
+        #("primary", "Google Gemini"),
+        ("fallback", "Groq"), 
+        #("third_fallback", "HuggingFace")
+    ]
+    
     def __init__(self, provider: str = "groq"):
         """
         Initialize the agent, loading the system prompt, tools, retriever, and LLM.
@@ -100,11 +136,10 @@ class GaiaAgent:
         # Minimum 1 second between requests
         self.min_request_interval = 1
 
-        # Token management - LLM-specific limits
+        # Token management - LLM-specific limits (built from configuration)
         self.token_limits = {
-            "gemini": None,  # No limit for Gemini (2M token context)
-            "groq": 8000,    # Increased from 5000 to allow longer reasoning
-            "huggingface": 16000  # Conservative for HuggingFace
+            config["type_str"]: config["token_limit"] 
+            for config in self.LLM_CONFIG.values()
         }
         self.max_message_history = 15  # Increased for better context retention
 
@@ -134,45 +169,53 @@ class GaiaAgent:
 
         # Set up primary LLM (Google Gemini) and fallback LLM (Groq)
         try:
+            config = self.LLM_CONFIG["primary"]
             self.llm_primary = ChatGoogleGenerativeAI(
-                model="gemini-2.5-pro", 
-                temperature=0, 
-                google_api_key=os.environ.get("GEMINI_KEY")
+                model=config["model"], 
+                temperature=config["temperature"], 
+                google_api_key=os.environ.get(config["api_key_env"])
                 # No max_tokens limit for Gemini - let it use its full capability
             )
-            print("✅ Primary LLM (Google Gemini) initialized successfully")
+            print(f"✅ Primary LLM ({config['name']}) initialized successfully")
             # Test the LLM with Hello message
-            if not self._ping_llm(self.llm_primary, "Primary LLM (Google Gemini)"):
-                print("⚠️ Primary LLM test failed, setting to None")
+            if not self._ping_llm(self.llm_primary, f"Primary LLM ({config['name']})"):
+                print(f"⚠️ Primary LLM test failed, setting to None")
                 self.llm_primary = None
         except Exception as e:
-            print(f"⚠️ Failed to initialize Google Gemini: {e}")
+            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['primary']['name']}: {e}")
             self.llm_primary = None
         
         try:
-            self.llm_fallback = ChatGroq(
-                model="qwen-qwq-32b", 
-                temperature=0,
-                #max_tokens=2048  # Increased from 1024 to allow longer reasoning
-            )
-            print("✅ Fallback LLM (Groq) initialized successfully")
-            # Test the LLM with Hello message
-            if not self._ping_llm(self.llm_fallback, "Fallback LLM (Groq)"):
-                print("⚠️ Fallback LLM test failed, setting to None")
+            config = self.LLM_CONFIG["fallback"]
+            # Groq uses the GROQ_API_KEY environment variable automatically
+            # We check if it's available
+            if not os.environ.get(config["api_key_env"]):
+                print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping Groq...")
                 self.llm_fallback = None
+            else:
+                self.llm_fallback = ChatGroq(
+                    model=config["model"], 
+                    temperature=config["temperature"],
+                    #max_tokens=2048  # Increased from 1024 to allow longer reasoning
+                )
+                print(f"✅ Fallback LLM ({config['name']}) initialized successfully")
+                # Test the LLM with Hello message
+                if not self._ping_llm(self.llm_fallback, f"Fallback LLM ({config['name']})"):
+                    print(f"⚠️ Fallback LLM test failed, setting to None")
+                    self.llm_fallback = None
         except Exception as e:
-            print(f"⚠️ Failed to initialize Groq: {e}")
+            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['fallback']['name']}: {e}")
             self.llm_fallback = None
         
         try:
             self.llm_third_fallback = self._create_huggingface_llm()
             if self.llm_third_fallback is not None:
-                print("✅ Third fallback LLM (HuggingFace) initialized successfully")
+                print(f"✅ Third fallback LLM ({self.LLM_CONFIG['third_fallback']['name']}) initialized successfully")
                 # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
             else:
-                print("❌ Third fallback LLM (HuggingFace) failed to initialize")
+                print(f"❌ Third fallback LLM ({self.LLM_CONFIG['third_fallback']['name']}) failed to initialize")
         except Exception as e:
-            print(f"⚠️ Failed to initialize HuggingFace: {e}")
+            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['third_fallback']['name']}: {e}")
             self.llm_third_fallback = None
         
         # Bind all tools from tools.py
@@ -554,9 +597,9 @@ class GaiaAgent:
             estimated_tokens = self._estimate_tokens(total_text)
             token_limit = self.token_limits.get(llm_type)
             
-            if token_limit and estimated_tokens > token_limit:
-                print(f"[Tool Loop] Token limit exceeded: {estimated_tokens} > {token_limit}. Summarizing...")
-                # self._summarize_long_tool_messages(messages, llm_type, self.max_summary_tokens)
+            # if token_limit and estimated_tokens > token_limit:
+            #     print(f"[Tool Loop] Token limit exceeded: {estimated_tokens} > {token_limit}. Summarizing...")
+            #     # self._summarize_long_tool_messages(messages, llm_type, self.max_summary_tokens)
             
             try:
                 response = llm.invoke(messages)
@@ -793,20 +836,24 @@ class GaiaAgent:
         return response
 
     def _select_llm(self, llm_type, use_tools):
+        if llm_type not in self.LLM_CONFIG:
+            raise ValueError(f"Invalid llm_type: {llm_type}")
+            
+        config = self.LLM_CONFIG[llm_type]
+        
+        # Get the appropriate LLM instance
         if llm_type == "primary":
             llm = self.llm_primary_with_tools if use_tools else self.llm_primary
-            llm_name = "Google Gemini"
-            llm_type_str = "gemini"
         elif llm_type == "fallback":
             llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
-            llm_name = "Groq"
-            llm_type_str = "groq"
         elif llm_type == "third_fallback":
             llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
-            llm_name = "HuggingFace"
-            llm_type_str = "huggingface"
         else:
             raise ValueError(f"Invalid llm_type: {llm_type}")
+        
+        llm_name = config["name"]
+        llm_type_str = config["type_str"]
+        
         return llm, llm_name, llm_type_str
 
     def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
@@ -901,11 +948,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Raises:
             Exception: If all LLMs fail or none produce similar enough answers
         """
-        llm_sequence = [
-            #("primary", "Google Gemini"),
-            ("fallback", "Groq"), 
-            #("third_fallback", "HuggingFace")
-        ]
+        # Use the default LLM sequence from class configuration
+        llm_sequence = self.DEFAULT_LLM_SEQUENCE
         
         # Filter out unavailable LLMs
         available_llms = []
