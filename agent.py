@@ -889,7 +889,11 @@ class GaiaAgent:
                     total_tool_calls += 1  # Increment total tool call counter
                     
                     # Report tool result
-                    print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result}")
+                    max_print_len = 100
+                    display_result = tool_result
+                    if isinstance(display_result, str) and len(display_result) > max_print_len:
+                        display_result = display_result[:max_print_len] + "...(truncated)"
+                    print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
                     messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
                 continue  # Next LLM call
             # Gemini (and some LLMs) may use 'function_call' instead of 'tool_calls'
@@ -946,8 +950,12 @@ class GaiaAgent:
                 tool_results_history.append(tool_result)
                 total_tool_calls += 1  # Increment total tool call counter
                 
-                # Report tool result
-                print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result}")
+                # Report tool result (for function_call branch)
+                max_print_len = 100
+                display_result = tool_result
+                if isinstance(display_result, str) and len(display_result) > max_print_len:
+                    display_result = display_result[:max_print_len] + "...(truncated)"
+                print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
                 messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_name))
                 continue
             if hasattr(response, 'content') and response.content:
