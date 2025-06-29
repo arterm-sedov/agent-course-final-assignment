@@ -915,11 +915,12 @@ class GaiaAgent:
         Raises:
             Exception: If the LLM fails or if llm_type is not specified
         """
-        try:
-            if llm_type is None:
-                raise ValueError("llm_type must be specified for _make_llm_request()")
-        except ValueError as e:
-            raise ValueError(f"Invalid LLM configuration: {e}. Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}")
+
+        if llm_type is None:
+                raise Exception(
+                    f"llm_type must be specified for _make_llm_request(). "
+                    f"Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}"
+                )
         
         llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
