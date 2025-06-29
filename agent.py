@@ -1009,6 +1009,12 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 print(f"⚠️ {error_msg}")
                 print("💡 HuggingFace models may be slow or overloaded. Consider using Google Gemini or Groq instead.")
                 raise Exception(error_msg)
+            # Special handling for Groq network errors
+            elif llm_type == "groq" and ("no healthy upstream" in str(e).lower() or "network" in str(e).lower() or "connection" in str(e).lower()):
+                error_msg = f"Groq network connectivity error: {e}"
+                print(f"⚠️ {error_msg}")
+                print("💡 This is a network connectivity issue with Groq's servers. The service may be temporarily unavailable.")
+                raise Exception(error_msg)
             else:
                 raise Exception(f"{llm_name} failed: {e}")
 
