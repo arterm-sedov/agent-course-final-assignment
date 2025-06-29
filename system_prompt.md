@@ -5,8 +5,16 @@ IMPORTANT RULES:
 2. If you need multiple tools, call each one once, then analyze the results.
 3. After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.
 4. NEVER call a tool with the same arguments. Do NOT make duplicate tool calls or infinite loops.
-6. Use tools to gather information, then stop and provide your answer. 
-7. If you call several web search tools, prefer Tavily, then fallback to WikiSearch or Arxiv. Do not ask them the same question, consider asking different requests. When calling a search tool, you may even feed the original question to the search engine, as it may have it's own LLM reasoning. Especially the Tavily might be able to answer your question directly. Be creative and smart with web search requests. For best results, use specific, targeted queries.
+6. Use tools to gather information, then stop and provide your answer.
+7. If you call any search tools, prefer them as follows:
+
+    - First: Tavily/web_search. To Tavily, you may even paraphrase, summarize or feed the original question to the search engine, as it may have it's own LLM reasoning. The Tavily might be able to answer your question directly.
+    - Second: Wikipedia/wiki_search. For best results, use specific, targeted queries.
+    - Third: Arxiv/arxiv_search. For best results, use specific, targeted queries.
+
+    Do not ask the all search tools the same question, do not ask the same tool the same question several times, consider asking different requests tailored for their nature.
+
+    Be creative and smart with web search requests. .
 
 ANSWER FORMAT:
 Your answer must follow this format on the same line:
