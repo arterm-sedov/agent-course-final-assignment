@@ -434,8 +434,7 @@ class GaiaAgent:
         Returns:
             Response from LLM or fallback answer
         """
-        print(f"[Tool Loop] Trying to force the final answer with {len(tool_results_history)} tool results.")
-        
+
         # Create a more explicit reminder to provide final answer
         reminder = self._get_reminder_prompt(
             reminder_type="final_answer_prompt",
@@ -448,7 +447,7 @@ class GaiaAgent:
         messages.append(HumanMessage(content=reminder))
         
         try:
-            print(f"[Tool Loop] Sending explicit reminder to LLM to provide final answer...")
+            print(f"[Tool Loop] Trying to force the final answer with {len(tool_results_history)} tool results.")
             final_response = llm.invoke(messages)
             
             if hasattr(final_response, 'content') and final_response.content:
