@@ -55,7 +55,7 @@ try:
 except ImportError:
     ARXIVLOADER_AVAILABLE = False
     print("Warning: ArxivLoader not available. Install with: pip install langchain-community")
-# Google Gemini imports for video/audio understanding
+# Google Gemini imports for video/audio/chess understanding
 try:
     from google import genai
     from google.genai import types
@@ -64,6 +64,56 @@ except ImportError:
     GEMINI_AVAILABLE = False
     print("Warning: Google Gemini not available. Install with: pip install google-genai")
 
+
+# ========== GEMINI HELPER FUNCTIONS ==========
+def _get_gemini_client():
+    """
+    Initialize and return a Gemini client and model configuration with proper error handling.
+    
+    Returns:
+        tuple: (client, model_name) or (None, None) if initialization fails.
+    """
+    if not GEMINI_AVAILABLE:
+        print("Warning: Google Gemini not available. Install with: pip install google-genai")
+        return None, None
+    
+    try:
+        gemini_key = os.environ.get("GEMINI_KEY")
+        if not gemini_key:
+            print("Warning: GEMINI_KEY not found in environment variables.")
+            return None, None
+        
+        client = genai.Client(api_key=gemini_key)
+        model_name = "gemini-2.5-flash"  # Use same model as agent for consistency
+        
+        return client, model_name
+    except Exception as e:
+        print(f"Error initializing Gemini client: {str(e)}")
+        return None, None
+
+def _get_gemini_response(contents, error_prefix="Gemini"):
+    """
+    Get a response from Gemini with proper error handling.
+    
+    Args:
+        contents: The contents to send to Gemini (can be string, list, or Content object)
+        error_prefix (str): Prefix for error messages to identify the calling context
+    
+    Returns:
+        str: The Gemini response text, or an error message if the request fails.
+    """
+    client, model_name = _get_gemini_client()
+    if not client:
+        return f"{error_prefix} client not available. Check installation and API key configuration."
+    
+    try:
+        response = client.models.generate_content(
+            model=model_name,
+            contents=contents
+        )
+        return response.text
+    except Exception as e:
+        return f"Error in {error_prefix.lower()} request: {str(e)}"
 
 # ========== IMAGE PROCESSING HELPERS ==========
 def encode_image(image_path: str) -> str:
@@ -1098,25 +1148,14 @@ def understand_video(youtube_url: str, prompt: str) -> str:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
-    if not GEMINI_AVAILABLE:
-        return "Google Gemini not available. Install with: pip install google-genai"
-    try:
-        gemini_key = os.environ.get("GEMINI_KEY")
-        if not gemini_key:
-            return "GEMINI_KEY not found in environment variables."
-        client = genai.Client(api_key=gemini_key)
-        video_description = client.models.generate_content(
-            model="gemini-2.5-flash",  # Use same model as agent for consistency
-            contents=types.Content(
-                parts=[
-                    types.Part(file_data=types.FileData(file_uri=youtube_url)),
-                    types.Part(text=prompt)
-                ]
-            )
-        )
-        return video_description.text
-    except Exception as e:
-        return f"Error understanding video: {str(e)}"
+    contents = types.Content(
+        parts=[
+            types.Part(file_data=types.FileData(file_uri=youtube_url)),
+            types.Part(text=prompt)
+        ]
+    )
+    
+    return _get_gemini_response(contents, "Video understanding")
 
 @tool
 def understand_audio(file_path: str, prompt: str) -> str:
@@ -1139,15 +1178,11 @@ def understand_audio(file_path: str, prompt: str) -> str:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
-    if not GEMINI_AVAILABLE:
-        return "Google Gemini not available. Install with: pip install google-genai"
+    client, model_name = _get_gemini_client()
+    if not client:
+        return "Gemini client not available. Check installation and API key configuration."
+    
     try:
-        gemini_key = os.environ.get("GEMINI_KEY")
-        if not gemini_key:
-            return "GEMINI_KEY not found in environment variables."
-        
-        client = genai.Client(api_key=gemini_key)
-        
         # Check if file_path is base64 data or actual file path
         if file_path.startswith('/') or os.path.exists(file_path):
             # It's a file path
@@ -1172,11 +1207,9 @@ def understand_audio(file_path: str, prompt: str) -> str:
             except Exception as decode_error:
                 return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
         
-        audio_description = client.models.generate_content(
-            model="gemini-2.5-flash",  # Use same model as agent for consistency
-            contents=[prompt, mp3_file]
-        )
-        return audio_description.text
+        contents = [prompt, mp3_file]
+        return _get_gemini_response(contents, "Audio understanding")
+        
     except Exception as e:
         return f"Error understanding audio: {str(e)}"
 
@@ -1190,28 +1223,16 @@ def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
     The function constructs a prompt for Gemini and expects 
     only the algebraic notation as output, with no extra commentary.
     """
-    try:
-        # Use Google Gemini to convert coordinate notation to algebraic notation
-        if not GEMINI_AVAILABLE:
-            return "Google Gemini not available for chess move conversion"
-        
-        genai.configure(api_key=os.environ.get("GEMINI_KEY"))
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        
-        prompt = f"""
-        Convert this chess move from coordinate notation to algebraic notation.
-        
-        Piece placement: {piece_placement}
-        Move in coordinate notation: {move}
-        
-        Return only the algebraic notation (e.g., "e4", "Nf3", "O-O", "Qxd5", etc.)
-        """
-        
-        response = model.generate_content(prompt)
-        return response.text.strip()
-        
-    except Exception as e:
-        return f"Error converting chess move: {str(e)}"
+    prompt = f"""
+    Convert this chess move from coordinate notation to algebraic notation.
+    
+    Piece placement: {piece_placement}
+    Move in coordinate notation: {move}
+    
+    Return only the algebraic notation (e.g., "e4", "Nf3", "O-O", "Qxd5", etc.)
+    """
+    
+    return _get_gemini_response(prompt, "Chess move conversion")
 
 @tool
 def convert_chess_move(piece_placement: str, move: str) -> str:
@@ -1235,28 +1256,14 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
-    if not GEMINI_AVAILABLE:
-        return "Google Gemini not available. Install with: pip install google-genai"
-    try:
-        gemini_key = os.environ.get("GEMINI_KEY")
-        if not gemini_key:
-            return "GEMINI_KEY not found in environment variables."
-        
-        client = genai.Client(api_key=GEMINI_KEY)
-        move_message = (
-            f"Convert this chess move from coordinate notation to algebraic "
-            f"notation: {move}. Use the following piece placement: {piece_placement}. "
-            f"Do not provide any additional thinking or commentary in the response, "
-            f"just the algebraic notation only."
-        )
-        
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",  # Use same model as agent for consistency
-            contents=move_message
-        )
-        return response.text
-    except Exception as e:
-        return f"Error converting chess move: {str(e)}"
+    move_message = (
+        f"Convert this chess move from coordinate notation to algebraic "
+        f"notation: {move}. Use the following piece placement: {piece_placement}. "
+        f"Do not provide any additional thinking or commentary in the response, "
+        f"just the algebraic notation only."
+    )
+    
+    return _get_gemini_response(move_message, "Chess move conversion")
 
 def _get_best_chess_move_internal(fen: str) -> str:
     """
