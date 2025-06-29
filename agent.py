@@ -78,37 +78,61 @@ class GaiaAgent:
     
     # Single source of truth for LLM configuration
     LLM_CONFIG = {
-        "primary": {
+        "gemini": {
             "name": "Google Gemini",
             "type_str": "gemini",
             "model": "gemini-2.5-pro",
             "temperature": 0,
             "api_key_env": "GEMINI_KEY",
-            "token_limit": None  # No limit for Gemini (2M token context)
+            "token_limit": None,  # No limit for Gemini (2M token context)
+            "max_tokens": None
         },
-        "fallback": {
+        "groq": {
             "name": "Groq",
             "type_str": "groq", 
             "model": "qwen-qwq-32b",
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 8000  # Increased from 5000 to allow longer reasoning
+            "token_limit": 8000,  # Increased from 5000 to allow longer reasoning
+            "max_tokens": 2048
         },
-        "third_fallback": {
+        "huggingface": {
             "name": "HuggingFace",
             "type_str": "huggingface",
-            "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
             "temperature": 0,
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
-            "token_limit": 16000  # Conservative for HuggingFace
+            "token_limit": 16000,  # Conservative for HuggingFace
+            "models": [
+                {
+                    "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                    "task": "text-generation",
+                    "max_new_tokens": 1024,
+                    "do_sample": False,
+                    "temperature": 0
+                },
+                {
+                    "repo_id": "microsoft/DialoGPT-medium",
+                    "task": "text-generation",
+                    "max_new_tokens": 512,  # Shorter for reliability
+                    "do_sample": False,
+                    "temperature": 0
+                },
+                {
+                    "repo_id": "gpt2",
+                    "task": "text-generation", 
+                    "max_new_tokens": 256,  # Even shorter for basic model
+                    "do_sample": False,
+                    "temperature": 0
+                }
+            ]
         }
     }
     
-    # Default LLM sequence order
+    # Default LLM sequence order - references LLM_CONFIG keys
     DEFAULT_LLM_SEQUENCE = [
-        #("primary", "Google Gemini"),
-        ("fallback", "Groq"), 
-        #("third_fallback", "HuggingFace")
+        #"gemini",
+        "groq", 
+        #"huggingface"
     ]
     
     def __init__(self, provider: str = "groq"):
@@ -167,55 +191,75 @@ class GaiaAgent:
         else:
             print("⚠️ No HuggingFace API token found - HuggingFace LLM may not work")
 
-        # Set up primary LLM (Google Gemini) and fallback LLM (Groq)
-        try:
-            config = self.LLM_CONFIG["primary"]
-            self.llm_primary = ChatGoogleGenerativeAI(
-                model=config["model"], 
-                temperature=config["temperature"], 
-                google_api_key=os.environ.get(config["api_key_env"])
-                # No max_tokens limit for Gemini - let it use its full capability
-            )
-            print(f"✅ Primary LLM ({config['name']}) initialized successfully")
-            # Test the LLM with Hello message
-            if not self._ping_llm(self.llm_primary, f"Primary LLM ({config['name']})"):
-                print(f"⚠️ Primary LLM test failed, setting to None")
+        # Get the LLM types that should be initialized based on the sequence
+        llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
+        llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
+        print(f"🔄 Initializing LLMs based on sequence: {llm_names}")
+
+        # Set up LLMs based on the sequence configuration
+        if "gemini" in llm_types_to_init:
+            try:
+                config = self.LLM_CONFIG["gemini"]
+                gemini_name = config["name"]
+                self.llm_primary = ChatGoogleGenerativeAI(
+                    model=config["model"], 
+                    temperature=config["temperature"], 
+                    google_api_key=os.environ.get(config["api_key_env"]),
+                    max_tokens=config["max_tokens"]
+                )
+                print(f"✅ Primary LLM ({gemini_name}) initialized successfully")
+                # Test the LLM with Hello message
+                if not self._ping_llm(self.llm_primary, f"Primary LLM ({gemini_name})"):
+                    print(f"⚠️ Primary LLM test failed, setting to None")
+                    self.llm_primary = None
+            except Exception as e:
+                print(f"⚠️ Failed to initialize {gemini_name}: {e}")
                 self.llm_primary = None
-        except Exception as e:
-            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['primary']['name']}: {e}")
+        else:
+            print(f"⏭️ Skipping {gemini_name} (not in sequence)")
             self.llm_primary = None
         
-        try:
-            config = self.LLM_CONFIG["fallback"]
-            # Groq uses the GROQ_API_KEY environment variable automatically
-            # We check if it's available
-            if not os.environ.get(config["api_key_env"]):
-                print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping Groq...")
-                self.llm_fallback = None
-            else:
-                self.llm_fallback = ChatGroq(
-                    model=config["model"], 
-                    temperature=config["temperature"],
-                    #max_tokens=2048  # Increased from 1024 to allow longer reasoning
-                )
-                print(f"✅ Fallback LLM ({config['name']}) initialized successfully")
-                # Test the LLM with Hello message
-                if not self._ping_llm(self.llm_fallback, f"Fallback LLM ({config['name']})"):
-                    print(f"⚠️ Fallback LLM test failed, setting to None")
+        if "groq" in llm_types_to_init:
+            try:
+                config = self.LLM_CONFIG["groq"]
+                groq_name = config["name"]
+                # Groq uses the GROQ_API_KEY environment variable automatically
+                # We check if it's available
+                if not os.environ.get(config["api_key_env"]):
+                    print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping {groq_name}...")
                     self.llm_fallback = None
-        except Exception as e:
-            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['fallback']['name']}: {e}")
+                else:
+                    self.llm_fallback = ChatGroq(
+                        model=config["model"], 
+                        temperature=config["temperature"],
+                        max_tokens=config["max_tokens"]
+                    )
+                    print(f"✅ Fallback LLM ({groq_name}) initialized successfully")
+                    # Test the LLM with Hello message
+                    if not self._ping_llm(self.llm_fallback, f"Fallback LLM ({groq_name})"):
+                        print(f"⚠️ Fallback LLM test failed, setting to None")
+                        self.llm_fallback = None
+            except Exception as e:
+                print(f"⚠️ Failed to initialize {groq_name}: {e}")
+                self.llm_fallback = None
+        else:
+            print("⏭️ Skipping Fallback LLM (not in sequence)")
             self.llm_fallback = None
         
-        try:
-            self.llm_third_fallback = self._create_huggingface_llm()
-            if self.llm_third_fallback is not None:
-                print(f"✅ Third fallback LLM ({self.LLM_CONFIG['third_fallback']['name']}) initialized successfully")
-                # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
-            else:
-                print(f"❌ Third fallback LLM ({self.LLM_CONFIG['third_fallback']['name']}) failed to initialize")
-        except Exception as e:
-            print(f"⚠️ Failed to initialize {self.LLM_CONFIG['third_fallback']['name']}: {e}")
+        if "huggingface" in llm_types_to_init:
+            huggingface_name = self.LLM_CONFIG['huggingface']['name']
+            try:
+                self.llm_third_fallback = self._create_huggingface_llm()
+                if self.llm_third_fallback is not None:
+                    print(f"✅ Third fallback LLM ({huggingface_name}) initialized successfully")
+                    # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
+                else:
+                    print(f"❌ Third fallback LLM ({huggingface_name}) failed to initialize")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize {huggingface_name}: {e}")
+                self.llm_third_fallback = None
+        else:
+            print(f"⏭️ Skipping {huggingface_name} LLM (not in sequence)")
             self.llm_third_fallback = None
         
         # Bind all tools from tools.py
@@ -842,11 +886,11 @@ class GaiaAgent:
         config = self.LLM_CONFIG[llm_type]
         
         # Get the appropriate LLM instance
-        if llm_type == "primary":
+        if llm_type == "gemini":
             llm = self.llm_primary_with_tools if use_tools else self.llm_primary
-        elif llm_type == "fallback":
+        elif llm_type == "groq":
             llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
-        elif llm_type == "third_fallback":
+        elif llm_type == "huggingface":
             llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
         else:
             raise ValueError(f"Invalid llm_type: {llm_type}")
@@ -856,22 +900,27 @@ class GaiaAgent:
         
         return llm, llm_name, llm_type_str
 
-    def _make_llm_request(self, messages, use_tools=True, llm_type="primary"):
+    def _make_llm_request(self, messages, use_tools=True, llm_type=None):
         """
         Make an LLM request with rate limiting.
-        Uses primary LLM (Google Gemini) first, then fallback (Groq), then third fallback (HuggingFace).
 
         Args:
             messages: The messages to send to the LLM
             use_tools (bool): Whether to use tools (llm_with_tools vs llm)
-            llm_type (str): Which LLM to use ("primary", "fallback", or "third_fallback")
+            llm_type (str): Which LLM to use (mandatory)
 
         Returns:
             The LLM response
 
         Raises:
-            Exception: If the LLM fails
+            Exception: If the LLM fails or if llm_type is not specified
         """
+        try:
+            if llm_type is None:
+                raise ValueError("llm_type must be specified for _make_llm_request()")
+        except ValueError as e:
+            raise ValueError(f"Invalid LLM configuration: {e}. Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}")
+        
         llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
             raise Exception(f"{llm_name} LLM not available")
@@ -919,12 +968,12 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             return response
         except Exception as e:
             # Special handling for HuggingFace router errors
-            if llm_type == "third_fallback" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+            if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                 error_msg = f"HuggingFace router service error (500): {e}"
                 print(f"⚠️ {error_msg}")
                 print("💡 This is a known issue with HuggingFace's router service. Consider using Google Gemini or Groq instead.")
                 raise Exception(error_msg)
-            elif llm_type == "third_fallback" and "timeout" in str(e).lower():
+            elif llm_type == "huggingface" and "timeout" in str(e).lower():
                 error_msg = f"HuggingFace timeout error: {e}"
                 print(f"⚠️ {error_msg}")
                 print("💡 HuggingFace models may be slow or overloaded. Consider using Google Gemini or Groq instead.")
@@ -953,8 +1002,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         
         # Filter out unavailable LLMs
         available_llms = []
-        for llm_type, llm_name in llm_sequence:
-            llm, _, _ = self._select_llm(llm_type, True)
+        for llm_type in llm_sequence:
+            llm, llm_name, _ = self._select_llm(llm_type, True)
             if llm:
                 available_llms.append((llm_type, llm_name))
             else:
@@ -1011,7 +1060,7 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 print(f"❌ {llm_name} failed: {e}")
                 
                 # Special retry logic for HuggingFace router errors
-                if llm_type == "third_fallback" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+                if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                     print("🔄 HuggingFace router error detected, retrying once...")
                     try:
                         import time
@@ -1480,32 +1529,10 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         """
         Create HuggingFace LLM with multiple fallback options to handle router issues.
         """
-        # List of models to try in order of preference (Qwen first since it's working well)
-        models_to_try = [
-            {
-                "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
-                "task": "text-generation",
-                "max_new_tokens": 1024,
-                "do_sample": False,
-                "temperature": 0
-            },
-            {
-                "repo_id": "microsoft/DialoGPT-medium",
-                "task": "text-generation",
-                "max_new_tokens": 512,  # Shorter for reliability
-                "do_sample": False,
-                "temperature": 0
-            },
-            {
-                "repo_id": "gpt2",
-                "task": "text-generation", 
-                "max_new_tokens": 256,  # Even shorter for basic model
-                "do_sample": False,
-                "temperature": 0
-            }
-        ]
+        config = self.LLM_CONFIG["huggingface"]
         
-        for model_config in models_to_try:
+        # Try models in priority order from config
+        for model_config in config["models"]:
             try:
                 # Create the endpoint
                 endpoint = HuggingFaceEndpoint(**model_config)
