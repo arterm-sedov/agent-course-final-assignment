@@ -64,7 +64,13 @@ IMPORTANT RULES:
 1. Consider the question carefully first. Can you answer it with your solid judgement? If yes, reason and answer it yourself. If not proceed to the following steps:
 2. Consider using tools on as needed basis: which tools to use? Contemplate before using.
 3. Use/execute code if you need and can. Do you have internal code execution capabilities? Do you have externally provided code execution tools? Contemplate before using.
-4. Consider the nature of the question first:
+4. Call each tool only ONCE per question.
+5. If you got an empty or error response from a tool, call another tool, do not call the same tool repeatedly.
+6. If you need multiple tools, call each one once, then analyze the results.
+7. After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.
+8. NEVER call a tool with the same arguments. Do NOT make duplicate tool calls or infinite loops.
+9. Use tools to gather information, then stop and provide your answer.
+10. CHOOSING THE TOOL: consider the nature of the question first:
     - If the question is for logic reasoning, math, word riddles, backwards reading, crosswords, game of chance etc, and a web search would potentially contaminate the reasoning:
         - Do not use Tavily/web_search.
         - Reason yourself.
@@ -86,11 +92,6 @@ IMPORTANT RULES:
         - If the Tavily/web_search reference summary is not credible or does not allow you to answer the question, then directly call Wikipedia/wiki_search or Arxiv/arxiv_search.
         - For any search results be very careful and analyze it using your own judgement. Consider any search result as a reference with a grain of salt and iterate over more tools as needed.
 
-5. Call each tool only ONCE per question.
-6. If you need multiple tools, call each one once, then analyze the results.
-7. After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.
-8. NEVER call a tool with the same arguments. Do NOT make duplicate tool calls or infinite loops.
-9. Use tools to gather information, then stop and provide your answer.
 
 **CRITICAL**: Put your answer in a single line. Your answer must start with "FINAL ANSWER:" followed by the answer.
 
