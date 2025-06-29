@@ -78,6 +78,9 @@ class GaiaAgent:
     
     # Single source of truth for LLM configuration
     LLM_CONFIG = {
+        "default": {
+            "max_history": 15
+            },
         "gemini": {
             "name": "Google Gemini",
             "type_str": "gemini",
@@ -85,7 +88,8 @@ class GaiaAgent:
             "temperature": 0,
             "api_key_env": "GEMINI_KEY",
             "token_limit": None,  # No limit for Gemini (2M token context)
-            "max_tokens": None
+            "max_tokens": None,
+            "max_history": 25
         },
         "groq": {
             "name": "Groq",
@@ -94,7 +98,8 @@ class GaiaAgent:
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
             "token_limit": 8000,  # Increased from 5000 to allow longer reasoning
-            "max_tokens": 2048
+            "max_tokens": 2048,
+            "max_history": 15
         },
         "huggingface": {
             "name": "HuggingFace",
@@ -102,6 +107,7 @@ class GaiaAgent:
             "temperature": 0,
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
             "token_limit": 16000,  # Conservative for HuggingFace
+            "max_history": 20,
             "models": [
                 {
                     "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -165,7 +171,6 @@ class GaiaAgent:
             config["type_str"]: config["token_limit"] 
             for config in self.LLM_CONFIG.values()
         }
-        self.max_message_history = 15  # Increased for better context retention
 
         # Set up embeddings and supabase retriever
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
@@ -328,13 +333,8 @@ class GaiaAgent:
             messages: List of messages to truncate
             llm_type: Type of LLM for context-aware truncation
         """
-        # Determine max message history based on LLM type
-        if llm_type == "gemini":
-            max_history = 25  # More lenient for Gemini
-        elif llm_type == "groq":
-            max_history = 15   # More aggressive for Groq due to TPM limits
-        else:
-            max_history = self.max_message_history
+        # Always read max_history from LLM_CONFIG, using 'default' if not found
+        max_history = self.LLM_CONFIG.get(llm_type, {}).get("max_history", self.LLM_CONFIG["default"]["max_history"])
         
         if len(messages) <= max_history:
             return messages
