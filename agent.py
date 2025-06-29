@@ -79,8 +79,9 @@ class GaiaAgent:
     # Single source of truth for LLM configuration
     LLM_CONFIG = {
         "default": {
-            "type_str": "default",   # <-- Add this line
-            "max_history": 15
+            "type_str": "default",
+            "token_limit": None,
+            "max_history": 15,
             },
         "gemini": {
             "name": "Google Gemini",
