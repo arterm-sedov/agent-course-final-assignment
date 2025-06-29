@@ -86,7 +86,7 @@ class GaiaAgent:
         "gemini": {
             "name": "Google Gemini",
             "type_str": "gemini",
-            "model": "gemini-2.5-pro",
+            "model": "gemini-2.5-flash",
             "temperature": 0,
             "api_key_env": "GEMINI_KEY",
             "token_limit": None,  # No limit for Gemini (2M token context)

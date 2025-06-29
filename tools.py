@@ -66,49 +66,44 @@ except ImportError:
 
 
 # ========== GEMINI HELPER FUNCTIONS ==========
-def _get_gemini_client():
+def _get_gemini_client(model_name="gemini-2.5-flash"):
     """
     Initialize and return a Gemini client and model configuration with proper error handling.
-    
+    Args:
+        model_name (str, optional): The Gemini model to use. If None, defaults to gemini-2.5-flash.
     Returns:
         tuple: (client, model_name) or (None, None) if initialization fails.
     """
     if not GEMINI_AVAILABLE:
         print("Warning: Google Gemini not available. Install with: pip install google-genai")
         return None, None
-    
     try:
         gemini_key = os.environ.get("GEMINI_KEY")
         if not gemini_key:
             print("Warning: GEMINI_KEY not found in environment variables.")
             return None, None
-        
         client = genai.Client(api_key=gemini_key)
-        model_name = "gemini-2.5-flash"  # Use same model as agent for consistency
-        
         return client, model_name
     except Exception as e:
         print(f"Error initializing Gemini client: {str(e)}")
         return None, None
 
-def _get_gemini_response(contents, error_prefix="Gemini"):
+def _get_gemini_response(contents, error_prefix="Gemini", model_name=None):
     """
     Get a response from Gemini with proper error handling.
-    
     Args:
         contents: The contents to send to Gemini (can be string, list, or Content object)
         error_prefix (str): Prefix for error messages to identify the calling context
-    
+        model_name (str, optional): The Gemini model to use.
     Returns:
         str: The Gemini response text, or an error message if the request fails.
     """
-    client, model_name = _get_gemini_client()
+    client, resolved_model_name = _get_gemini_client(model_name)
     if not client:
         return f"{error_prefix} client not available. Check installation and API key configuration."
-    
     try:
         response = client.models.generate_content(
-            model=model_name,
+            model=resolved_model_name,
             contents=contents
         )
         return response.text
@@ -1178,10 +1173,6 @@ def understand_audio(file_path: str, prompt: str) -> str:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
-    client, model_name = _get_gemini_client()
-    if not client:
-        return "Gemini client not available. Check installation and API key configuration."
-    
     try:
         # Check if file_path is base64 data or actual file path
         if file_path.startswith('/') or os.path.exists(file_path):
@@ -1231,8 +1222,7 @@ def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
     
     Return only the algebraic notation (e.g., "e4", "Nf3", "O-O", "Qxd5", etc.)
     """
-    
-    return _get_gemini_response(prompt, "Chess move conversion")
+    return _get_gemini_response(prompt, "Chess move conversion", "gemini-2.5-pro")
 
 @tool
 def convert_chess_move(piece_placement: str, move: str) -> str:
@@ -1262,8 +1252,7 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         f"Do not provide any additional thinking or commentary in the response, "
         f"just the algebraic notation only."
     )
-    
-    return _get_gemini_response(move_message, "Chess move conversion")
+    return _get_gemini_response(move_message, "Chess move conversion", "gemini-2.5-pro")
 
 def _get_best_chess_move_internal(fen: str) -> str:
     """
