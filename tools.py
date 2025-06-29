@@ -66,7 +66,7 @@ except ImportError:
 
 
 # ========== GEMINI HELPER FUNCTIONS ==========
-def _get_gemini_client(model_name="gemini-2.5-flash"):
+def _get_gemini_client():
     """
     Initialize and return a Gemini client and model configuration with proper error handling.
     Args:
@@ -83,28 +83,28 @@ def _get_gemini_client(model_name="gemini-2.5-flash"):
             print("Warning: GEMINI_KEY not found in environment variables.")
             return None, None
         client = genai.Client(api_key=gemini_key)
-        return client, model_name
+        return client
     except Exception as e:
         print(f"Error initializing Gemini client: {str(e)}")
         return None, None
 
-def _get_gemini_response(contents, error_prefix="Gemini", model_name=None):
+def _get_gemini_response(prompt, error_prefix="Gemini", model_name="gemini-2.5-flash"):
     """
     Get a response from Gemini with proper error handling.
     Args:
-        contents: The contents to send to Gemini (can be string, list, or Content object)
+        prompt: The prompt to send to Gemini
         error_prefix (str): Prefix for error messages to identify the calling context
         model_name (str, optional): The Gemini model to use.
     Returns:
         str: The Gemini response text, or an error message if the request fails.
     """
-    client, resolved_model_name = _get_gemini_client(model_name)
+    client = _get_gemini_client(model_name)
     if not client:
         return f"{error_prefix} client not available. Check installation and API key configuration."
     try:
         response = client.models.generate_content(
-            model=resolved_model_name,
-            contents=contents
+            model=model_name,
+            contents=prompt
         )
         return response.text
     except Exception as e:
@@ -1143,14 +1143,20 @@ def understand_video(youtube_url: str, prompt: str) -> str:
         Requires GEMINI_KEY environment variable to be set.
         Install with: pip install google-genai
     """
-    contents = types.Content(
-        parts=[
-            types.Part(file_data=types.FileData(file_uri=youtube_url)),
-            types.Part(text=prompt)
-        ]
-    )
-    
-    return _get_gemini_response(contents, "Video understanding")
+    try:
+        client = _get_gemini_client()
+        video_description = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=types.Content(
+                parts=[
+                    types.Part(file_data=types.FileData(file_uri=youtube_url)),
+                    types.Part(text=prompt)
+                ]
+            )
+        )
+        return video_description.text
+    except Exception as e:
+        return f"Error understanding video: {str(e)}"
 
 @tool
 def understand_audio(file_path: str, prompt: str) -> str:
@@ -1174,6 +1180,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
         Install with: pip install google-genai
     """
     try:
+        client = _get_gemini_client()
         # Check if file_path is base64 data or actual file path
         if file_path.startswith('/') or os.path.exists(file_path):
             # It's a file path
@@ -1199,8 +1206,14 @@ def understand_audio(file_path: str, prompt: str) -> str:
                 return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
         
         contents = [prompt, mp3_file]
-        return _get_gemini_response(contents, "Audio understanding")
-        
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=contents
+            )
+            return response.text
+        except Exception as e:
+            return f"Error in audio understanding request: {str(e)}"
     except Exception as e:
         return f"Error understanding audio: {str(e)}"
 
