@@ -902,9 +902,9 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             Exception: If all LLMs fail or none produce similar enough answers
         """
         llm_sequence = [
-            ("primary", "Google Gemini"),
+            #("primary", "Google Gemini"),
             ("fallback", "Groq"), 
-            ("third_fallback", "HuggingFace")
+            #("third_fallback", "HuggingFace")
         ]
         
         # Filter out unavailable LLMs
