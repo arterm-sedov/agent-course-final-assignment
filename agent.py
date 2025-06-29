@@ -197,10 +197,10 @@ class GaiaAgent:
         print(f"🔄 Initializing LLMs based on sequence: {llm_names}")
 
         # Set up LLMs based on the sequence configuration
+        gemini_name = self.LLM_CONFIG['gemini']['name']
         if "gemini" in llm_types_to_init:
             try:
                 config = self.LLM_CONFIG["gemini"]
-                gemini_name = config["name"]
                 self.llm_primary = ChatGoogleGenerativeAI(
                     model=config["model"], 
                     temperature=config["temperature"], 
@@ -219,10 +219,11 @@ class GaiaAgent:
             print(f"⏭️ Skipping {gemini_name} (not in sequence)")
             self.llm_primary = None
         
+        groq_name = config["name"]
         if "groq" in llm_types_to_init:
+
             try:
                 config = self.LLM_CONFIG["groq"]
-                groq_name = config["name"]
                 # Groq uses the GROQ_API_KEY environment variable automatically
                 # We check if it's available
                 if not os.environ.get(config["api_key_env"]):
@@ -246,8 +247,8 @@ class GaiaAgent:
             print("⏭️ Skipping Fallback LLM (not in sequence)")
             self.llm_fallback = None
         
+        huggingface_name = self.LLM_CONFIG['huggingface']['name']
         if "huggingface" in llm_types_to_init:
-            huggingface_name = self.LLM_CONFIG['huggingface']['name']
             try:
                 self.llm_third_fallback = self._create_huggingface_llm()
                 if self.llm_third_fallback is not None:
