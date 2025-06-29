@@ -577,8 +577,8 @@ def web_search(input: str) -> str:
         if not os.environ.get("TAVILY_API_KEY"):
             return "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
         
-        # Perform the search
-        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(query=input)
+        # Perform the search - pass input as positional argument
+        search_docs = TavilySearch(max_results=SEARCH_LIMIT).invoke(input)
         
         # Format the results
         formatted_results = "\n\n---\n\n".join(
