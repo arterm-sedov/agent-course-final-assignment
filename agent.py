@@ -1027,7 +1027,7 @@ class GaiaAgent:
             print(f"🤖 Using {llm_name}")
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
-                print(f"Message {i}: {self._trim_for_print(msg)}")
+                self._print_message_components(msg, i)
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
@@ -1701,7 +1701,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 print(f"✅ {llm_name} test successful!")
                 print(f"   Response time: {end_time - start_time:.2f}s")
                 print(f"   Test message: {test_message}")
-                print(f"   Test response: {test_response}")
+                print(f"   Test response details:")
+                self._print_message_components(test_response, "test")
                 return True
             else:
                 print(f"❌ {llm_name} returned empty response")
