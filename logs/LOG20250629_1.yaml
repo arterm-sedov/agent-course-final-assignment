@@ -1,0 +1,60 @@
+===== Application Startup at 2025-06-29 09:34:01 =====
+
+
+modules.json:   0%|          | 0.00/349 [00:00<?, ?B/s]
+modules.json: 100%|██████████| 349/349 [00:00<00:00, 2.09MB/s]
+
+config_sentence_transformers.json:   0%|          | 0.00/116 [00:00<?, ?B/s]
+config_sentence_transformers.json: 100%|██████████| 116/116 [00:00<00:00, 440kB/s]
+
+README.md:   0%|          | 0.00/10.4k [00:00<?, ?B/s]
+README.md: 100%|██████████| 10.4k/10.4k [00:00<00:00, 37.7MB/s]
+
+sentence_bert_config.json:   0%|          | 0.00/53.0 [00:00<?, ?B/s]
+sentence_bert_config.json: 100%|██████████| 53.0/53.0 [00:00<00:00, 363kB/s]
+
+config.json:   0%|          | 0.00/571 [00:00<?, ?B/s]
+config.json: 100%|██████████| 571/571 [00:00<00:00, 4.05MB/s]
+
+model.safetensors:   0%|          | 0.00/438M [00:00<?, ?B/s]
+model.safetensors:  23%|██▎       | 103M/438M [00:01<00:03, 97.3MB/s]
+model.safetensors: 100%|██████████| 438M/438M [00:01<00:00, 287MB/s] 
+
+tokenizer_config.json:   0%|          | 0.00/363 [00:00<?, ?B/s]
+tokenizer_config.json: 100%|██████████| 363/363 [00:00<00:00, 2.39MB/s]
+
+vocab.txt:   0%|          | 0.00/232k [00:00<?, ?B/s]
+vocab.txt: 100%|██████████| 232k/232k [00:00<00:00, 73.6MB/s]
+
+tokenizer.json:   0%|          | 0.00/466k [00:00<?, ?B/s]
+tokenizer.json: 100%|██████████| 466k/466k [00:00<00:00, 31.5MB/s]
+
+special_tokens_map.json:   0%|          | 0.00/239 [00:00<?, ?B/s]
+special_tokens_map.json: 100%|██████████| 239/239 [00:00<00:00, 1.00MB/s]
+
+config.json:   0%|          | 0.00/190 [00:00<?, ?B/s]
+config.json: 100%|██████████| 190/190 [00:00<00:00, 1.03MB/s]
+🔄 Initializing LLMs based on sequence: ['Groq']
+⏭️ Skipping Google Gemini (not in sequence)
+🔄 Initializing LLM Groq (2 of 1)
+✅ LLM (Groq) initialized successfully
+🧪 Testing Groq with 'Hello' message...
+✅ Groq test successful!
+   Response time: 1.47s
+   Test message: [HumanMessage(content='Hello, report about yourself briefly.', additional_kwargs={}, response_metadata={})]
+   Test response: content='\n<think>\nOkay, the user said "Hello, report about yourself briefly." I need to respond appropriately. Let me start by understanding what they\'re asking for. They want a brief report about myself. Since I\'m an AI, I should mention my name, which is Qwen. I should explain what I am, so I\'ll say I\'m a large language model developed by Alibaba Cloud. \n\nNext, I should outline my main functions. I can answer questions, write stories, emails, scripts, perform logical reasoning, and even express opinions. It\'s important to highlight that I can handle multiple tasks. \n\nI should also mention my training data. I need to note that my training data is up to December 2024. That gives the user a sense of my knowledge\'s currency. \n\nI should keep the response concise but informative. Let me structure it in a friendly and professional tone. Start with a greeting, then state my name and what I am. List my capabilities in a bullet-point-like format but in a paragraph. Mention the training data cutoff. End with an offer to assist further. \n\nWait, the user might not know what a large language model is. Maybe I should explain that briefly? But the user asked for a brief report, so maybe just stick to the key points without overcomplicating. \n\nAlso, make sure to use clear and simple language. Avoid technical jargon. Keep each sentence short. Let me check the example response they provided. Oh, right, they included a sample response. Let me see how they structured it. \n\nThe sample starts with a greeting, then states the name and developer, lists functions, mentions training data, and offers help. I can follow that structure. \n\nI should also ensure that I don\'t include any markdown formatting as per their instructions. Just plain text with line breaks. \n\nAlright, putting it all together now. Make sure it\'s friendly and to the point. Let me draft it step by step.\n</think>\n\nHello! I\'m Qwen, a large language model developed by Alibaba Cloud. I\'m designed to assist with a wide range of tasks, including answering questions, writing stories, emails, scripts, performing logical reasoning, and even expressing opinions. My training data is up to December 2024, and I support multiple languages. How can I assist you today? 😊' additional_kwargs={} response_metadata={'token_usage': {'completion_tokens': 479, 'prompt_tokens': 17, 'total_tokens': 496, 'completion_time': 1.190196228, 'prompt_time': 0.003184237, 'queue_time': 0.09076190599999999, 'total_time': 1.193380465}, 'model_name': 'qwen-qwq-32b', 'system_fingerprint': 'fp_98b01f25b2', 'finish_reason': 'stop', 'logprobs': None} id='run--270c9c46-bad1-4f60-95b9-54fcc6993e8f-0' usage_metadata={'input_tokens': 17, 'output_tokens': 479, 'total_tokens': 496}
+⏭️ Skipping HuggingFace LLM (not in sequence)
+✅ Gathered 31 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang']
+
+------------------------------ App Starting ------------------------------
+✅ SPACE_HOST found: arterm-sedov-agent-course-final-assignment.hf.space
+   Runtime URL should be: https://arterm-sedov-agent-course-final-assignment.hf.space.hf.space
+✅ SPACE_ID found: arterm-sedov/agent-course-final-assignment
+   Repo URL: https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment
+   Repo Tree URL: https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main
+--------------------------------------------------------------------------
+
+Launching Gradio Interface for GAIA Unit 4 Agent Evaluation...
+* Running on local URL:  http://0.0.0.0:7860, with SSR ⚡ (experimental, to disable set `ssr_mode=False` in `launch()`)
+
+To create a public link, set `share=True` in `launch()`.
