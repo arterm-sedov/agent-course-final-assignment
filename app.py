@@ -3,6 +3,7 @@ import gradio as gr
 import requests
 import inspect
 import pandas as pd
+import random
 from agent import GaiaAgent
 
 # (Keep Constants as is)
@@ -66,6 +67,11 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     results_log = []
     answers_payload = []
     print(f"Running GaiaAgent on {len(questions_data)} questions...")
+    
+    # DEBUG: Select one random task instead of all
+    #questions_data = [random.choice(questions_data)]
+    questions_data = [questions_data[0]]
+    
     for item in questions_data:
         task_id = item.get("task_id")
         question_text = item.get("question")
@@ -103,7 +109,6 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
             results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": submitted_answer})
-            break  # Exit after first question for debugging
         except Exception as e:
             print(f"Error running agent on task {task_id}: {e}")
             results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": f"AGENT ERROR: {e}"})
