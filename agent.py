@@ -143,7 +143,7 @@ class GaiaAgent:
         #"huggingface"
     ]
     # Print truncation length for debug output
-    MAX_PRINT_LEN = 100
+    MAX_PRINT_LEN = 200
     
     def __init__(self, provider: str = "groq"):
         """
@@ -483,8 +483,7 @@ class GaiaAgent:
                         tool_result = tool_func(tool_args)
                 print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
                 # Only trim for printing, not for LLM
-                display_result = self._trim_tool_result(tool_name, tool_result)
-                print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(display_result)}")
+                self._print_tool_result(tool_name, tool_result)
             except Exception as e:
                 tool_result = f"Error running tool '{tool_name}': {e}"
                 print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
@@ -712,18 +711,9 @@ class GaiaAgent:
                     return AIMessage(content=f"Error: Hit token limit for {llm_type} LLM. Cannot complete reasoning.")
 
             # === DEBUG OUTPUT ===
-            # Print LLM response (truncated if long)
-            resp_str = self._trim_for_print(response)
-            print(f"[Tool Loop] Raw LLM response: {resp_str}")
-            print(f"[Tool Loop] Response type: {type(response)}")
-            print(f"[Tool Loop] Response has content: {hasattr(response, 'content')}")
-            if hasattr(response, 'content'):
-                content_str = self._trim_for_print(response.content)
-                print(f"[Tool Loop] Content (truncated): {content_str}")
-            print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
-            if hasattr(response, 'tool_calls'):
-                tool_calls_str = self._trim_for_print(response.tool_calls)
-                print(f"[Tool Loop] Tool calls: {tool_calls_str}")
+            # Print LLM response using the new helper function
+            print(f"[Tool Loop] Raw LLM response details:")
+            self._print_message_components(response, "response")
 
             # Check for empty response
             if not hasattr(response, 'content') or not response.content:
@@ -898,10 +888,7 @@ class GaiaAgent:
                     total_tool_calls += 1  # Increment total tool call counter
                     
                     # Report tool result
-                    display_result = tool_result
-                    if isinstance(display_result, str) and len(display_result) > self.MAX_PRINT_LEN:
-                        display_result = display_result[:self.MAX_PRINT_LEN] + "...(truncated)"
-                    print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
+                    self._print_tool_result(tool_name, tool_result)
                     messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_call.get('id', tool_name)))
                 continue  # Next LLM call
             # Gemini (and some LLMs) may use 'function_call' instead of 'tool_calls'
@@ -959,10 +946,7 @@ class GaiaAgent:
                 total_tool_calls += 1  # Increment total tool call counter
                 
                 # Report tool result (for function_call branch)
-                display_result = tool_result
-                if isinstance(display_result, str) and len(display_result) > self.MAX_PRINT_LEN:
-                    display_result = display_result[:self.MAX_PRINT_LEN] + "...(truncated)"
-                print(f"[Tool Loop] Tool result for '{tool_name}': {display_result}")
+                self._print_tool_result(tool_name, tool_result)
                 messages.append(ToolMessage(content=tool_result, name=tool_name, tool_call_id=tool_name))
                 continue
             if hasattr(response, 'content') and response.content:
@@ -1043,7 +1027,7 @@ class GaiaAgent:
             print(f"🤖 Using {llm_name}")
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
-                print(f"Message {i}: {self._trim_for_print(msg)}")
+                self._print_message_components(msg, i)
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
@@ -1810,5 +1794,42 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         s = str(obj)
         orig_len = len(s)
         if orig_len > max_len:
-            return f"Truncated. Original length: {orig_len}\n{s[:max_len]})"
+            return f"Truncated. Original length: {orig_len}\n{s[:max_len]}"
         return s
+
+    def _print_message_components(self, msg, msg_index):
+        """
+        Generic helper to print all message components with proper truncation.
+        Automatically detects and prints all attributes of the message object.
+        """
+        print(f"Message {msg_index}:")
+        
+        # Get all attributes of the message object
+        for attr_name in dir(msg):
+            # Skip private attributes and methods
+            # if attr_name.startswith('_'):
+            #     continue
+            
+            # Skip methods (only print attributes)
+            if callable(getattr(msg, attr_name)):
+                continue
+            
+            # Get the attribute value
+            attr_value = getattr(msg, attr_name)
+            
+            # Skip None values and empty strings
+            if attr_value is None or (isinstance(attr_value, str) and not attr_value.strip()):
+                continue
+            
+            # Print the attribute with truncation
+            print(f"  {attr_name}: {self._trim_for_print(attr_value)}")
+        
+        print()  # Empty line for readability
+
+    def _print_tool_result(self, tool_name, tool_result):
+        """
+        Helper to print tool results in a readable format with proper truncation.
+        Reuses the existing _trim_for_print function.
+        """
+        print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(tool_result)}")
+        print()  # Empty line for readability
