@@ -482,8 +482,9 @@ class GaiaAgent:
                         # For non-dict args, pass directly
                         tool_result = tool_func(tool_args)
                 print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
-                # Trim wiki_search and web_search results
-                tool_result = self._trim_tool_result(tool_name, tool_result)
+                # Only trim for printing, not for LLM
+                display_result = self._trim_tool_result(tool_name, tool_result)
+                print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(display_result)}")
             except Exception as e:
                 tool_result = f"Error running tool '{tool_name}': {e}"
                 print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
@@ -712,23 +713,16 @@ class GaiaAgent:
 
             # === DEBUG OUTPUT ===
             # Print LLM response (truncated if long)
-            resp_str = str(response)
-            if len(resp_str) > self.MAX_PRINT_LEN:
-                resp_str = resp_str[:self.MAX_PRINT_LEN] + "...(truncated)"
+            resp_str = self._trim_for_print(response)
             print(f"[Tool Loop] Raw LLM response: {resp_str}")
             print(f"[Tool Loop] Response type: {type(response)}")
             print(f"[Tool Loop] Response has content: {hasattr(response, 'content')}")
             if hasattr(response, 'content'):
-                content_str = response.content if response.content else ''
-                if len(content_str) > self.MAX_PRINT_LEN:
-                    content_str = content_str[:self.MAX_PRINT_LEN] + "...(truncated)"
-                print(f"[Tool Loop] Content length: {len(response.content) if response.content else 0}")
+                content_str = self._trim_for_print(response.content)
                 print(f"[Tool Loop] Content (truncated): {content_str}")
             print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
             if hasattr(response, 'tool_calls'):
-                tool_calls_str = str(response.tool_calls)
-                if len(tool_calls_str) > self.MAX_PRINT_LEN:
-                    tool_calls_str = tool_calls_str[:self.MAX_PRINT_LEN] + "...(truncated)"
+                tool_calls_str = self._trim_for_print(response.tool_calls)
                 print(f"[Tool Loop] Tool calls: {tool_calls_str}")
 
             # Check for empty response
@@ -1805,3 +1799,16 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                     tool_result[key] = val
                     return str(tool_result)
         return str(tool_result)
+
+    def _trim_for_print(self, obj, max_len=None):
+        """
+        Helper to trim any object (string, dict, etc.) for debug printing only.
+        Converts to string, trims to max_len (default: self.MAX_PRINT_LEN), and adds suffix with original length if needed.
+        """
+        if max_len is None:
+            max_len = self.MAX_PRINT_LEN
+        s = str(obj)
+        orig_len = len(s)
+        if orig_len > max_len:
+            return f"Truncated. Original length: {orig_len}\n{s[:max_len]})"
+        return s
