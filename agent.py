@@ -635,12 +635,17 @@ class GaiaAgent:
         max_tool_calls_per_step = 3  # Maximum tool calls allowed per step
         total_tool_calls = 0  # Track total tool calls to prevent infinite loops
         
-        # NEW: Track search tool usage to prevent infinite search loops
-        search_tool_usage = {
-            'wiki_search': {'count': 0, 'queries': set(), 'max_attempts': 2},
-            'web_search': {'count': 0, 'queries': set(), 'max_attempts': 2}, 
-            'arxiv_search': {'count': 0, 'queries': set(), 'max_attempts': 2}
+        # Simplified tool usage tracking - no special handling for search tools
+        tool_usage_limits = {
+            'wiki_search': 2,
+            'web_search': 2, 
+            'arxiv_search': 2,
+            'analyze_excel_file': 2,
+            'analyze_csv_file': 2,
+            'analyze_image': 2,
+            'extract_text_from_image': 2
         }
+        tool_usage_count = {tool_name: 0 for tool_name in tool_usage_limits}
         
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
@@ -654,14 +659,14 @@ class GaiaAgent:
                 else:
                     return AIMessage(content="Error: Maximum tool calls exceeded. Cannot complete reasoning.")
             
-            # NEW: Check for excessive search tool usage
-            for tool_name, usage in search_tool_usage.items():
-                if usage['count'] >= usage['max_attempts']:
-                    print(f"[Tool Loop] ⚠️ {tool_name} used {usage['count']} times (max: {usage['max_attempts']}). Preventing further usage.")
+            # Check for excessive tool usage
+            for tool_name, count in tool_usage_count.items():
+                if count >= tool_usage_limits.get(tool_name, 5):  # Default limit of 5 for unknown tools
+                    print(f"[Tool Loop] ⚠️ {tool_name} used {count} times (max: {tool_usage_limits.get(tool_name, 5)}). Preventing further usage.")
                     # Add a message to discourage further use of this tool
                     if step > 2:  # Only add this message after a few steps
                         reminder = (
-                            f"You have used {tool_name} {usage['count']} times without finding the answer. "
+                            f"You have used {tool_name} {count} times without finding the answer. "
                             f"Please try a different approach or provide your FINAL ANSWER based on the information you have."
                         )
                         messages.append(HumanMessage(content=reminder))
@@ -721,20 +726,10 @@ class GaiaAgent:
                         print(f"[Tool Loop] Empty content but we have {len(tool_results_history)} tool results. Forcing final answer.")
                         return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                     else:
-                        # NEW: Check if this is a repeated empty response pattern
+                        # Check if this is a repeated empty response pattern
                         if step >= 2:  # After a few steps of empty responses
                             print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response for {step+1} consecutive steps.")
-                            # Check if we've been calling search tools repeatedly
-                            search_tool_called = any(
-                                tool_name in search_tool_usage and search_tool_usage[tool_name]['count'] > 0
-                                for tool_name in search_tool_usage
-                            )
-                            
-                            if search_tool_called:
-                                print(f"[Tool Loop] Search tools were used but LLM keeps returning empty responses. This may be due to token limits.")
-                                return AIMessage(content=f"Error: {llm_type} LLM is returning empty responses after using search tools. This may be due to token limits. Cannot complete reasoning.")
-                            else:
-                                return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                            return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
                         else:
                             print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
                             return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
@@ -828,48 +823,39 @@ class GaiaAgent:
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
                 
-                # NEW: Limit the number of tool calls per step to prevent token overflow
+                # Limit the number of tool calls per step to prevent token overflow
                 if len(tool_calls) > max_tool_calls_per_step:
                     print(f"[Tool Loop] Too many tool calls on a single step ({len(tool_calls)}). Limiting to first {max_tool_calls_per_step}.")
                     tool_calls = tool_calls[:max_tool_calls_per_step]
                 
-                # NEW: Enhanced duplicate detection for search tools
+                # Simplified duplicate detection using new centralized methods
                 new_tool_calls = []
                 duplicate_count = 0
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
                     
-                    # Create a unique key for this tool call
-                    args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
-                    tool_call_key = (tool_name, args_key)
-                    
-                    # Check if this exact tool call has been made before
-                    if tool_call_key not in called_tools:
-                        # Check if search tool usage limit exceeded
-                        if tool_name in search_tool_usage and search_tool_usage[tool_name]['count'] >= search_tool_usage[tool_name]['max_attempts']:
-                            print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({search_tool_usage[tool_name]['count']}/{search_tool_usage[tool_name]['max_attempts']}). Skipping.")
-                            duplicate_count += 1
-                        else:
-                            # New tool call - add it
-                            print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
-                            new_tool_calls.append(tool_call)
-                            called_tools.add(tool_call_key)
-                            
-                            # Track search tool usage
-                            if tool_name in search_tool_usage:
-                                search_tool_usage[tool_name]['count'] += 1
-                                # Extract query for tracking
-                                if isinstance(tool_args, dict):
-                                    query = tool_args.get('input') or tool_args.get('query') or str(tool_args)
-                                else:
-                                    query = str(tool_args)
-                                search_tool_usage[tool_name]['queries'].add(query)
-                                print(f"[Tool Loop] {tool_name} usage: {search_tool_usage[tool_name]['count']}/{search_tool_usage[tool_name]['max_attempts']}")
-                    else:
-                        # Exact duplicate tool call
+                    # Check if this is a duplicate tool call
+                    if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
                         duplicate_count += 1
                         print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
+                        continue
+                    
+                    # Check if tool usage limit exceeded
+                    if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
+                        print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
+                        duplicate_count += 1
+                        continue
+                    
+                    # New tool call - add it
+                    print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
+                    new_tool_calls.append(tool_call)
+                    self._add_tool_call_to_history(tool_name, tool_args, called_tools)
+                    
+                    # Track tool usage
+                    if tool_name in tool_usage_count:
+                        tool_usage_count[tool_name] += 1
+                        print(f"[Tool Loop] {tool_name} usage: {tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}")
                 
                 # Only force final answer if ALL tool calls were duplicates AND we have tool results
                 if not new_tool_calls and tool_results_history:
@@ -910,8 +896,9 @@ class GaiaAgent:
             if function_call:
                 tool_name = function_call.get('name')
                 tool_args = function_call.get('arguments', {})
-                args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
-                if (tool_name, args_key) in called_tools:
+                
+                # Check if this is a duplicate function call
+                if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
                     print(f"[Tool Loop] Duplicate function_call detected: {tool_name} with args: {tool_args}")
                     reminder = (
                         f"You have already called tool '{tool_name}' with arguments {tool_args}. "
@@ -935,7 +922,20 @@ class GaiaAgent:
                         messages.append(HumanMessage(content=reminder))
                     continue
                 
-                called_tools.add((tool_name, args_key))
+                # Check if tool usage limit exceeded
+                if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
+                    print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
+                    reminder = (
+                        f"You have used {tool_name} too many times. "
+                        f"Please try a different approach or provide your FINAL ANSWER based on the information you have."
+                    )
+                    messages.append(HumanMessage(content=reminder))
+                    continue
+                
+                # Add to history and track usage
+                self._add_tool_call_to_history(tool_name, tool_args, called_tools)
+                if tool_name in tool_usage_count:
+                    tool_usage_count[tool_name] += 1
                 
                 # Execute tool using helper method
                 tool_result = self._execute_tool(tool_name, tool_args, tool_registry)
@@ -1710,3 +1710,52 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         except Exception as e:
             print(f"❌ {llm_name} test failed: {e}")
             return False 
+
+    def _create_tool_call_key(self, tool_name: str, tool_args: dict) -> str:
+        """
+        Create a unique key for a tool call to track duplicates.
+        
+        Args:
+            tool_name: Name of the tool
+            tool_args: Arguments for the tool
+            
+        Returns:
+            str: Unique key for the tool call
+        """
+        # Normalize tool arguments to create a consistent key
+        if isinstance(tool_args, dict):
+            # Sort keys and convert to JSON string for consistent hashing
+            normalized_args = json.dumps(tool_args, sort_keys=True)
+        else:
+            # For non-dict args, convert to string
+            normalized_args = str(tool_args)
+        
+        # Create a unique key combining tool name and normalized args
+        return f"{tool_name}:{normalized_args}"
+
+    def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: set) -> bool:
+        """
+        Check if a tool call is a duplicate based on tool name and arguments.
+        
+        Args:
+            tool_name: Name of the tool
+            tool_args: Arguments for the tool
+            called_tools: Set of previously called tool keys
+            
+        Returns:
+            bool: True if this is a duplicate tool call
+        """
+        tool_call_key = self._create_tool_call_key(tool_name, tool_args)
+        return tool_call_key in called_tools
+
+    def _add_tool_call_to_history(self, tool_name: str, tool_args: dict, called_tools: set) -> None:
+        """
+        Add a tool call to the history of called tools.
+        
+        Args:
+            tool_name: Name of the tool
+            tool_args: Arguments for the tool
+            called_tools: Set of previously called tool keys
+        """
+        tool_call_key = self._create_tool_call_key(tool_name, tool_args)
+        called_tools.add(tool_call_key)
