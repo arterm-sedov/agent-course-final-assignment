@@ -143,7 +143,7 @@ class GaiaAgent:
         #"huggingface"
     ]
     # Print truncation length for debug output
-    MAX_PRINT_LEN = 100
+    MAX_PRINT_LEN = 1000
     
     def __init__(self, provider: str = "groq"):
         """
