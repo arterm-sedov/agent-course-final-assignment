@@ -68,25 +68,25 @@ except ImportError:
 # ========== GEMINI HELPER FUNCTIONS ==========
 def _get_gemini_client():
     """
-    Initialize and return a Gemini client and model configuration with proper error handling.
+    Initialize and return a Gemini client with proper error handling.
     Args:
         model_name (str, optional): The Gemini model to use. If None, defaults to gemini-2.5-flash.
     Returns:
-        tuple: (client, model_name) or (None, None) if initialization fails.
+        client or None: The Gemini client if initialization succeeds, None otherwise.
     """
     if not GEMINI_AVAILABLE:
         print("Warning: Google Gemini not available. Install with: pip install google-genai")
-        return None, None
+        return None
     try:
         gemini_key = os.environ.get("GEMINI_KEY")
         if not gemini_key:
             print("Warning: GEMINI_KEY not found in environment variables.")
-            return None, None
+            return None
         client = genai.Client(api_key=gemini_key)
         return client
     except Exception as e:
         print(f"Error initializing Gemini client: {str(e)}")
-        return None, None
+        return None
 
 def _get_gemini_response(prompt, error_prefix="Gemini", model_name="gemini-2.5-flash"):
     """

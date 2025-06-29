@@ -1043,7 +1043,7 @@ class GaiaAgent:
             print(f"🤖 Using {llm_name}")
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
-                print(f"Message {i}: {msg}")
+                print(f"Message {i}: {self._trim_for_print(msg)}")
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
