@@ -213,7 +213,7 @@ class GaiaAgent:
             print(f"⏭️ Skipping {gemini_name} (not in sequence)")
             self.llm_primary = None
         
-        groq_name = config["name"]
+        groq_name = self.LLM_CONFIG['groq']['name']
         if "groq" in llm_types_to_init:
 
             try:
