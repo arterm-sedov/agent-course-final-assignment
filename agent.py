@@ -658,12 +658,20 @@ class GaiaAgent:
             current_step_tool_results = []  # Reset for this step
             
             # Check if we've exceeded the maximum total tool calls
-            if total_tool_calls >= max_total_tool_calls:
-                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Forcing final answer.")
+            if total_tool_calls >= max_total_tool_calls or all(self._is_duplicate_tool_call(tc['tool_name'], tc['tool_args'], called_tools) for tc in tool_results_history):
+                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) or all tool calls were duplicates. Forcing final answer.")
                 if tool_results_history:
-                    return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                    # Use the most recent non-empty tool result
+                    for tr in reversed(tool_results_history):
+                        main_text = self._extract_main_text_from_tool_result(tr['tool_result'])
+                        if main_text and main_text.strip():
+                            final_answer = f"FINAL ANSWER: {main_text[:self.MAX_PRINT_LEN]}"
+                            print(f"[Tool Loop] 📝 Forced final answer from tool result: {final_answer}")
+                            return AIMessage(content=final_answer)
+                    # If all tool results are empty, return a generic message
+                    return AIMessage(content="FINAL ANSWER: Unable to find a non-empty answer from tool results.")
                 else:
-                    return AIMessage(content="Error: Maximum tool calls exceeded. Cannot complete reasoning.")
+                    return AIMessage(content="FINAL ANSWER: No tool results available.")
             
             # Check for excessive tool usage
             for tool_name, count in tool_usage_count.items():
@@ -1880,3 +1888,15 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         else:
             print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(tool_result)}")
         print()
+
+    def _extract_main_text_from_tool_result(self, tool_result):
+        """
+        Extract the main text from a tool result dict (e.g., wiki_results, web_results, arxiv_results, etc.).
+        """
+        if isinstance(tool_result, dict):
+            for key in ("wiki_results", "web_results", "arxiv_results", "result", "text", "content"):
+                if key in tool_result and isinstance(tool_result[key], str):
+                    return tool_result[key]
+            # Fallback: join all string values
+            return " ".join(str(v) for v in tool_result.values() if isinstance(v, str))
+        return str(tool_result)
