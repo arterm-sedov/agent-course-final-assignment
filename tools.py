@@ -12,9 +12,39 @@ import tempfile
 import urllib.parse
 import numpy as np
 import pandas as pd
+import subprocess
+import sys
+import sqlite3
+import cmath
+import time
+import re
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
-import subprocess
+
+# Try to import matplotlib, but make it optional
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+    plt = None
+
+# Try to import pytesseract for OCR
+try:
+    import pytesseract
+    PYTESSERACT_AVAILABLE = True
+except ImportError:
+    PYTESSERACT_AVAILABLE = False
+    pytesseract = None
+
+# Try to import chess for chess analysis
+try:
+    import chess
+    import chess.engine
+    CHESS_AVAILABLE = True
+except ImportError:
+    CHESS_AVAILABLE = False
+    chess = None
 
 # Always import the tool decorator - it's essential
 from langchain_core.tools import tool
@@ -33,8 +63,10 @@ except ImportError:
 # Try to import wikipedia-api as it's a common dependency
 try:
     import wikipedia
+    WIKIPEDIA_AVAILABLE = True
 except ImportError as e:
-    print (f"Wikipedia search requires additional dependencies. Install with: pip install wikipedia-api. Error: {str(e)}")
+    WIKIPEDIA_AVAILABLE = False
+    print(f"Wikipedia search requires additional dependencies. Install with: pip install wikipedia-api. Error: {str(e)}")
 
 try:
     from langchain_community.document_loaders import WikipediaLoader
@@ -46,8 +78,10 @@ except ImportError:
 # Try to import arxiv as it's a common dependency
 try:
     import arxiv
+    ARXIV_AVAILABLE = True
 except ImportError as e:
-    print (f"Arxiv search requires additional dependencies. Install with: pip install arxiv. Error: {str(e)}")
+    ARXIV_AVAILABLE = False
+    print(f"Arxiv search requires additional dependencies. Install with: pip install arxiv. Error: {str(e)}")
 
 try:
     from langchain_community.document_loaders import ArxivLoader
@@ -55,6 +89,7 @@ try:
 except ImportError:
     ARXIVLOADER_AVAILABLE = False
     print("Warning: ArxivLoader not available. Install with: pip install langchain-community")
+
 # Google Gemini imports for video/audio/chess understanding
 try:
     from google import genai
@@ -180,17 +215,19 @@ class CodeInterpreter:
         self.working_directory = working_directory or os.path.join(os.getcwd()) 
         if not os.path.exists(self.working_directory):
             os.makedirs(self.working_directory)
-        import matplotlib.pyplot as plt
-        import numpy as np
-        import pandas as pd
-        from PIL import Image
+        
+        # Use global imports that are already available
         self.globals = {
             "__builtins__": __builtins__,
             "np": np,
             "pd": pd,
-            "plt": plt,
             "Image": Image,
         }
+        
+        # Only add plt to globals if it's available
+        if MATPLOTLIB_AVAILABLE:
+            self.globals["plt"] = plt
+        
         self.temp_sqlite_db = os.path.join(tempfile.gettempdir(), "code_exec.db")
     
     def execute_code(self, code: str, language: str = "python") -> Dict[str, Any]:
@@ -223,43 +260,72 @@ class CodeInterpreter:
     def _execute_python(self, code: str) -> Dict[str, Any]:
         """Execute Python code with safety controls."""
         try:
-            # Create a copy of globals for this execution
-            local_globals = self.globals.copy()
-            local_globals['__name__'] = '__main__'
+            # Capture stdout and stderr
+            # Create string buffers to capture output
+            stdout_buffer = io.StringIO()
+            stderr_buffer = io.StringIO()
             
-            # Execute the code
-            exec(code, local_globals)
+            # Store original stdout/stderr
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
             
-            # Capture any variables that might be dataframes or plots
-            result = {"status": "success", "stdout": "", "stderr": "", "result": None}
+            # Redirect stdout/stderr to our buffers
+            sys.stdout = stdout_buffer
+            sys.stderr = stderr_buffer
             
-            # Check for dataframes
-            dataframes = []
-            for name, value in local_globals.items():
-                if isinstance(value, pd.DataFrame):
-                    dataframes.append({
-                        "name": name,
-                        "shape": value.shape,
-                        "head": value.head().to_dict('records')
-                    })
-            if dataframes:
-                result["dataframes"] = dataframes
-            
-            # Check for plots
-            plots = []
-            if 'plt' in local_globals:
-                # Save any current plots
-                if plt.get_fignums():
-                    for fig_num in plt.get_fignums():
-                        fig = plt.figure(fig_num)
-                        plot_path = os.path.join(self.working_directory, f"plot_{fig_num}.png")
-                        fig.savefig(plot_path)
-                        plots.append(plot_path)
-                        plt.close(fig)
-            if plots:
-                result["plots"] = plots
-            
-            return result
+            try:
+                # Create a copy of globals for this execution
+                local_globals = self.globals.copy()
+                local_globals['__name__'] = '__main__'
+                
+                # Execute the code
+                exec(code, local_globals)
+                
+                # Get captured output
+                stdout_content = stdout_buffer.getvalue()
+                stderr_content = stderr_buffer.getvalue()
+                
+                # Capture any variables that might be dataframes or plots
+                result = {"status": "success", "stdout": stdout_content, "stderr": stderr_content, "result": None}
+                
+                # Check for dataframes
+                dataframes = []
+                for name, value in local_globals.items():
+                    if isinstance(value, pd.DataFrame):
+                        dataframes.append({
+                            "name": name,
+                            "shape": value.shape,
+                            "head": value.head().to_dict('records')
+                        })
+                if dataframes:
+                    result["dataframes"] = dataframes
+                
+                # Check for plots (only if matplotlib is available)
+                plots = []
+                if MATPLOTLIB_AVAILABLE and plt is not None:
+                    try:
+                        # Save any current plots
+                        if plt.get_fignums():
+                            for fig_num in plt.get_fignums():
+                                fig = plt.figure(fig_num)
+                                plot_path = os.path.join(self.working_directory, f"plot_{fig_num}.png")
+                                fig.savefig(plot_path)
+                                plots.append(plot_path)
+                                plt.close(fig)
+                    except Exception as plot_error:
+                        # If plot handling fails, just continue without plots
+                        print(f"Warning: Plot handling failed: {plot_error}")
+                if plots:
+                    result["plots"] = plots
+                
+                return result
+                
+            finally:
+                # Restore original stdout/stderr
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+                stdout_buffer.close()
+                stderr_buffer.close()
             
         except Exception as e:
             return {"status": "error", "stderr": str(e)}
@@ -267,7 +333,6 @@ class CodeInterpreter:
     def _execute_bash(self, code: str) -> Dict[str, Any]:
         """Execute Bash code."""
         try:
-            import subprocess
             result = subprocess.run(
                 code, 
                 shell=True, 
@@ -289,7 +354,6 @@ class CodeInterpreter:
     def _execute_sql(self, code: str) -> Dict[str, Any]:
         """Execute SQL code using SQLite."""
         try:
-            import sqlite3
             conn = sqlite3.connect(self.temp_sqlite_db)
             cursor = conn.cursor()
             
@@ -314,8 +378,6 @@ class CodeInterpreter:
     def _execute_c(self, code: str) -> Dict[str, Any]:
         """Execute C code by compiling and running."""
         try:
-            import subprocess
-            
             # Create temporary C file
             c_file = os.path.join(self.working_directory, "temp_code.c")
             with open(c_file, 'w') as f:
@@ -354,8 +416,6 @@ class CodeInterpreter:
     def _execute_java(self, code: str) -> Dict[str, Any]:
         """Execute Java code by compiling and running."""
         try:
-            import subprocess
-            
             # Create temporary Java file
             java_file = os.path.join(self.working_directory, "TempCode.java")
             with open(java_file, 'w') as f:
@@ -559,7 +619,6 @@ def square_root(a: float) -> float:
     Returns:
         float or complex: The square root of a. If a < 0, returns a complex number.
     """
-    import cmath
     if a >= 0:
         return a ** 0.5
     return cmath.sqrt(a)
@@ -780,8 +839,10 @@ def extract_text_from_image(image_path: str) -> str:
     """
     try:
         image = Image.open(image_path)
-        import pytesseract
-        text = pytesseract.image_to_string(image)
+        if PYTESSERACT_AVAILABLE:
+            text = pytesseract.image_to_string(image)
+        else:
+            return "OCR not available. Install with: pip install pytesseract"
         return f"Extracted text from image:\n\n{text}"
     except Exception as e:
         return f"Error extracting text from image: {str(e)}"
@@ -1187,9 +1248,6 @@ def understand_audio(file_path: str, prompt: str) -> str:
             mp3_file = client.files.upload(file=file_path)
         else:
             # Assume it's base64 data
-            import base64
-            import tempfile
-            
             try:
                 # Decode base64 and create temporary file
                 audio_data = base64.b64decode(file_path)
@@ -1318,34 +1376,32 @@ def _get_best_move_fallback(fen: str) -> str:
         
         # Try using Stockfish via python-chess if available
         try:
-            import chess
-            import chess.engine
-            
-            board = chess.Board(fen)
-            
-            # Use Stockfish if available
-            try:
-                engine = chess.engine.SimpleEngine.popen_uci("stockfish")
-                result = engine.play(board, chess.engine.Limit(time=2.0))
-                engine.quit()
-                if result.move:
-                    return chess.square_name(result.move.from_square) + chess.square_name(result.move.to_square)
-            except:
-                pass
-            
-            # Fallback: use legal moves and simple evaluation
-            legal_moves = list(board.legal_moves)
-            if legal_moves:
-                # Try to find a good move using simple evaluation
-                best_move = _evaluate_moves_simple(board, legal_moves)
-                if best_move:
-                    return chess.square_name(best_move.from_square) + chess.square_name(best_move.to_square)
+            if CHESS_AVAILABLE:
+                board = chess.Board(fen)
+                
+                # Use Stockfish if available
+                try:
+                    engine = chess.engine.SimpleEngine.popen_uci("stockfish")
+                    result = engine.play(board, chess.engine.Limit(time=2.0))
+                    engine.quit()
+                    if result.move:
+                        return chess.square_name(result.move.from_square) + chess.square_name(result.move.to_square)
+                except:
+                    pass
+                
+                # Fallback: use legal moves and simple evaluation
+                legal_moves = list(board.legal_moves)
+                if legal_moves:
+                    # Try to find a good move using simple evaluation
+                    best_move = _evaluate_moves_simple(board, legal_moves)
+                    if best_move:
+                        return chess.square_name(best_move.from_square) + chess.square_name(best_move.to_square)
+                    else:
+                        # Return first legal move as fallback
+                        move = legal_moves[0]
+                        return chess.square_name(move.from_square) + chess.square_name(move.to_square)
                 else:
-                    # Return first legal move as fallback
-                    move = legal_moves[0]
-                    return chess.square_name(move.from_square) + chess.square_name(move.to_square)
-            else:
-                return "Error: No legal moves available"
+                    return "Error: No legal moves available"
                 
         except ImportError:
             # python-chess not available, use simple heuristic
