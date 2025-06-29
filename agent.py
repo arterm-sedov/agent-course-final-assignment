@@ -103,7 +103,7 @@ class GaiaAgent:
         # Token management - LLM-specific limits
         self.token_limits = {
             "gemini": None,  # No limit for Gemini (2M token context)
-            "groq": 5000,    # Conservative for Groq (well under 6000 TPM limit)
+            "groq": 8000,    # Increased from 5000 to allow longer reasoning
             "huggingface": 16000  # Conservative for HuggingFace
         }
         self.max_message_history = 15  # Increased for better context retention
@@ -153,7 +153,7 @@ class GaiaAgent:
             self.llm_fallback = ChatGroq(
                 model="qwen-qwq-32b", 
                 temperature=0,
-                max_tokens=1024  # Limit output tokens
+                #max_tokens=2048  # Increased from 1024 to allow longer reasoning
             )
             print("✅ Fallback LLM (Groq) initialized successfully")
             # Test the LLM with Hello message
@@ -512,12 +512,13 @@ class GaiaAgent:
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
-        - Summarizes tool results after each call and injects them into the context.
-        - Reminds the LLM if it tries to call the same tool with the same arguments.
-        - Injects the system prompt before requesting the final answer.
-        - Uses Groq for summarization if available, otherwise Gemini, otherwise truncation.
-        - Keeps the context concise and focused on the system prompt, question, tool results, and answer formatting rules.
-
+        - Uses adaptive step limits based on LLM type (Gemini: 25, Groq: 15, HuggingFace: 20, unknown: 20).
+        - Tracks called tools to prevent duplicate calls and tool results history for fallback handling.
+        - Monitors progress by tracking consecutive steps without meaningful changes in response content.
+        - Truncates messages and summarizes long tool results to prevent token overflow.
+        - Handles LLM invocation failures gracefully with error messages.
+        - Detects when responses are truncated due to token limits and adjusts accordingly.
+        
         Args:
             llm: The LLM instance (with or without tools bound)
             messages: The message history (list)
@@ -526,13 +527,23 @@ class GaiaAgent:
         Returns:
             The final LLM response (with content)
         """
-        max_steps = 5  # Prevent infinite loops
+        # Adaptive step limits based on LLM type and progress
+        base_max_steps = {
+            "gemini": 25,    # More steps for Gemini due to better reasoning
+            "groq": 15,     # More steps for Groq to compensate for token limits
+            "huggingface": 20,  # Conservative for HuggingFace
+            "unknown": 20
+        }
+        max_steps = base_max_steps.get(llm_type, 8)
+        
         called_tools = set()  # Track which tools have been called to prevent duplicates
         tool_results_history = []  # Track tool results for better fallback handling
         current_step_tool_results = []  # Track results from current step only
+        consecutive_no_progress = 0  # Track consecutive steps without progress
+        last_response_content = ""  # Track last response content for progress detection
         
         for step in range(max_steps):
-            print(f"\n[Tool Loop] Step {step+1} - Using LLM: {llm_type}")
+            print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
             current_step_tool_results = []  # Reset for this step
             
             # Truncate messages to prevent token overflow
@@ -555,6 +566,14 @@ class GaiaAgent:
                 from langchain_core.messages import AIMessage
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
 
+            # Check if response was truncated due to token limits
+            if hasattr(response, 'response_metadata') and response.response_metadata:
+                finish_reason = response.response_metadata.get('finish_reason')
+                if finish_reason == 'length':
+                    print(f"[Tool Loop] ❌ Hit token limit for {llm_type} LLM. Response was truncated. Cannot complete reasoning.")
+                    from langchain_core.messages import AIMessage
+                    return AIMessage(content=f"Error: Hit token limit for {llm_type} LLM. Cannot complete reasoning.")
+
             # === DEBUG OUTPUT ===
             print(f"[Tool Loop] Raw LLM response: {response}")
             print(f"[Tool Loop] Response type: {type(response)}")
@@ -564,6 +583,52 @@ class GaiaAgent:
             print(f"[Tool Loop] Response has tool_calls: {hasattr(response, 'tool_calls')}")
             if hasattr(response, 'tool_calls'):
                 print(f"[Tool Loop] Tool calls: {response.tool_calls}")
+
+            # Check for empty response
+            if not hasattr(response, 'content') or not response.content:
+                print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
+                from langchain_core.messages import AIMessage
+                return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+
+            # Check for progress (new content or tool calls)
+            current_content = getattr(response, 'content', '') or ''
+            current_tool_calls = getattr(response, 'tool_calls', []) or []
+            has_progress = (current_content != last_response_content or len(current_tool_calls) > 0)
+            
+            # Check if we have tool results but no final answer yet
+            has_tool_results = len(tool_results_history) > 0
+            has_final_answer = (hasattr(response, 'content') and response.content and 
+                              self._has_final_answer_marker(response))
+            
+            if has_tool_results and not has_final_answer and step >= 3:
+                # We have information but no answer - gently remind to provide final answer
+                reminder = (
+                    f"You have gathered information from {len(tool_results_history)} tool calls. "
+                    f"Please provide your FINAL ANSWER based on this information. "
+                    f"Reason more if needed."
+                )
+                messages.append(HumanMessage(content=reminder))
+            
+            if not has_progress:
+                consecutive_no_progress += 1
+                print(f"[Tool Loop] No progress detected. Consecutive no-progress steps: {consecutive_no_progress}")
+                
+                # Exit early if no progress for too many consecutive steps
+                if consecutive_no_progress >= 3:
+                    print(f"[Tool Loop] Exiting due to {consecutive_no_progress} consecutive steps without progress")
+                    break
+                elif consecutive_no_progress == 2:
+                    # Add a gentle reminder to use tools
+                    reminder = (
+                        f"You seem to be thinking about the problem. "
+                        f"Please use the available tools to gather information and then provide your FINAL ANSWER. "
+                        f"Available tools include: {', '.join([tool.name for tool in self.tools])}."
+                    )
+                    messages.append(HumanMessage(content=reminder))
+            else:
+                consecutive_no_progress = 0  # Reset counter on progress
+                
+            last_response_content = current_content
 
             # If response has content and no tool calls, return
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
@@ -709,8 +774,22 @@ class GaiaAgent:
             if hasattr(response, 'content') and response.content:
                 return response
             print(f"[Tool Loop] No tool calls or final answer detected. Exiting loop.")
-            break
-        print(f"[Tool Loop] Exiting after {max_steps} steps. Last response: {response}")
+            
+            # If we get here, the LLM didn't make tool calls or provide content
+            # Add a reminder to use tools or provide an answer
+            reminder = (
+                f"You need to either:\n"
+                f"1. Use the available tools to gather information, or\n"
+                f"2. Provide your FINAL ANSWER based on what you know.\n"
+                f"Available tools: web_search, wiki_search, and others."
+            )
+            messages.append(HumanMessage(content=reminder))
+            continue
+        
+        # If we reach here, we've exhausted all steps or hit progress limits
+        print(f"[Tool Loop] Exiting after {step+1} steps. Last response: {response}")
+        
+        # Return the last response as-is, no partial answer extraction
         return response
 
     def _select_llm(self, llm_type, use_tools):
