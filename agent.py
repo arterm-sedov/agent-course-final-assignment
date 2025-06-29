@@ -188,12 +188,15 @@ class GaiaAgent:
         # Get the LLM types that should be initialized based on the sequence
         llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
         llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
-        print(f"🔄 Initializing LLMs based on sequence: {llm_names}")
+        print(f"🔄 Initializing LLMs based on sequence:")
+        for i, name in enumerate(llm_names, 1):
+            print(f"   {i}. {name}")
 
         # Set up LLMs based on the sequence configuration
         gemini_name = self.LLM_CONFIG['gemini']['name']
         if "gemini" in llm_types_to_init:
-            print(f"🔄 Initializing LLM {gemini_name} (1 of {len(llm_types_to_init)})")
+            gemini_position = llm_types_to_init.index("gemini") + 1
+            print(f"🔄 Initializing LLM {gemini_name} ({gemini_position} of {len(llm_types_to_init)})")
             try:
                 config = self.LLM_CONFIG["gemini"]
                 self.llm_primary = ChatGoogleGenerativeAI(
@@ -216,7 +219,8 @@ class GaiaAgent:
         
         groq_name = self.LLM_CONFIG['groq']['name']
         if "groq" in llm_types_to_init:
-            print(f"🔄 Initializing LLM {groq_name} (2 of {len(llm_types_to_init)})")
+            groq_position = llm_types_to_init.index("groq") + 1
+            print(f"🔄 Initializing LLM {groq_name} ({groq_position} of {len(llm_types_to_init)})")
             try:
                 config = self.LLM_CONFIG["groq"]
                 # Groq uses the GROQ_API_KEY environment variable automatically
@@ -244,7 +248,8 @@ class GaiaAgent:
         
         huggingface_name = self.LLM_CONFIG['huggingface']['name']
         if "huggingface" in llm_types_to_init:
-            print(f"🔄 Initializing LLM {huggingface_name} (3 of {len(llm_types_to_init)})")
+            huggingface_position = llm_types_to_init.index("huggingface") + 1
+            print(f"🔄 Initializing LLM {huggingface_name} ({huggingface_position} of {len(llm_types_to_init)})")
             try:
                 self.llm_third_fallback = self._create_huggingface_llm()
                 if self.llm_third_fallback is not None:
