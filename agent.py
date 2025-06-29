@@ -361,10 +361,7 @@ class GaiaAgent:
         if len(tool_messages) > max_tool_messages:
             tool_messages = tool_messages[-max_tool_messages:]
         
-        # For Groq, also truncate long tool messages to prevent TPM issues
-        # if llm_type == "groq":
-        #     self._summarize_long_tool_messages(tool_messages, llm_type, self.max_summary_tokens)
-        
+
         # Reconstruct message list
         truncated_messages = []
         if system_msg:
@@ -374,71 +371,6 @@ class GaiaAgent:
             truncated_messages.append(last_human_msg)
         
         return truncated_messages
-
-    def _summarize_tool_result_with_llm(self, text, max_tokens=None, question=None):
-        """
-        Summarize a long tool result.
-        Optionally include the original question for more focused summarization.
-        """
-        # Structure the prompt as JSON for LLM convenience
-        prompt_dict = {
-            "task": "Summarize the following tool result for use as LLM context. The result pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
-            "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
-            "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
-            "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
-            "question": question if question else None,
-            "tool_result_to_summarize": text
-        }
-               
-        return self._summarize_text_with_llm(text, max_tokens=max_tokens, question=question, prompt_dict_override=prompt_dict)
-    
-    def _summarize_text_with_llm(self, text, max_tokens=None, question=None, prompt_dict_override=None):
-        """
-        Summarize a long result using Gemini, then Groq (if available), otherwise HuggingFace, otherwise fallback to truncation.
-        Optionally include the original question for more focused summarization.
-        Uses the LLM with tools enabled, and instructs the LLM to use tools if needed.
-        """
-        if prompt_dict_override:
-            prompt_dict = prompt_dict_override
-        else:
-            # Structure the prompt as JSON for LLM convenience
-            prompt_dict = {
-                "task": "Summarize the following response for use as LLM context. The response pertains to the optional **question** provided below. If **question** is not present, proceed with summarization of existing content.",
-                "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
-                "length_limit": f"Limit the summary softly to about {max_tokens} tokens.",
-                "purpose": f"Extract only the information relevant to the **question** or pertinent to further reasoning on this question. If the question is not present, focus on keeping the essential important details.",
-                "tool_calls": "Do not use tools.",
-                "question": question if question else None,
-                "text_to_summarize": text,
-            }
-        # Remove None fields for cleanliness
-        prompt_dict = {k: v for k, v in prompt_dict.items() if v is not None}
-        prompt = f"Summarization Request (JSON):\n" + json.dumps(prompt_dict, indent=2)
-        
-        try:
-            if self.llm_primary:
-                response = self.llm_primary.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] Gemini summarization failed: {e}")
-        try:
-            if self.llm_fallback:
-                response = self.llm_fallback.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] Groq summarization failed: {e}")
-        try:
-            if self.llm_third_fallback:
-                response = self.llm_third_fallback.invoke([HumanMessage(content=prompt)])
-                if hasattr(response, 'content') and response.content:
-                    return response.content.strip()
-        except Exception as e:
-            print(f"[Summarization] HuggingFace summarization failed: {e}")
-        
-        print(f"[Summarization] LLM summarization failed, truncating")
-        return text[:1000] + '... [Summary is truncated]'
 
     def _execute_tool(self, tool_name: str, tool_args: dict, tool_registry: dict) -> str:
         """
@@ -490,7 +422,7 @@ class GaiaAgent:
         
         return str(tool_result)
 
-    def _handle_duplicate_tool_calls(self, messages: List, tool_results_history: List, llm) -> Any:
+    def _force_final_answer (self, messages: List, tool_results_history: List, llm) -> Any:
         """
         Handle duplicate tool calls by forcing final answer using LangChain's native mechanisms.
         
@@ -504,22 +436,12 @@ class GaiaAgent:
         """
         print(f"[Tool Loop] Trying to force the final answer with {len(tool_results_history)} tool results.")
         
-        # Find the original question
-        original_question = None
-        for msg in messages:
-            if hasattr(msg, 'type') and msg.type == 'human':
-                original_question = msg.content
-                break
-        if not original_question:
-            original_question = "[Original question not found]"
-        
         # Create a more explicit reminder to provide final answer
-        reminder = (
-            f"IMPORTANT: You have gathered information from {len(tool_results_history)} tool calls. "
-            f"The tool results are available in the message history above. "
-            f"Please carefully analyze these results and provide your FINAL ANSWER to the original question: '{original_question}'. "
-            f"Your answer must follow the system prompt"
-            f"Do not call any more tools - provide your answer now."
+        reminder = self._get_reminder_prompt(
+            reminder_type="final_answer_prompt",
+            messages=messages,
+            tools=self.tools,
+            tool_results_history=tool_results_history
         )
         
         # Add the reminder to the existing message history
@@ -534,25 +456,11 @@ class GaiaAgent:
                 return final_response
             else:
                 print("[Tool Loop] ❌ LLM returned empty response")
-                return AIMessage(content="FINAL ANSWER: Unable to determine the answer from the available information.")
+                return AIMessage(content="Unable to determine the answer from the available information.")
                 
         except Exception as e:
             print(f"[Tool Loop] ❌ Failed to get final answer: {e}")
             return AIMessage(content="Error occurred while processing the question.")
-
-    def _summarize_long_tool_messages(self, messages: List, llm_type: str, max_tokens: int = 200) -> None:
-        """
-        Summarize long tool messages to reduce token usage.
-        
-        Args:
-            messages: List of messages to process
-            llm_type: Type of LLM for context
-            max_tokens: Maximum tokens for summarization
-        """
-        for msg in messages:
-            if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
-                if len(msg.content) > 500:
-                    msg.content = self._summarize_tool_result_with_llm(msg.content, max_tokens=max_tokens, question=self.original_question)
 
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
@@ -560,7 +468,6 @@ class GaiaAgent:
         - Uses adaptive step limits based on LLM type (Gemini: 25, Groq: 15, HuggingFace: 20, unknown: 20).
         - Tracks called tools to prevent duplicate calls and tool results history for fallback handling.
         - Monitors progress by tracking consecutive steps without meaningful changes in response content.
-        - Truncates messages and summarizes long tool results to prevent token overflow.
         - Handles LLM invocation failures gracefully with error messages.
         - Detects when responses are truncated due to token limits and adjusts accordingly.
         
@@ -610,9 +517,9 @@ class GaiaAgent:
             
             # Check if we've exceeded the maximum total tool calls
             if total_tool_calls >= max_total_tool_calls:
-                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _handle_duplicate_tool_calls().")
+                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _force_final_answer ().")
                 # Let the LLM generate the final answer from tool results (or lack thereof)
-                return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                return self._force_final_answer (messages, tool_results_history, llm)
             
             # Check for excessive tool usage
             for tool_name, count in tool_usage_count.items():
@@ -620,11 +527,10 @@ class GaiaAgent:
                     print(f"[Tool Loop] ⚠️ {tool_name} used {count} times (max: {tool_usage_limits.get(tool_name, 5)}). Preventing further usage.")
                     # Add a message to discourage further use of this tool
                     if step > 2:  # Only add this message after a few steps
-                        reminder = (
-                            f"You have used {tool_name} {count} times without finding the answer. "
-                            f"Dp not call this tool. Consider any results. If the result is empty."
-                            f"Call DIFFERENT TOOL."
-                            f"NOW provide your FINAL ANSWER based on the information you have."
+                        reminder = self._get_reminder_prompt(
+                            reminder_type="tool_usage_issue",
+                            tool_name=tool_name,
+                            count=count
                         )
                         messages.append(HumanMessage(content=reminder))
             
@@ -636,10 +542,6 @@ class GaiaAgent:
             estimated_tokens = self._estimate_tokens(total_text)
             token_limit = self.token_limits.get(llm_type)
             
-            # if token_limit and estimated_tokens > token_limit:
-            #     print(f"[Tool Loop] Token limit exceeded: {estimated_tokens} > {token_limit}. Summarizing...")
-            #     # self._summarize_long_tool_messages(messages, llm_type, self.max_summary_tokens)
-            
             try:
                 response = llm.invoke(messages)
             except Exception as e:
@@ -649,7 +551,7 @@ class GaiaAgent:
                 if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
                     print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
                     if tool_results_history:
-                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        return self._force_final_answer (messages, tool_results_history, llm)
                     else:
                         return AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
@@ -675,7 +577,7 @@ class GaiaAgent:
                     # If we have tool results but no content, force a final answer after 2 consecutive empty responses
                     if tool_results_history and consecutive_no_progress >= 1:
                         print(f"[Tool Loop] Empty content and we have {len(tool_results_history)} tool results for 2 consecutive steps. Forcing final answer.")
-                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        return self._force_final_answer (messages, tool_results_history, llm)
                     # Otherwise, increment no-progress counter and continue
                     consecutive_no_progress += 1
                     print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response. Consecutive no-progress steps: {consecutive_no_progress}")
@@ -697,12 +599,11 @@ class GaiaAgent:
             
             if has_tool_results and not has_final_answer and step >= 2:  # Increased from 1 to 2 to give more time
                 # We have information but no answer - provide explicit reminder to analyze tool results
-                reminder = (
-                    f"IMPORTANT: You have gathered information from {len(tool_results_history)} tool calls. "
-                    f"The tool results are available in the message history above. "
-                    f"Please carefully analyze these results and provide your FINAL ANSWER to the original question. "
-                    f"Your answer must follow the system prompt."
-                    f"Do not call any more tools - analyze the existing results and provide your answer now."
+                reminder = self._get_reminder_prompt(
+                    reminder_type="final_answer_prompt",
+                    messages=messages,
+                    tools=self.tools,
+                    tool_results_history=tool_results_history
                 )
                 messages.append(HumanMessage(content=reminder))
             
@@ -716,13 +617,13 @@ class GaiaAgent:
                     # If we have tool results, force a final answer before exiting
                     if tool_results_history:
                         print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results before exit")
-                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        return self._force_final_answer (messages, tool_results_history, llm)
                     break
                 elif consecutive_no_progress == 1:
                     # Add a gentle reminder to use tools
-                    reminder = (
-                        f"Please use the available tools to gather information and then provide your FINAL ANSWER. "
-                        f"Available tools include: {', '.join([tool.name for tool in self.tools])}."
+                    reminder = self._get_reminder_prompt(
+                        reminder_type="final_answer_prompt",
+                        tools=self.tools
                     )
                     messages.append(HumanMessage(content=reminder))
             else:
@@ -741,7 +642,7 @@ class GaiaAgent:
                     # If we have tool results but no FINAL ANSWER marker, force processing
                     if tool_results_history:
                         print(f"[Tool Loop] Content without FINAL ANSWER marker but we have {len(tool_results_history)} tool results. Forcing final answer.")
-                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        return self._force_final_answer (messages, tool_results_history, llm)
                     else:
                         print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder.")
                         # Find the original question
@@ -753,10 +654,9 @@ class GaiaAgent:
                         if not original_question:
                             original_question = "[Original question not found]"
                         # Compose a reminder message
-                        reminder = (
-                            f"Please answer the following question in the required format:\n\n"
-                            f"QUESTION:\n{original_question}\n\n"
-                            f"Your answer must start with 'FINAL ANSWER:' and follow the system prompt."
+                        reminder = self._get_reminder_prompt(
+                            reminder_type="final_answer_prompt",
+                            messages=messages
                         )
                         reiterate_messages = [self.sys_msg, HumanMessage(content=reminder)]
                         try:
@@ -764,7 +664,7 @@ class GaiaAgent:
                             print(f"[Tool Loop] Reiterated response: {reiterate_response.content if hasattr(reiterate_response, 'content') else reiterate_response}")
                             return reiterate_response
                         except Exception as e:
-                            print(f"[Tool Loop] ❌ Failed to reiterate for 'FINAL ANSWER': {e}")
+                            print(f"[Tool Loop] ❌ Failed to reiterate: {e}")
                             return response
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
@@ -807,17 +707,13 @@ class GaiaAgent:
                 # Only force final answer if ALL tool calls were duplicates AND we have tool results
                 if not new_tool_calls and tool_results_history:
                     print(f"[Tool Loop] All {len(tool_calls)} tool calls were duplicates and we have {len(tool_results_history)} tool results. Forcing final answer.")
-                    result = self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                    result = self._force_final_answer (messages, tool_results_history, llm)
                     if result:
                         return result
                 elif not new_tool_calls and not tool_results_history:
                     # No new tool calls and no previous results - this might be a stuck state
                     print(f"[Tool Loop] All tool calls were duplicates but no previous results. Adding reminder to use available tools.")
-                    reminder = (
-                        f"You have called tools that were already executed. "
-                        f"Please either provide your FINAL ANSWER based on the available information, "
-                        f"or call a different tool that hasn't been used yet."
-                    )
+                    reminder = self._get_reminder_prompt(reminder_type="tool_usage_issue", tool_name=tool_name)
                     messages.append(HumanMessage(content=reminder))
                     continue
                 
@@ -850,34 +746,32 @@ class GaiaAgent:
                 # Check if this is a duplicate function call
                 if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
                     print(f"[Tool Loop] Duplicate function_call detected: {tool_name} with args: {tool_args}")
-                    reminder = (
-                        f"You have already called tool '{tool_name}' with arguments {tool_args}. "
-                        f"Please use the previous result or call a different tool if needed."
+                    reminder = self._get_reminder_prompt(
+                        reminder_type="tool_usage_issue",
+                        tool_name=tool_name,
+                        tool_args=tool_args
                     )
                     messages.append(HumanMessage(content=reminder))
                     
                     # Only force final answer if we have tool results
                     if tool_results_history:
                         print(f"[Tool Loop] Duplicate function_call with {len(tool_results_history)} tool results. Forcing final answer.")
-                        result = self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                        result = self._force_final_answer (messages, tool_results_history, llm)
                         if result:
                             return result
                     else:
                         # No previous results - add reminder and continue
-                        reminder = (
-                            f"You have called a tool that was already executed. "
-                            f"Please either provide your FINAL ANSWER based on the available information, "
-                            f"or call a different tool that hasn't been used yet."
-                        )
+                        reminder = self._get_reminder_prompt(reminder_type="tool_usage_issue", tool_name=tool_name)
                         messages.append(HumanMessage(content=reminder))
                     continue
                 
                 # Check if tool usage limit exceeded
                 if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
                     print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
-                    reminder = (
-                        f"You have used {tool_name} too many times. "
-                        f"Please try a different approach or provide your FINAL ANSWER based on the information you have."
+                    reminder = self._get_reminder_prompt(
+                        reminder_type="tool_usage_issue",
+                        tool_name=tool_name,
+                        count=tool_usage_count[tool_name]
                     )
                     messages.append(HumanMessage(content=reminder))
                     continue
@@ -905,12 +799,7 @@ class GaiaAgent:
             
             # If we get here, the LLM didn't make tool calls or provide content
             # Add a reminder to use tools or provide an answer
-            reminder = (
-                f"You need to either:\n"
-                f"1. Use the available tools to gather information, or\n"
-                f"2. Provide your FINAL ANSWER based on what you know.\n"
-                f"Available tools: web_search, wiki_search, and others."
-            )
+            reminder = self._get_reminder_prompt(reminder_type="final_answer_prompt", tools=self.tools)
             messages.append(HumanMessage(content=reminder))
             continue
         
@@ -920,7 +809,7 @@ class GaiaAgent:
         # If we have tool results but no final answer, force one
         if tool_results_history and (not hasattr(response, 'content') or not response.content or not self._has_final_answer_marker(response)):
             print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results at loop exit")
-            return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+            return self._force_final_answer (messages, tool_results_history, llm)
         
         # Return the last response as-is, no partial answer extraction
         return response
@@ -986,28 +875,25 @@ class GaiaAgent:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
                     llm_no_tools, _, _ = self._select_llm(llm_type, False)
                     if llm_no_tools:
-                        tool_results = []
+                        # Extract raw tool results from message history for _get_reminder_prompt
+                        tool_results_history = []
                         for msg in messages:
                             if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
-                                tool_name = msg.name
-                                tool_results.append(f"Tool {tool_name} result: {msg.content}")
-                        if tool_results:
-                            tool_summary = "\n".join(tool_results)
-                            enhanced_messages = []
-                            for msg in messages:
-                                if not (hasattr(msg, 'type') and msg.type == 'tool'):
-                                    enhanced_messages.append(msg)
-                            enhanced_messages.append(HumanMessage(content=f"""
-Based on the following tool results, provide your FINAL ANSWER according to the system prompt format:
-
-{tool_summary}
-
-"""))
-                            print(f"🔄 Retrying {llm_name} without tools with enhanced context")
-                            print(f"📝 Tool results included: {len(tool_results)} tools")
+                                tool_results_history.append(msg.content)
+                        
+                        if tool_results_history:
+                            print(f"⚠️ Retrying {llm_name} without tools with enhanced context")
+                            print(f"📝 Tool results included: {len(tool_results_history)} tools")
+                            reminder = self._get_reminder_prompt(
+                                reminder_type="final_answer_prompt",
+                                messages=messages,
+                                tools=self.tools,
+                                tool_results_history=tool_results_history
+                            )
+                            enhanced_messages = [self.sys_msg, HumanMessage(content=reminder)]
                             response = llm_no_tools.invoke(enhanced_messages)
                         else:
-                            print(f"🔄 Retrying {llm_name} without tools (no tool results found)")
+                            print(f"⚠️ Retrying {llm_name} without tools (no tool results found)")
                             response = llm_no_tools.invoke(messages)
                     
                     # NEW: If still no content, this might be a token limit issue
@@ -1087,9 +973,9 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                 answer = self._extract_final_answer(response)
                 
                 # If standard extraction didn't work well, try intelligent extraction
-                if not answer:
-                    print(f"⚠️ {llm_name} did not provide a properly formatted answer, trying intelligent extraction...")
-                    answer = self._intelligent_answer_extraction(response, original_question)
+                # if not answer:
+                #     print(f"⚠️ {llm_name} did not provide a properly formatted answer. Ret trying...")
+                #     answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                 
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
@@ -1127,7 +1013,8 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                         response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                         answer = self._extract_final_answer(response)
                         if not answer:
-                            answer = self._intelligent_answer_extraction(response, original_question)
+                            # Inject message to get final answer instead of making new LLM call
+                            answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                         if answer and not answer == str(response).strip():
                             print(f"✅ HuggingFace retry succeeded: {answer}")
                             return answer, llm_name
@@ -1394,47 +1281,6 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         # Extract text from response and clean it using the existing regex logic
         text = self._extract_text_from_response(response)
         return self._clean_final_answer_text(text)
-
-    def _intelligent_answer_extraction(self, response: Any, question: str) -> str:
-        """
-        Use LLM summarization to extract the most likely final answer from the response, given the question and the system prompt.
-        This replaces the previous regex/pattern logic with a more robust LLM-based approach.
-        Args:
-            response (Any): The LLM response object.
-            question (str): The original question for context.
-        Returns:
-            str: The extracted final answer, as determined by the LLM summarizer.
-        """
-        text = self._extract_text_from_response(response)
-        
-        if not text or not text.strip():
-            return None
-
-        # Use LLM-based extraction
-        try:
-            # Compose a summarization prompt for the LLM
-            prompt_dict = {
-                    "task": "Extract the FINAL answer from the given LLM response (response_to_analyze). The response pertains to the optional **question** provided. If **question** is not present, proceed with extracting per the system prompt. From the response, extract the the most likely FINAL ANSWER according to the system prompt's answer formatting rules. Return only the most likely final answer, formatted exactly as required by the system prompt.",
-                    "focus": f"Focus on the most relevant facts, numbers, and names, related to the **question**  if it is present.",
-                    "purpose": f"Extract the FINAL ANSWER per the system prompt.",
-                    "tool_calls": "Do not use tools.",
-                    "question": question if question else None,
-                    "response_to_analyze": text
-            }
-            print(f"[Agent] Summarization prompt for answer extraction:\n{prompt_dict}")
-            summary = self._summarize_text_with_llm(text, max_tokens=self.max_summary_tokens, question=self.original_question, prompt_dict_override=prompt_dict)
-            print(f"[Agent] LLM-based answer extraction summary: {summary}")
-            
-            if summary and summary.strip():
-                # Ensure the summary starts with FINAL ANSWER
-                if not summary.strip().upper().startswith("FINAL ANSWER"):
-                    return f"FINAL ANSWER: {summary.strip()}"
-                return summary.strip()
-            
-        except Exception as e:
-            print(f"[Agent] LLM-based answer extraction failed: {e}")
-        
-        return None
 
     def _llm_answers_match(self, answer: str, reference: str) -> bool:
         """
@@ -1856,3 +1702,115 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             # Fallback: join all string values
             return " ".join(str(v) for v in tool_result.values() if isinstance(v, str))
         return str(tool_result)
+
+    def _retry_with_final_answer_reminder(self, messages, use_tools, llm_type):
+        """
+        Injects a final answer reminder, retries the LLM request, and extracts the answer.
+        Returns (answer, response)
+        """
+        # Find the original question from the message history
+        original_question = None
+        for msg in messages:
+            if hasattr(msg, 'type') and msg.type == 'human':
+                original_question = msg.content
+                break
+        
+        # Build the prompt message (slim, direct)
+        prompt = (
+            "TASK: Extract the FINAL answer from the given LLM response. "
+            "If a **question** is present, extract the most likely FINAL ANSWER according to the system prompt's answer formatting rules. "
+            "Return only the most likely final answer, formatted exactly as required by the system prompt.\n\n"
+            "FOCUS: Focus on the most relevant facts, numbers, and names, related to the question if present.\n\n"
+            "PURPOSE: Extract the FINAL ANSWER per the system prompt.\n\n"
+            "INSTRUCTIONS: Do not use tools.\n\n"
+        )
+        if original_question:
+            prompt += f"QUESTION: {original_question}\n\n"
+        prompt += "RESPONSE TO ANALYZE:\nAnalyze the previous response and provide your FINAL ANSWER."
+        
+        # Inject the message into the queue
+        messages.append(HumanMessage(content=prompt))
+        
+        # Make the LLM call and extract the answer
+        response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+        answer = self._extract_final_answer(response)
+        return answer, response
+
+    def _get_reminder_prompt(
+        self,
+        reminder_type: str,
+        messages=None,
+        tools=None,
+        tool_results_history=None,
+        tool_name=None,
+        count=None,
+        tool_args=None,
+        question=None
+    ) -> str:
+        """
+        Get standardized reminder prompts based on type. Extracts tool_names, tool_count, and original_question as needed.
+        
+        Args:
+            reminder_type: Type of reminder needed
+            messages: Message history (for extracting question)
+            tools: List of tool objects (for tool names)
+            tool_results_history: List of tool results (for count)
+            tool_name: Name of the tool (for tool-specific reminders)
+            count: Usage count (for tool-specific reminders)
+            tool_args: Arguments for the tool (for duplicate reminders)
+            question: Optional question override
+            
+        Returns:
+            str: The reminder prompt
+        """
+        # Extract tool_names if needed
+        tool_names = None
+        if tools is not None:
+            tool_names = ', '.join([tool.name for tool in tools])
+            
+        # Extract tool_count if needed
+        tool_count = None
+        if tool_results_history is not None:
+            tool_count = len(tool_results_history)
+            
+        # Extract original_question if needed
+        original_question = None
+        if messages is not None:
+            for msg in messages:
+                if hasattr(msg, 'type') and msg.type == 'human':
+                    original_question = msg.content
+                    break
+        if not original_question:
+            original_question = question or '[Original question not found]'
+            
+        reminders = {
+            "final_answer_prompt": (
+                (f"Please use the available tools to gather information and then provide your FINAL ANSWER. "
+                 f"Available tools include: {tool_names or 'various tools'}." 
+                 if not tool_count or tool_count == 0 else "")
+                + (f"\n\nIMPORTANT: You have gathered information from {tool_count} tool calls. "
+                   f"The tool results are available in the message history above. "
+                   f"Please carefully analyze these results and provide your FINAL ANSWER to the original question. "
+                   f"Your answer must follow the system prompt. "
+                   f"Do not call any more tools - analyze the existing results and provide your answer now." 
+                   if tool_count and tool_count > 0 else "")
+                + f"\n\nPlease answer the following question in the required format:\n\n"
+                + f"ORIGINAL QUESTION:\n{original_question}\n\n"
+                + f"Your answer must start with 'FINAL ANSWER:' and follow the system prompt."
+            ),
+            "tool_usage_issue": (
+                (
+                    f"You have already called '{tool_name or 'this tool'}'"
+                    + (f" {count} times" if count is not None else "")
+                    + (f" with arguments {tool_args}" if tool_args is not None else "")
+                    + ". "
+                    if (tool_name or count is not None or tool_args is not None) else ""
+                )
+                + "Do not call this tool again. "
+                + "Consider any results you have. If the result is empty, call a DIFFERENT TOOL. "
+                + f"ORIGINAL QUESTION:\n{original_question}\n\n"
+                + "NOW provide your FINAL ANSWER based on the information you have."
+            ),
+        }
+        return reminders.get(reminder_type, "Please provide your FINAL ANSWER.")
+
