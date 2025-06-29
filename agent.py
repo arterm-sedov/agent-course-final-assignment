@@ -1766,7 +1766,7 @@ class GaiaAgent:
         # Extract tool_names if needed
         tool_names = None
         if tools is not None:
-            tool_names = ', '.join([tool.name for tool in tools])
+            tool_names = ', '.join([self._get_tool_name(tool) for tool in tools])
             
         # Extract tool_count if needed
         tool_count = None
