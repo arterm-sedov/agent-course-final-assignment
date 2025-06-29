@@ -193,6 +193,7 @@ class GaiaAgent:
         # Set up LLMs based on the sequence configuration
         gemini_name = self.LLM_CONFIG['gemini']['name']
         if "gemini" in llm_types_to_init:
+            print(f"🔄 Initializing LLM {gemini_name} (1 of {len(llm_types_to_init)})")
             try:
                 config = self.LLM_CONFIG["gemini"]
                 self.llm_primary = ChatGoogleGenerativeAI(
@@ -201,10 +202,10 @@ class GaiaAgent:
                     google_api_key=os.environ.get(config["api_key_env"]),
                     max_tokens=config["max_tokens"]
                 )
-                print(f"✅ Primary LLM ({gemini_name}) initialized successfully")
+                print(f"✅ LLM ({gemini_name}) initialized successfully")
                 # Test the LLM with Hello message
-                if not self._ping_llm(self.llm_primary, f"Primary LLM ({gemini_name})"):
-                    print(f"⚠️ Primary LLM test failed, setting to None")
+                if not self._ping_llm(self.llm_primary, gemini_name):
+                    print(f"⚠️ {gemini_name} test failed, setting to None")
                     self.llm_primary = None
             except Exception as e:
                 print(f"⚠️ Failed to initialize {gemini_name}: {e}")
@@ -215,7 +216,7 @@ class GaiaAgent:
         
         groq_name = self.LLM_CONFIG['groq']['name']
         if "groq" in llm_types_to_init:
-
+            print(f"🔄 Initializing LLM {groq_name} (2 of {len(llm_types_to_init)})")
             try:
                 config = self.LLM_CONFIG["groq"]
                 # Groq uses the GROQ_API_KEY environment variable automatically
@@ -229,27 +230,28 @@ class GaiaAgent:
                         temperature=config["temperature"],
                         max_tokens=config["max_tokens"]
                     )
-                    print(f"✅ Fallback LLM ({groq_name}) initialized successfully")
+                    print(f"✅ LLM ({groq_name}) initialized successfully")
                     # Test the LLM with Hello message
-                    if not self._ping_llm(self.llm_fallback, f"Fallback LLM ({groq_name})"):
-                        print(f"⚠️ Fallback LLM test failed, setting to None")
+                    if not self._ping_llm(self.llm_fallback, groq_name):
+                        print(f"⚠️ {groq_name} test failed, setting to None")
                         self.llm_fallback = None
             except Exception as e:
                 print(f"⚠️ Failed to initialize {groq_name}: {e}")
                 self.llm_fallback = None
         else:
-            print("⏭️ Skipping Fallback LLM (not in sequence)")
+            print(f"⏭️ Skipping LLM {groq_name} (not in sequence)")
             self.llm_fallback = None
         
         huggingface_name = self.LLM_CONFIG['huggingface']['name']
         if "huggingface" in llm_types_to_init:
+            print(f"🔄 Initializing LLM {huggingface_name} (3 of {len(llm_types_to_init)})")
             try:
                 self.llm_third_fallback = self._create_huggingface_llm()
                 if self.llm_third_fallback is not None:
-                    print(f"✅ Third fallback LLM ({huggingface_name}) initialized successfully")
+                    print(f"✅ LLM ({huggingface_name}) initialized successfully")
                     # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
                 else:
-                    print(f"❌ Third fallback LLM ({huggingface_name}) failed to initialize")
+                    print(f"❌ LLM ({huggingface_name}) failed to initialize")
             except Exception as e:
                 print(f"⚠️ Failed to initialize {huggingface_name}: {e}")
                 self.llm_third_fallback = None
