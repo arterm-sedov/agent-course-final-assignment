@@ -1614,6 +1614,7 @@ class GaiaAgent:
         Type-aware helper to print message components with proper truncation.
         Only prints relevant components based on message type.
         """
+        print("------------------------------------------------\n") 
         print(f"Message {msg_index}:")
         
         # Get message type
@@ -1634,31 +1635,40 @@ class GaiaAgent:
         elif msg_type == 'ai':
             # AI messages: content, tool_calls, function_call
             if hasattr(msg, 'content') and msg.content:
+                print("------------------------------------------------\n")
                 print(f"  content: {self._trim_for_print(msg.content)}")
             if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                print("------------------------------------------------\n")
                 print(f"  tool_calls: {self._trim_for_print(msg.tool_calls)}")
             if hasattr(msg, 'function_call') and msg.function_call:
+                print("------------------------------------------------\n")
                 print(f"  function_call: {self._trim_for_print(msg.function_call)}")
                 
         elif msg_type == 'tool':
             # Tool messages: content, name, tool_call_id
             if hasattr(msg, 'content') and msg.content:
+                print("------------------------------------------------\n")
                 print(f"  content: {self._trim_for_print(msg.content)}")
             if hasattr(msg, 'name') and msg.name:
+                print("------------------------------------------------\n")
                 print(f"  name: {msg.name}")
             if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
+                print("------------------------------------------------\n")
                 print(f"  tool_call_id: {msg.tool_call_id}")
                 
         else:
             # Unknown type: print all common attributes
             if hasattr(msg, 'content') and msg.content:
+                print("------------------------------------------------\n")
                 print(f"  content: {self._trim_for_print(msg.content)}")
             if hasattr(msg, 'additional_kwargs') and msg.additional_kwargs:
+                print("------------------------------------------------\n")
                 print(f"  additional_kwargs: {self._trim_for_print(msg.additional_kwargs)}")
             if hasattr(msg, 'response_metadata') and msg.response_metadata:
+                print("------------------------------------------------\n")
                 print(f"  response_metadata: {self._trim_for_print(msg.response_metadata)}")
         
-        print()  # Empty line for readability
+        print("------------------------------------------------\n")
 
     def _deep_trim_dict(self, obj, max_len=None):
         """
