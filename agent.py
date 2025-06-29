@@ -33,7 +33,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint, HuggingFaceEmbeddings
 from langchain_community.vectorstores import SupabaseVectorStore
-from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage
 from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
@@ -579,7 +579,6 @@ class GaiaAgent:
         if tool_results_history:
             best_result = tool_results_history[-1] if tool_results_history else "No result available"
             print(f"[Tool Loop] 📝 Using most recent tool result as final answer: {best_result}")
-            from langchain_core.messages import AIMessage
             return AIMessage(content=best_result)
         
         return None
@@ -652,7 +651,6 @@ class GaiaAgent:
             except Exception as e:
                 print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
                 
-                from langchain_core.messages import AIMessage
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
 
             # Check if response was truncated due to token limits
@@ -660,7 +658,6 @@ class GaiaAgent:
                 finish_reason = response.response_metadata.get('finish_reason')
                 if finish_reason == 'length':
                     print(f"[Tool Loop] ❌ Hit token limit for {llm_type} LLM. Response was truncated. Cannot complete reasoning.")
-                    from langchain_core.messages import AIMessage
                     return AIMessage(content=f"Error: Hit token limit for {llm_type} LLM. Cannot complete reasoning.")
 
             # === DEBUG OUTPUT ===
@@ -680,7 +677,6 @@ class GaiaAgent:
                     print(f"[Tool Loop] Empty content but tool calls detected - proceeding with tool execution")
                 else:
                     print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
-                    from langchain_core.messages import AIMessage
                     return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
 
             # Check for progress (new content or tool calls)
