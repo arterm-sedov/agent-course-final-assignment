@@ -625,7 +625,7 @@ class GaiaAgent:
         # Adaptive step limits based on LLM type and progress
         base_max_steps = {
             "gemini": 25,    # More steps for Gemini due to better reasoning
-            "groq": 10,     # Reduced from 15 to prevent token limit issues
+            "groq": 5,       # Reduced from 10 to 5 to prevent infinite loops
             "huggingface": 20,  # Conservative for HuggingFace
             "unknown": 20
         }
@@ -637,7 +637,7 @@ class GaiaAgent:
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
         last_response_content = ""  # Track last response content for progress detection
-        max_total_tool_calls = 15  # Maximum total tool calls before forcing final answer   
+        max_total_tool_calls = 8  # Reduced from 15 to 8 to prevent excessive tool usage
         max_tool_calls_per_step = 3  # Maximum tool calls allowed per step
         total_tool_calls = 0  # Track total tool calls to prevent infinite loops
         
@@ -673,7 +673,9 @@ class GaiaAgent:
                     if step > 2:  # Only add this message after a few steps
                         reminder = (
                             f"You have used {tool_name} {count} times without finding the answer. "
-                            f"Please try a different approach or provide your FINAL ANSWER based on the information you have."
+                            f"Dp not call this tool. Consider any results. If the result is empty."
+                            f"Call DIFFERENT TOOL."
+                            f"NOW provide your FINAL ANSWER based on the information you have."
                         )
                         messages.append(HumanMessage(content=reminder))
             
@@ -835,19 +837,19 @@ class GaiaAgent:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
                     
-                    # Check if this is a duplicate tool call
-                    if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
-                        duplicate_count += 1
-                        print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
-                        continue
-                    
-                    # Check if tool usage limit exceeded
+                    # Check if tool usage limit exceeded FIRST (most restrictive check)
                     if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
                         print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
                         duplicate_count += 1
                         continue
                     
-                    # New tool call - add it
+                    # Check if this is a duplicate tool call (SECOND)
+                    if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
+                        duplicate_count += 1
+                        print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
+                        continue
+                    
+                    # New tool call - add it (LAST)
                     print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
                     new_tool_calls.append(tool_call)
                     self._add_tool_call_to_history(tool_name, tool_args, called_tools)
