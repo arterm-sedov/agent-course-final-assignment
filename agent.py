@@ -1852,10 +1852,31 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         
         print()  # Empty line for readability
 
+    def _deep_trim_dict(self, obj, max_len=None):
+        """
+        Recursively trim all string fields in a dict or list to max_len characters.
+        """
+        if max_len is None:
+            max_len = self.MAX_PRINT_LEN
+        if isinstance(obj, dict):
+            return {k: self._deep_trim_dict(v, max_len) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._deep_trim_dict(v, max_len) for v in obj]
+        elif isinstance(obj, str):
+            if len(obj) > max_len:
+                return f"Truncated. Original length: {len(obj)}\n{obj[:max_len]}"
+            return obj
+        else:
+            return obj
+
     def _print_tool_result(self, tool_name, tool_result):
         """
-        Helper to print tool results in a readable format with proper truncation.
-        Reuses the existing _trim_for_print function.
+        Print tool results in a readable format with deep recursive trimming for all dicts/lists.
+        For dict/list results, deeply trim all string fields. For other types, use _trim_for_print.
         """
-        print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(tool_result)}")
-        print()  # Empty line for readability
+        if isinstance(tool_result, (dict, list)):
+            trimmed = self._deep_trim_dict(tool_result)
+            print(f"[Tool Loop] Tool result for '{tool_name}': {trimmed}")
+        else:
+            print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(tool_result)}")
+        print()
