@@ -496,7 +496,7 @@ class GaiaAgent:
         max_steps = base_max_steps.get(llm_type, 8)
         
         # Tool calling configuration       
-        called_tools = set()  # Track which tools have been called to prevent duplicates (stores dictionaries with name, embedding, args)
+        called_tools = []  # Track which tools have been called to prevent duplicates (stores dictionaries with name, embedding, args)
         tool_results_history = []  # Track tool results for better fallback handling
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
@@ -1544,14 +1544,14 @@ class GaiaAgent:
             print(f"❌ {llm_name} test failed: {e}")
             return False 
 
-    def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: set) -> bool:
+    def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: list) -> bool:
         """
         Check if a tool call is a duplicate based on tool name and vector similarity of arguments.
         
         Args:
             tool_name: Name of the tool
             tool_args: Arguments for the tool
-            called_tools: Set of previously called tool dictionaries
+            called_tools: List of previously called tool dictionaries
             
         Returns:
             bool: True if this is a duplicate tool call
@@ -1573,14 +1573,14 @@ class GaiaAgent:
         
         return False
 
-    def _add_tool_call_to_history(self, tool_name: str, tool_args: dict, called_tools: set) -> None:
+    def _add_tool_call_to_history(self, tool_name: str, tool_args: dict, called_tools: list) -> None:
         """
         Add a tool call to the history of called tools.
         
         Args:
             tool_name: Name of the tool
             tool_args: Arguments for the tool
-            called_tools: Set of previously called tool dictionaries
+            called_tools: List of previously called tool dictionaries
         """
         # Convert tool args to text for embedding
         args_text = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
@@ -1594,7 +1594,7 @@ class GaiaAgent:
             'embedding': tool_embedding,
             'args': tool_args
         }
-        called_tools.add(tool_call_record)
+        called_tools.append(tool_call_record)
 
     def _trim_for_print(self, obj, max_len=None):
         """
