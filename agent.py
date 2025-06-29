@@ -953,6 +953,10 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Normalize answer by removing common prefixes, normalizing whitespace, and removing punctuation for comparison.
         """
         import re
+        # Handle None or empty values gracefully
+        if not ans:
+            return ""
+        
         ans = ans.strip().lower()
         if ans.startswith("final answer:"):
             ans = ans[12:].strip()
@@ -972,6 +976,11 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
 
     def _vector_answers_match(self, answer: str, reference: str) -> bool:
         try:
+            # Handle None or empty answers gracefully
+            if not answer:
+                print("⚠️ Answer is empty, cannot compare with reference")
+                return False
+                
             norm_answer = self._normalize_answer(answer)
             norm_reference = self._normalize_answer(reference)
             if norm_answer == norm_reference:
@@ -1000,7 +1009,12 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
             print(f"⚠️ Error in vector similarity matching: {e}")
             # Fallback to simple string matching if embedding fails
             return self._fallback_string_match(answer, reference)
+
     def _fallback_string_match(self, answer: str, reference: str) -> bool:
+        # Handle None or empty answers gracefully
+        if not answer:
+            return False
+            
         norm_answer = self._normalize_answer(answer)
         norm_reference = self._normalize_answer(reference)
         if norm_answer == norm_reference:
@@ -1076,6 +1090,10 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         - Normalizing whitespace
         """
         import re
+        # Handle None text gracefully
+        if not text:
+            return ""
+            
         print(f"[CleanFinalAnswer] Original text before stripping: {text}")
         # Find the first occurrence of 'FINAL ANSWER' (case-insensitive)
         match = re.search(r'final answer\s*:?', text, flags=re.IGNORECASE)
@@ -1096,6 +1114,10 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Returns:
             str: The text content from the response
         """
+        # Handle None responses gracefully
+        if not response:
+            return ""
+            
         if hasattr(response, 'content'):
             return response.content
         elif isinstance(response, dict) and 'content' in response:
