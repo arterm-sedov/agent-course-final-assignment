@@ -1027,7 +1027,7 @@ class GaiaAgent:
             print(f"🤖 Using {llm_name}")
             print(f"--- LLM Prompt/messages sent to {llm_name} ---")
             for i, msg in enumerate(messages):
-                self._print_message_components(msg, i)
+                print(f"Message {i}: {self._trim_for_print(msg)}")
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
@@ -1799,30 +1799,52 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
 
     def _print_message_components(self, msg, msg_index):
         """
-        Generic helper to print all message components with proper truncation.
-        Automatically detects and prints all attributes of the message object.
+        Type-aware helper to print message components with proper truncation.
+        Only prints relevant components based on message type.
         """
         print(f"Message {msg_index}:")
         
-        # Get all attributes of the message object
-        for attr_name in dir(msg):
-            # Skip private attributes and methods
-            # if attr_name.startswith('_'):
-            #     continue
-            
-            # Skip methods (only print attributes)
-            if callable(getattr(msg, attr_name)):
-                continue
-            
-            # Get the attribute value
-            attr_value = getattr(msg, attr_name)
-            
-            # Skip None values and empty strings
-            if attr_value is None or (isinstance(attr_value, str) and not attr_value.strip()):
-                continue
-            
-            # Print the attribute with truncation
-            print(f"  {attr_name}: {self._trim_for_print(attr_value)}")
+        # Get message type
+        msg_type = getattr(msg, 'type', 'unknown')
+        print(f"  type: {msg_type}")
+        
+        # Print components based on message type
+        if msg_type == 'system':
+            # System messages: content only
+            if hasattr(msg, 'content') and msg.content:
+                print(f"  content: {self._trim_for_print(msg.content)}")
+                
+        elif msg_type == 'human':
+            # Human messages: content only
+            if hasattr(msg, 'content') and msg.content:
+                print(f"  content: {self._trim_for_print(msg.content)}")
+                
+        elif msg_type == 'ai':
+            # AI messages: content, tool_calls, function_call
+            if hasattr(msg, 'content') and msg.content:
+                print(f"  content: {self._trim_for_print(msg.content)}")
+            if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                print(f"  tool_calls: {self._trim_for_print(msg.tool_calls)}")
+            if hasattr(msg, 'function_call') and msg.function_call:
+                print(f"  function_call: {self._trim_for_print(msg.function_call)}")
+                
+        elif msg_type == 'tool':
+            # Tool messages: content, name, tool_call_id
+            if hasattr(msg, 'content') and msg.content:
+                print(f"  content: {self._trim_for_print(msg.content)}")
+            if hasattr(msg, 'name') and msg.name:
+                print(f"  name: {msg.name}")
+            if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
+                print(f"  tool_call_id: {msg.tool_call_id}")
+                
+        else:
+            # Unknown type: print all common attributes
+            if hasattr(msg, 'content') and msg.content:
+                print(f"  content: {self._trim_for_print(msg.content)}")
+            if hasattr(msg, 'additional_kwargs') and msg.additional_kwargs:
+                print(f"  additional_kwargs: {self._trim_for_print(msg.additional_kwargs)}")
+            if hasattr(msg, 'response_metadata') and msg.response_metadata:
+                print(f"  response_metadata: {self._trim_for_print(msg.response_metadata)}")
         
         print()  # Empty line for readability
 
