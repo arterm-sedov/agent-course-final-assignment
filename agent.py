@@ -450,6 +450,11 @@ class GaiaAgent:
             tool_results_history=tool_results_history
         )
         
+        # If we have tool results, explicitly include them in the reminder
+        if tool_results_history:
+            tool_results_text = "\n\nTOOL RESULTS:\n" + "\n".join([f"Result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
+            reminder += tool_results_text
+        
         # Add the reminder to the existing message history
         messages.append(HumanMessage(content=reminder))
         
