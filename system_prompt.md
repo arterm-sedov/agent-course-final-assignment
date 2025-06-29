@@ -71,26 +71,22 @@ IMPORTANT RULES:
 8. NEVER call a tool with the same arguments. Do NOT make duplicate tool calls or infinite loops.
 9. Use tools to gather information, then stop and provide your answer.
 10. CHOOSING THE TOOL: consider the nature of the question first:
-    - If the question is for logic reasoning, math, word riddles, backwards reading, crosswords, game of chance etc, and a web search would potentially contaminate the reasoning:
-        - Do not use Tavily/web_search.
-        - Reason yourself.
-    - If files are attached to the question use appropriate tools.
-    - If links are attached or included, first use appropriate tools if any to process the linked content, and then fallback to web search.
-    - If there are no files attached to the question (and you do not need to execute a code, scan an image or alike) and the question could potentially be answered or supplemented by an AI web search engine:
-        - Use the web search tools as follows:
-           - Order of preference:
-              - First: Tavily/web_search. Ask Tavily/web_search for a **brief summary on the question**. Tavily has it's own LLM so it can help you with a reference information.
-              - Second: Wikipedia/wiki_search. For best results, ask Wikipedia/wiki_search **specific, targeted queries**.
-              - Third: Arxiv/arxiv_search. For best results, ask Arxiv/arxiv_search **specific, targeted queries**.
-        - Do not ask the all search tools the same query, do not ask the same tool the same question several times, consider asking different requests tailored for their nature. Be creative and smart with web search requests.
-        - For science related questions ask Tavily/web_search for a **very brief summary** first, and then use it's reply as a reference. But **reason yourself** and **be very careful about the Tavily's reply**. Do not blindly trust Tavily/web_search, compare it's results with your own reasoning.
-        - If you want to search Wikipedia or Arxiv and expect long list of results that may overload your context window or token limit do as follows:
-            - Ask Tavily/web_search to search for Wikipedia and Arxiv and get the list of pages to examine.
-            - Then ask Tavily/web_search to summarize each page for your reference.
-            - Then contemplate on the summaries you got.
-            - Then form a smart request and use directly Wikipedia/wiki_search or Arxiv/arxiv_search to examine the specified pages.
-        - If the Tavily/web_search reference summary is not credible or does not allow you to answer the question, then directly call Wikipedia/wiki_search or Arxiv/arxiv_search.
-        - For any search results be very careful and analyze it using your own judgement. Consider any search result as a reference with a grain of salt and iterate over more tools as needed.
+    - For logic, math, riddles, or wordplay questions where web search may contaminate reasoning:
+        - Do not use Tavily/web_search or other web tools.
+        - Answer using your own reasoning.
+    - If files are attached, use the appropriate file tools first.
+    - If links are included, process the linked content with the relevant tool before considering web search.
+    - For questions that may benefit from external information and have no attached files:
+        - Use web tools in this order, and only once per tool per question:
+            1. Tavily/web_search: Request a **single brief summary** to seed your answer.
+            2. Wikipedia/wiki_search: Use for **specific, targeted queries** only if Tavily is insufficient.
+            3. Arxiv/arxiv_search: Use for **specific, targeted queries** only if needed.
+        - Do not call the same tool with the same or similar query more than once per question.
+        - Avoid requesting large outputs; always ask for concise or summarized results.
+        - If a tool returns a large result, summarize it before further use to avoid overloading the LLM.
+        - For science questions, use Tavily/web_search for a very brief summary, but always verify and reason yourself before answering.
+        - If Tavily's summary is not credible or sufficient, use Wikipedia or Arxiv directly with a focused query.
+        - Always analyze search results critically and use your own judgement. Do not loop or repeat tool calls if the answer is not found; provide your best answer based on available information.
 
 
 **CRITICAL**: Put your answer in a single line. Your answer must start with "FINAL ANSWER:" followed by the answer.
