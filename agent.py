@@ -688,14 +688,13 @@ class GaiaAgent:
             except Exception as e:
                 print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
                 
-                # Check for token limit errors specifically
+                # Check for Groq token limit errors specifically
                 if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
                     print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
                     if tool_results_history:
                         return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                     else:
                         return AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
-                
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
 
             # Check if response was truncated due to token limits
@@ -721,18 +720,18 @@ class GaiaAgent:
                 if hasattr(response, 'tool_calls') and response.tool_calls:
                     print(f"[Tool Loop] Empty content but tool calls detected - proceeding with tool execution")
                 else:
-                    # If we have tool results but no content, force a final answer
-                    if tool_results_history:
-                        print(f"[Tool Loop] Empty content but we have {len(tool_results_history)} tool results. Forcing final answer.")
+                    # If we have tool results but no content, force a final answer after 2 consecutive empty responses
+                    if tool_results_history and consecutive_no_progress >= 1:
+                        print(f"[Tool Loop] Empty content and we have {len(tool_results_history)} tool results for 2 consecutive steps. Forcing final answer.")
                         return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
-                    else:
-                        # Check if this is a repeated empty response pattern
-                        if step >= 2:  # After a few steps of empty responses
-                            print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response for {step+1} consecutive steps.")
-                            return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
-                        else:
-                            print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
-                            return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                    # Otherwise, increment no-progress counter and continue
+                    consecutive_no_progress += 1
+                    print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response. Consecutive no-progress steps: {consecutive_no_progress}")
+                    if consecutive_no_progress >= 2:
+                        return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                    continue
+            else:
+                consecutive_no_progress = 0  # Reset counter on progress
 
             # Check for progress (new content or tool calls)
             current_content = getattr(response, 'content', '') or ''
