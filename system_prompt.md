@@ -10,6 +10,7 @@ IMPORTANT RULES:
     - For any science related questions ask Tavily/web_search first and use it's reply as a reference.
     - In general ask Tavily/web_search first for a reference, unless you need to execute a code, scan an image or alike.
     - Do not blindly trust Tavily/web_search, compare it's results with your own reasoning.
+    - If you want to search Wikipedia or Arxiv and expect long list of results that may overload your context window or token limit ask Tavily/web_search to search and summarize Arxiv and Wikipedia when needed for additional reference, instead of searching yourself.
 4. Call each tool only ONCE per question.
 5. If you need multiple tools, call each one once, then analyze the results.
 6. After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.
