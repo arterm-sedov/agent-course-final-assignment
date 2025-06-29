@@ -496,13 +496,13 @@ class GaiaAgent:
         
         Args:
             messages: Current message list
-            tool_results_history: History of tool results
+            tool_results_history: History of tool results (can be empty)
             llm: LLM instance
             
         Returns:
             Response from LLM or fallback answer
         """
-        print(f"[Tool Loop] All tool calls were duplicates. Forcing final answer with tool results.")
+        print(f"[Tool Loop] Trying to force the final answer with {len(tool_results_history)} tool results.")
         
         # Find the original question
         original_question = None
@@ -525,18 +525,24 @@ class GaiaAgent:
         #     )
         
         # Compose a comprehensive final answer request
-        final_answer_prompt = (
-            f"Based on the following tool results, provide your FINAL ANSWER to the question.\n\n"
+        common_prompt = (
             f"QUESTION:\n{original_question}\n\n"
+            f"Your answer must follow the system prompt formatting rules.\n\n"
+            f"SYSTEM PROMPT:\n{self.sys_msg.content}"
         )
         
-        if tool_results_summary:
-            final_answer_prompt += f"TOOL RESULTS SUMMARY (for context):\n{tool_results_summary}\n\n"
-        
-        final_answer_prompt += (
-            f"Please analyze the tool results and provide your final answer in the required format.\n"
-            f"Your answer must follow the system prompt formatting rules."
-        )
+        if tool_results_history:
+            final_answer_prompt = (
+                f"Based on the tool results, provide your FINAL ANSWER to the question.\n\n"
+                f"Please analyze the tool results and provide your final answer in the required format.\n\n"
+                f"{common_prompt}"
+            )
+        else:
+            final_answer_prompt = (
+                f"You have reached the maximum number of tool calls but no useful information was found.\n\n"
+                f"Please provide your FINAL ANSWER based on your knowledge or indicate that you cannot answer the question.\n\n"
+                f"{common_prompt}"
+            )
         
         # Create new message list with system prompt, question, and tool results
         final_messages = [self.sys_msg, HumanMessage(content=final_answer_prompt)]
@@ -566,7 +572,8 @@ class GaiaAgent:
                     print("[Tool Loop] Forced response missing FINAL ANSWER marker. Adding explicit reminder.")
                     # Add explicit reminder about the required format
                     explicit_reminder = (
-                        f"Please provide your final answer in the correct format based on the tool results provided."
+                        f"Please provide your final answer in the correct format based on the system prompt formatting rules:\n\n"
+                        f"SYSTEM PROMPT:\n\n{self.sys_msg.content}"
                     )
                     final_messages.append(HumanMessage(content=explicit_reminder))
                     try:
@@ -581,13 +588,8 @@ class GaiaAgent:
         except Exception as e:
             print(f"[Tool Loop] ❌ Failed to force final answer: {e}")
         
-        # Fallback: use the most recent tool result if available
-        if tool_results_history:
-            best_result = tool_results_history[-1] if tool_results_history else "No result available"
-            print(f"[Tool Loop] 📝 Using most recent tool result as final answer: {best_result}")
-            print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results before exit")
-            return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
-        return None
+        # Fallback: return error message if LLM fails
+        return AIMessage(content=f"Error: Unable to generate final answer after exhausting tool calls.")
 
     def _summarize_long_tool_messages(self, messages: List, llm_type: str, max_tokens: int = 200) -> None:
         """
@@ -658,20 +660,10 @@ class GaiaAgent:
             current_step_tool_results = []  # Reset for this step
             
             # Check if we've exceeded the maximum total tool calls
-            if total_tool_calls >= max_total_tool_calls or all(self._is_duplicate_tool_call(tc['tool_name'], tc['tool_args'], called_tools) for tc in tool_results_history):
-                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) or all tool calls were duplicates. Forcing final answer.")
-                if tool_results_history:
-                    # Use the most recent non-empty tool result
-                    for tr in reversed(tool_results_history):
-                        main_text = self._extract_main_text_from_tool_result(tr['tool_result'])
-                        if main_text and main_text.strip():
-                            final_answer = f"FINAL ANSWER: {main_text[:self.MAX_PRINT_LEN]}"
-                            print(f"[Tool Loop] 📝 Forced final answer from tool result: {final_answer}")
-                            return AIMessage(content=final_answer)
-                    # If all tool results are empty, return a generic message
-                    return AIMessage(content="FINAL ANSWER: Unable to find a non-empty answer from tool results.")
-                else:
-                    return AIMessage(content="FINAL ANSWER: No tool results available.")
+            if total_tool_calls >= max_total_tool_calls:
+                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _handle_duplicate_tool_calls().")
+                # Let the LLM generate the final answer from tool results (or lack thereof)
+                return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
             
             # Check for excessive tool usage
             for tool_name, count in tool_usage_count.items():
