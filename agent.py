@@ -675,9 +675,13 @@ class GaiaAgent:
 
             # Check for empty response
             if not hasattr(response, 'content') or not response.content:
-                print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
-                from langchain_core.messages import AIMessage
-                return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                # Allow empty content if there are tool calls (this is normal for tool-calling responses)
+                if hasattr(response, 'tool_calls') and response.tool_calls:
+                    print(f"[Tool Loop] Empty content but tool calls detected - proceeding with tool execution")
+                else:
+                    print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
+                    from langchain_core.messages import AIMessage
+                    return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
 
             # Check for progress (new content or tool calls)
             current_content = getattr(response, 'content', '') or ''
