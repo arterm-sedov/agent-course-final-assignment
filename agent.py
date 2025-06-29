@@ -615,6 +615,7 @@ class GaiaAgent:
         Returns:
             The final LLM response (with content)
         """
+
         # Adaptive step limits based on LLM type and progress
         base_max_steps = {
             "gemini": 25,    # More steps for Gemini due to better reasoning
@@ -634,6 +635,13 @@ class GaiaAgent:
         max_tool_calls_per_step = 3  # Maximum tool calls allowed per step
         total_tool_calls = 0  # Track total tool calls to prevent infinite loops
         
+        # NEW: Track search tool usage to prevent infinite search loops
+        search_tool_usage = {
+            'wiki_search': {'count': 0, 'queries': set(), 'max_attempts': 2},
+            'web_search': {'count': 0, 'queries': set(), 'max_attempts': 2}, 
+            'arxiv_search': {'count': 0, 'queries': set(), 'max_attempts': 2}
+        }
+        
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
             current_step_tool_results = []  # Reset for this step
@@ -645,6 +653,18 @@ class GaiaAgent:
                     return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                 else:
                     return AIMessage(content="Error: Maximum tool calls exceeded. Cannot complete reasoning.")
+            
+            # NEW: Check for excessive search tool usage
+            for tool_name, usage in search_tool_usage.items():
+                if usage['count'] >= usage['max_attempts']:
+                    print(f"[Tool Loop] ⚠️ {tool_name} used {usage['count']} times (max: {usage['max_attempts']}). Preventing further usage.")
+                    # Add a message to discourage further use of this tool
+                    if step > 2:  # Only add this message after a few steps
+                        reminder = (
+                            f"You have used {tool_name} {usage['count']} times without finding the answer. "
+                            f"Please try a different approach or provide your FINAL ANSWER based on the information you have."
+                        )
+                        messages.append(HumanMessage(content=reminder))
             
             # Truncate messages to prevent token overflow
             messages = self._truncate_messages(messages, llm_type)
@@ -701,8 +721,23 @@ class GaiaAgent:
                         print(f"[Tool Loop] Empty content but we have {len(tool_results_history)} tool results. Forcing final answer.")
                         return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                     else:
-                        print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
-                        return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                        # NEW: Check if this is a repeated empty response pattern
+                        if step >= 2:  # After a few steps of empty responses
+                            print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response for {step+1} consecutive steps.")
+                            # Check if we've been calling search tools repeatedly
+                            search_tool_called = any(
+                                tool_name in search_tool_usage and search_tool_usage[tool_name]['count'] > 0
+                                for tool_name in search_tool_usage
+                            )
+                            
+                            if search_tool_called:
+                                print(f"[Tool Loop] Search tools were used but LLM keeps returning empty responses. This may be due to token limits.")
+                                return AIMessage(content=f"Error: {llm_type} LLM is returning empty responses after using search tools. This may be due to token limits. Cannot complete reasoning.")
+                            else:
+                                return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                        else:
+                            print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
+                            return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
 
             # Check for progress (new content or tool calls)
             current_content = getattr(response, 'content', '') or ''
@@ -798,32 +833,43 @@ class GaiaAgent:
                     print(f"[Tool Loop] Too many tool calls on a single step ({len(tool_calls)}). Limiting to first {max_tool_calls_per_step}.")
                     tool_calls = tool_calls[:max_tool_calls_per_step]
                 
-                # Filter out duplicate tool calls (by name and args)
+                # NEW: Enhanced duplicate detection for search tools
                 new_tool_calls = []
                 duplicate_count = 0
                 for tool_call in tool_calls:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
+                    
+                    # Create a unique key for this tool call
                     args_key = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+                    tool_call_key = (tool_name, args_key)
                     
                     # Check if this exact tool call has been made before
-                    if (tool_name, args_key) not in called_tools:
-                        # New tool call
-                        print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
-                        new_tool_calls.append(tool_call)
-                        called_tools.add((tool_name, args_key))
+                    if tool_call_key not in called_tools:
+                        # Check if search tool usage limit exceeded
+                        if tool_name in search_tool_usage and search_tool_usage[tool_name]['count'] >= search_tool_usage[tool_name]['max_attempts']:
+                            print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({search_tool_usage[tool_name]['count']}/{search_tool_usage[tool_name]['max_attempts']}). Skipping.")
+                            duplicate_count += 1
+                        else:
+                            # New tool call - add it
+                            print(f"[Tool Loop] New tool call: {tool_name} with args: {tool_args}")
+                            new_tool_calls.append(tool_call)
+                            called_tools.add(tool_call_key)
+                            
+                            # Track search tool usage
+                            if tool_name in search_tool_usage:
+                                search_tool_usage[tool_name]['count'] += 1
+                                # Extract query for tracking
+                                if isinstance(tool_args, dict):
+                                    query = tool_args.get('input') or tool_args.get('query') or str(tool_args)
+                                else:
+                                    query = str(tool_args)
+                                search_tool_usage[tool_name]['queries'].add(query)
+                                print(f"[Tool Loop] {tool_name} usage: {search_tool_usage[tool_name]['count']}/{search_tool_usage[tool_name]['max_attempts']}")
                     else:
-                        # Duplicate tool call
+                        # Exact duplicate tool call
                         duplicate_count += 1
                         print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
-                        
-                        # Only add reminder if this is the first duplicate in this step
-                        if duplicate_count == 1:
-                            reminder = (
-                                f"You have already called tool '{tool_name}' with arguments {tool_args}. "
-                                f"Please use the previous result or call a different tool if needed."
-                            )
-                            messages.append(HumanMessage(content=reminder))
                 
                 # Only force final answer if ALL tool calls were duplicates AND we have tool results
                 if not new_tool_calls and tool_results_history:
@@ -1013,6 +1059,11 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
                         else:
                             print(f"🔄 Retrying {llm_name} without tools (no tool results found)")
                             response = llm_no_tools.invoke(messages)
+                    
+                    # NEW: If still no content, this might be a token limit issue
+                    if not hasattr(response, 'content') or not response.content:
+                        print(f"⚠️ {llm_name} still returning empty content even without tools. This may be a token limit issue.")
+                        return AIMessage(content=f"Error: {llm_name} failed due to token limits. Cannot complete reasoning.")
             else:
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
