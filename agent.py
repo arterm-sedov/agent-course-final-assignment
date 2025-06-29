@@ -482,6 +482,8 @@ class GaiaAgent:
                         # For non-dict args, pass directly
                         tool_result = tool_func(tool_args)
                 print(f"[Tool Loop] Tool '{tool_name}' executed successfully.")
+                # Trim wiki_search and web_search results
+                tool_result = self._trim_tool_result(tool_name, tool_result)
             except Exception as e:
                 tool_result = f"Error running tool '{tool_name}': {e}"
                 print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
@@ -1779,3 +1781,27 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         """
         tool_call_key = self._create_tool_call_key(tool_name, tool_args)
         called_tools.add(tool_call_key)
+
+    def _trim_tool_result(self, tool_name, tool_result):
+        """
+        Trim wiki_search and web_search tool results to MAX_PRINT_LEN chars if they are dicts with 'wiki_results' or 'web_results'.
+        """
+        if tool_name in ("wiki_search", "web_search"):
+            # Try to parse if stringified dict
+            if isinstance(tool_result, str):
+                try:
+                    import ast
+                    parsed = ast.literal_eval(tool_result)
+                    if isinstance(parsed, dict):
+                        tool_result = parsed
+                except Exception:
+                    pass
+            if isinstance(tool_result, dict):
+                key = "wiki_results" if tool_name == "wiki_search" else "web_results"
+                if key in tool_result and isinstance(tool_result[key], str):
+                    val = tool_result[key]
+                    if len(val) > self.MAX_PRINT_LEN:
+                        val = val[:self.MAX_PRINT_LEN] + "...(trimmed)"
+                    tool_result[key] = val
+                    return str(tool_result)
+        return str(tool_result)
