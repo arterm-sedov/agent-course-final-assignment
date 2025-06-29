@@ -579,8 +579,8 @@ class GaiaAgent:
         if tool_results_history:
             best_result = tool_results_history[-1] if tool_results_history else "No result available"
             print(f"[Tool Loop] 📝 Using most recent tool result as final answer: {best_result}")
-            return AIMessage(content=best_result)
-        
+            print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results before exit")
+            return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
         return None
 
     def _summarize_long_tool_messages(self, messages: List, llm_type: str, max_tokens: int = 200) -> None:
@@ -696,8 +696,13 @@ class GaiaAgent:
                 if hasattr(response, 'tool_calls') and response.tool_calls:
                     print(f"[Tool Loop] Empty content but tool calls detected - proceeding with tool execution")
                 else:
-                    print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
-                    return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
+                    # If we have tool results but no content, force a final answer
+                    if tool_results_history:
+                        print(f"[Tool Loop] Empty content but we have {len(tool_results_history)} tool results. Forcing final answer.")
+                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                    else:
+                        print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response.")
+                        return AIMessage(content=f"Error: {llm_type} LLM returned empty response. Cannot complete reasoning.")
 
             # Check for progress (new content or tool calls)
             current_content = getattr(response, 'content', '') or ''
@@ -709,7 +714,7 @@ class GaiaAgent:
             has_final_answer = (hasattr(response, 'content') and response.content and 
                               self._has_final_answer_marker(response))
             
-            if has_tool_results and not has_final_answer and step >= 2:  # Reduced from 3 to 2
+            if has_tool_results and not has_final_answer and step >= 1:  # Reduced from 2 to 1
                 # We have information but no answer - gently remind to provide final answer
                 reminder = (
                     f"You have gathered information from {len(tool_results_history)} tool calls. "
@@ -725,6 +730,10 @@ class GaiaAgent:
                 # Exit early if no progress for too many consecutive steps
                 if consecutive_no_progress >= 2:  # Reduced from 3 to 2
                     print(f"[Tool Loop] Exiting due to {consecutive_no_progress} consecutive steps without progress")
+                    # If we have tool results, force a final answer before exiting
+                    if tool_results_history:
+                        print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results before exit")
+                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
                     break
                 elif consecutive_no_progress == 1:
                     # Add a gentle reminder to use tools
@@ -741,39 +750,45 @@ class GaiaAgent:
 
             # If response has content and no tool calls, return
             if hasattr(response, 'content') and response.content and not getattr(response, 'tool_calls', None):
-                print(f"[Tool Loop] Final answer detected: {response.content}")
-                # --- NEW LOGIC: Check for 'FINAL ANSWER' marker ---
+                
+                # --- Check for 'FINAL ANSWER' marker ---
                 if self._has_final_answer_marker(response):
+                    print(f"[Tool Loop] Final answer detected: {response.content}")
                     return response
                 else:
-                    print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
-                    # Summarize the context (all tool results and messages so far)
-                    # context_text = "\n".join(str(getattr(msg, 'content', '')) for msg in messages if hasattr(msg, 'content'))
-                    # summarized_context = self._summarize_text_with_llm(context_text, max_tokens=self.max_summary_tokens, question=self.original_question)
-                    # Find the original question
-                    original_question = None
-                    for msg in messages:
-                        if hasattr(msg, 'type') and msg.type == 'human':
-                            original_question = msg.content
-                            break
-                    if not original_question:
-                        original_question = "[Original question not found]"
-                    # Compose a reminder message
-                    reminder = (
-                        f"You did not provide your answer in the required format.\n"
-                        f"Please answer the following question in the required format, strictly following the system prompt.\n\n"
-                        f"QUESTION:\n{original_question}\n\n"
-                        # f"CONTEXT SUMMARY (tool results, previous reasoning):\n{summarized_context}\n\n"
-                        f"Remember: Your answer must start with 'FINAL ANSWER:' and follow the formatting rules."
-                    )
-                    reiterate_messages = [self.sys_msg, HumanMessage(content=reminder)]
-                    try:
-                        reiterate_response = llm.invoke(reiterate_messages)
-                        print(f"[Tool Loop] Reiterated response: {reiterate_response.content if hasattr(reiterate_response, 'content') else reiterate_response}")
-                        return reiterate_response
-                    except Exception as e:
-                        print(f"[Tool Loop] ❌ Failed to reiterate for 'FINAL ANSWER': {e}")
-                        return response
+                    # If we have tool results but no FINAL ANSWER marker, force processing
+                    if tool_results_history:
+                        print(f"[Tool Loop] Content without FINAL ANSWER marker but we have {len(tool_results_history)} tool results. Forcing final answer.")
+                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                    else:
+                        print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder and summarized context.")
+                        # Summarize the context (all tool results and messages so far)
+                        # context_text = "\n".join(str(getattr(msg, 'content', '')) for msg in messages if hasattr(msg, 'content'))
+                        # summarized_context = self._summarize_text_with_llm(context_text, max_tokens=self.max_summary_tokens, question=self.original_question)
+                        # Find the original question
+                        original_question = None
+                        for msg in messages:
+                            if hasattr(msg, 'type') and msg.type == 'human':
+                                original_question = msg.content
+                                break
+                        if not original_question:
+                            original_question = "[Original question not found]"
+                        # Compose a reminder message
+                        reminder = (
+                            f"You did not provide your answer in the required format.\n"
+                            f"Please answer the following question in the required format, strictly following the system prompt.\n\n"
+                            f"QUESTION:\n{original_question}\n\n"
+                            # f"CONTEXT SUMMARY (tool results, previous reasoning):\n{summarized_context}\n\n"
+                            f"Remember: Your answer must start with 'FINAL ANSWER:' and follow the formatting rules."
+                        )
+                        reiterate_messages = [self.sys_msg, HumanMessage(content=reminder)]
+                        try:
+                            reiterate_response = llm.invoke(reiterate_messages)
+                            print(f"[Tool Loop] Reiterated response: {reiterate_response.content if hasattr(reiterate_response, 'content') else reiterate_response}")
+                            return reiterate_response
+                        except Exception as e:
+                            print(f"[Tool Loop] ❌ Failed to reiterate for 'FINAL ANSWER': {e}")
+                            return response
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
@@ -905,6 +920,11 @@ class GaiaAgent:
         
         # If we reach here, we've exhausted all steps or hit progress limits
         print(f"[Tool Loop] Exiting after {step+1} steps. Last response: {response}")
+        
+        # If we have tool results but no final answer, force one
+        if tool_results_history and (not hasattr(response, 'content') or not response.content or not self._has_final_answer_marker(response)):
+            print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results at loop exit")
+            return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
         
         # Return the last response as-is, no partial answer extraction
         return response
