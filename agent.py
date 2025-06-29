@@ -513,18 +513,20 @@ class GaiaAgent:
         if not original_question:
             original_question = "[Original question not found]"
         
-        # Create a simple reminder to provide final answer
+        # Create a more explicit reminder to provide final answer
         reminder = (
-            f"You have gathered information from {len(tool_results_history)} tool calls. "
-            f"Please provide your FINAL ANSWER based on this information. "
-            f"Do not call any more tools."
+            f"IMPORTANT: You have gathered information from {len(tool_results_history)} tool calls. "
+            f"The tool results are available in the message history above. "
+            f"Please carefully analyze these results and provide your FINAL ANSWER to the original question: '{original_question}'. "
+            f"Your answer must follow the system prompt"
+            f"Do not call any more tools - provide your answer now."
         )
         
         # Add the reminder to the existing message history
         messages.append(HumanMessage(content=reminder))
         
         try:
-            print(f"[Tool Loop] Sending reminder to LLM to provide final answer...")
+            print(f"[Tool Loop] Sending explicit reminder to LLM to provide final answer...")
             final_response = llm.invoke(messages)
             
             if hasattr(final_response, 'content') and final_response.content:
@@ -694,10 +696,13 @@ class GaiaAgent:
                               self._has_final_answer_marker(response))
             
             if has_tool_results and not has_final_answer and step >= 2:  # Increased from 1 to 2 to give more time
-                # We have information but no answer - gently remind to provide final answer
+                # We have information but no answer - provide explicit reminder to analyze tool results
                 reminder = (
-                    f"You have gathered information from {len(tool_results_history)} tool calls. "
-                    f"Please provide your FINAL ANSWER based on this information."
+                    f"IMPORTANT: You have gathered information from {len(tool_results_history)} tool calls. "
+                    f"The tool results are available in the message history above. "
+                    f"Please carefully analyze these results and provide your FINAL ANSWER to the original question. "
+                    f"Your answer must follow the system prompt."
+                    f"Do not call any more tools - analyze the existing results and provide your answer now."
                 )
                 messages.append(HumanMessage(content=reminder))
             
