@@ -185,12 +185,6 @@ class GaiaAgent:
             description="A tool to retrieve similar questions from a vector store.",
         )
 
-        # Set HuggingFace API token if available
-        if os.environ.get("HUGGINGFACEHUB_API_TOKEN") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY"):
-            print("✅ HuggingFace API token configured")
-        else:
-            print("⚠️ No HuggingFace API token found - HuggingFace LLM may not work")
-
         # Get the LLM types that should be initialized based on the sequence
         llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
         llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
@@ -1532,6 +1526,13 @@ Based on the following tool results, provide your FINAL ANSWER according to the 
         Create HuggingFace LLM with multiple fallback options to handle router issues.
         """
         config = self.LLM_CONFIG["huggingface"]
+        
+        # Check if HuggingFace API token is available
+        if os.environ.get("HUGGINGFACEHUB_API_TOKEN") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY"):
+            print("✅ HuggingFace API token configured")
+        else:
+            print("⚠️ No HuggingFace API token found - HuggingFace LLM may not work")
+            return None
         
         # Try models in priority order from config
         for model_config in config["models"]:
