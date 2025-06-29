@@ -22,6 +22,10 @@ import json
 import csv
 import time
 import random
+import re
+import numpy as np
+import tempfile
+import base64
 #import hashlib
 from typing import List, Dict, Any, Optional
 from tools import *
@@ -489,7 +493,7 @@ class GaiaAgent:
         max_steps = base_max_steps.get(llm_type, 8)
         
         # Tool calling configuration       
-        called_tools = set()  # Track which tools have been called to prevent duplicates
+        called_tools = []  # Track which tools have been called to prevent duplicates (now stores embeddings)
         tool_results_history = []  # Track tool results for better fallback handling
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
@@ -500,9 +504,10 @@ class GaiaAgent:
         
         # Simplified tool usage tracking - no special handling for search tools
         tool_usage_limits = {
+            'default': 3,
             'wiki_search': 2,
-            'web_search': 2, 
-            'arxiv_search': 2,
+            'web_search': 3, 
+            'arxiv_search': 3,
             'analyze_excel_file': 2,
             'analyze_csv_file': 2,
             'analyze_image': 2,
@@ -522,8 +527,8 @@ class GaiaAgent:
             
             # Check for excessive tool usage
             for tool_name, count in tool_usage_count.items():
-                if count >= tool_usage_limits.get(tool_name, 5):  # Default limit of 5 for unknown tools
-                    print(f"[Tool Loop] ⚠️ {tool_name} used {count} times (max: {tool_usage_limits.get(tool_name, 5)}). Preventing further usage.")
+                if count >= tool_usage_limits.get(tool_name, tool_usage_limits['default']):  # Use default limit for unknown tools
+                    print(f"[Tool Loop] ⚠️ {tool_name} used {count} times (max: {tool_usage_limits.get(tool_name, tool_usage_limits['default'])}). Preventing further usage.")
                     # Add a message to discourage further use of this tool
                     if step > 2:  # Only add this message after a few steps
                         reminder = self._get_reminder_prompt(
@@ -682,8 +687,8 @@ class GaiaAgent:
                     tool_args = tool_call.get('args', {})
                     
                     # Check if tool usage limit exceeded FIRST (most restrictive check)
-                    if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
-                        print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
+                    if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, tool_usage_limits['default']):
+                        print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, tool_usage_limits['default'])}). Skipping.")
                         duplicate_count += 1
                         continue
                     
@@ -701,7 +706,7 @@ class GaiaAgent:
                     # Track tool usage
                     if tool_name in tool_usage_count:
                         tool_usage_count[tool_name] += 1
-                        print(f"[Tool Loop] {tool_name} usage: {tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}")
+                        print(f"[Tool Loop] {tool_name} usage: {tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, tool_usage_limits['default'])}")
                 
                 # Only force final answer if ALL tool calls were duplicates AND we have tool results
                 if not new_tool_calls and tool_results_history:
@@ -765,8 +770,8 @@ class GaiaAgent:
                     continue
                 
                 # Check if tool usage limit exceeded
-                if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, 5):
-                    print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, 5)}). Skipping.")
+                if tool_name in tool_usage_count and tool_usage_count[tool_name] >= tool_usage_limits.get(tool_name, tool_usage_limits['default']):
+                    print(f"[Tool Loop] ⚠️ {tool_name} usage limit reached ({tool_usage_count[tool_name]}/{tool_usage_limits.get(tool_name, tool_usage_limits['default'])}). Skipping.")
                     reminder = self._get_reminder_prompt(
                         reminder_type="tool_usage_issue",
                         tool_name=tool_name,
@@ -1007,7 +1012,6 @@ class GaiaAgent:
                 if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                     print("🔄 HuggingFace router error detected, retrying once...")
                     try:
-                        import time
                         time.sleep(2)  # Wait 2 seconds before retry
                         response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                         answer = self._extract_final_answer(response)
@@ -1069,7 +1073,6 @@ class GaiaAgent:
         """
         Normalize answer by removing common prefixes, normalizing whitespace, and removing punctuation for comparison.
         """
-        import re
         # Handle None or empty values gracefully
         if not ans:
             return ""
@@ -1091,6 +1094,30 @@ class GaiaAgent:
         else:
             return str(tool)
 
+    def _calculate_cosine_similarity(self, embedding1, embedding2) -> float:
+        """
+        Calculate cosine similarity between two embeddings.
+        
+        Args:
+            embedding1: First embedding vector
+            embedding2: Second embedding vector
+            
+        Returns:
+            float: Cosine similarity score (0.0 to 1.0)
+        """
+        vec1 = np.array(embedding1)
+        vec2 = np.array(embedding2)
+        
+        # Cosine similarity calculation
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+            
+        return dot_product / (norm1 * norm2)
+
     def _vector_answers_match(self, answer: str, reference: str) -> bool:
         try:
             # Handle None or empty answers gracefully
@@ -1108,18 +1135,8 @@ class GaiaAgent:
             answer_embedding = embeddings.embed_query(norm_answer)
             reference_embedding = embeddings.embed_query(norm_reference)
             
-            # Calculate cosine similarity
-            import numpy as np
-            answer_array = np.array(answer_embedding)
-            reference_array = np.array(reference_embedding)
-            
-            # Cosine similarity calculation
-            dot_product = np.dot(answer_array, reference_array)
-            norm_a = np.linalg.norm(answer_array)
-            norm_r = np.linalg.norm(reference_array)
-            if norm_a == 0 or norm_r == 0:
-                return False
-            cosine_similarity = dot_product / (norm_a * norm_r)
+            # Calculate cosine similarity using the reusable method
+            cosine_similarity = self._calculate_cosine_similarity(answer_embedding, reference_embedding)
             print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
             return cosine_similarity >= self.similarity_threshold
         except Exception as e:
@@ -1548,7 +1565,7 @@ class GaiaAgent:
 
     def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: set) -> bool:
         """
-        Check if a tool call is a duplicate based on tool name and arguments.
+        Check if a tool call is a duplicate based on tool name and vector similarity of arguments.
         
         Args:
             tool_name: Name of the tool
@@ -1558,8 +1575,22 @@ class GaiaAgent:
         Returns:
             bool: True if this is a duplicate tool call
         """
-        tool_call_key = self._create_tool_call_key(tool_name, tool_args)
-        return tool_call_key in called_tools
+        # Convert tool args to text for embedding
+        args_text = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+        
+        # Check for exact tool name match first
+        for called_tool in called_tools:
+            if called_tool['name'] == tool_name:
+                # Get embedding for current args
+                current_embedding = self.embeddings.embed_query(args_text)
+                
+                # Compare with stored embedding using vector similarity
+                cosine_similarity = self._calculate_cosine_similarity(current_embedding, called_tool['embedding'])
+                if cosine_similarity >= self.similarity_threshold:
+                    print(f"[Tool Loop] Vector similarity duplicate detected: {tool_name} (similarity: {cosine_similarity:.3f})")
+                    return True
+        
+        return False
 
     def _add_tool_call_to_history(self, tool_name: str, tool_args: dict, called_tools: set) -> None:
         """
