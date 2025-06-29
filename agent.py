@@ -493,7 +493,7 @@ class GaiaAgent:
         max_steps = base_max_steps.get(llm_type, 8)
         
         # Tool calling configuration       
-        called_tools = []  # Track which tools have been called to prevent duplicates (now stores embeddings)
+        called_tools = set()  # Track which tools have been called to prevent duplicates (stores dictionaries with name, embedding, args)
         tool_results_history = []  # Track tool results for better fallback handling
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
@@ -1541,28 +1541,6 @@ class GaiaAgent:
             print(f"❌ {llm_name} test failed: {e}")
             return False 
 
-    def _create_tool_call_key(self, tool_name: str, tool_args: dict) -> str:
-        """
-        Create a unique key for a tool call to track duplicates.
-        
-        Args:
-            tool_name: Name of the tool
-            tool_args: Arguments for the tool
-            
-        Returns:
-            str: Unique key for the tool call
-        """
-        # Normalize tool arguments to create a consistent key
-        if isinstance(tool_args, dict):
-            # Sort keys and convert to JSON string for consistent hashing
-            normalized_args = json.dumps(tool_args, sort_keys=True)
-        else:
-            # For non-dict args, convert to string
-            normalized_args = str(tool_args)
-        
-        # Create a unique key combining tool name and normalized args
-        return f"{tool_name}:{normalized_args}"
-
     def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: set) -> bool:
         """
         Check if a tool call is a duplicate based on tool name and vector similarity of arguments.
@@ -1570,7 +1548,7 @@ class GaiaAgent:
         Args:
             tool_name: Name of the tool
             tool_args: Arguments for the tool
-            called_tools: Set of previously called tool keys
+            called_tools: Set of previously called tool dictionaries
             
         Returns:
             bool: True if this is a duplicate tool call
@@ -1599,10 +1577,21 @@ class GaiaAgent:
         Args:
             tool_name: Name of the tool
             tool_args: Arguments for the tool
-            called_tools: Set of previously called tool keys
+            called_tools: Set of previously called tool dictionaries
         """
-        tool_call_key = self._create_tool_call_key(tool_name, tool_args)
-        called_tools.add(tool_call_key)
+        # Convert tool args to text for embedding
+        args_text = json.dumps(tool_args, sort_keys=True) if isinstance(tool_args, dict) else str(tool_args)
+        
+        # Get embedding for the tool call
+        tool_embedding = self.embeddings.embed_query(args_text)
+        
+        # Store as dictionary with name and embedding
+        tool_call_record = {
+            'name': tool_name,
+            'embedding': tool_embedding,
+            'args': tool_args
+        }
+        called_tools.add(tool_call_record)
 
     def _trim_for_print(self, obj, max_len=None):
         """
