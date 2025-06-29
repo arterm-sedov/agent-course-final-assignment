@@ -618,21 +618,33 @@ class GaiaAgent:
         # Adaptive step limits based on LLM type and progress
         base_max_steps = {
             "gemini": 25,    # More steps for Gemini due to better reasoning
-            "groq": 15,     # More steps for Groq to compensate for token limits
+            "groq": 10,     # Reduced from 15 to prevent token limit issues
             "huggingface": 20,  # Conservative for HuggingFace
             "unknown": 20
         }
         max_steps = base_max_steps.get(llm_type, 8)
         
+        # Tool calling configuration       
         called_tools = set()  # Track which tools have been called to prevent duplicates
         tool_results_history = []  # Track tool results for better fallback handling
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
         last_response_content = ""  # Track last response content for progress detection
+        max_total_tool_calls = 15  # Maximum total tool calls before forcing final answer   
+        max_tool_calls_per_step = 3  # Maximum tool calls allowed per step
+        total_tool_calls = 0  # Track total tool calls to prevent infinite loops
         
         for step in range(max_steps):
             print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
             current_step_tool_results = []  # Reset for this step
+            
+            # Check if we've exceeded the maximum total tool calls
+            if total_tool_calls >= max_total_tool_calls:
+                print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Forcing final answer.")
+                if tool_results_history:
+                    return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                else:
+                    return AIMessage(content="Error: Maximum tool calls exceeded. Cannot complete reasoning.")
             
             # Truncate messages to prevent token overflow
             messages = self._truncate_messages(messages, llm_type)
@@ -650,6 +662,14 @@ class GaiaAgent:
                 response = llm.invoke(messages)
             except Exception as e:
                 print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
+                
+                # Check for token limit errors specifically
+                if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
+                    print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
+                    if tool_results_history:
+                        return self._handle_duplicate_tool_calls(messages, tool_results_history, llm)
+                    else:
+                        return AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
                 
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
 
@@ -689,7 +709,7 @@ class GaiaAgent:
             has_final_answer = (hasattr(response, 'content') and response.content and 
                               self._has_final_answer_marker(response))
             
-            if has_tool_results and not has_final_answer and step >= 3:
+            if has_tool_results and not has_final_answer and step >= 2:  # Reduced from 3 to 2
                 # We have information but no answer - gently remind to provide final answer
                 reminder = (
                     f"You have gathered information from {len(tool_results_history)} tool calls. "
@@ -703,10 +723,10 @@ class GaiaAgent:
                 print(f"[Tool Loop] No progress detected. Consecutive no-progress steps: {consecutive_no_progress}")
                 
                 # Exit early if no progress for too many consecutive steps
-                if consecutive_no_progress >= 3:
+                if consecutive_no_progress >= 2:  # Reduced from 3 to 2
                     print(f"[Tool Loop] Exiting due to {consecutive_no_progress} consecutive steps without progress")
                     break
-                elif consecutive_no_progress == 2:
+                elif consecutive_no_progress == 1:
                     # Add a gentle reminder to use tools
                     reminder = (
                         f"You seem to be thinking about the problem. "
@@ -757,6 +777,12 @@ class GaiaAgent:
             tool_calls = getattr(response, 'tool_calls', None)
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
+                
+                # NEW: Limit the number of tool calls per step to prevent token overflow
+                if len(tool_calls) > max_tool_calls_per_step:
+                    print(f"[Tool Loop] Too many tool calls on a single step ({len(tool_calls)}). Limiting to first {max_tool_calls_per_step}.")
+                    tool_calls = tool_calls[:max_tool_calls_per_step]
+                
                 # Filter out duplicate tool calls (by name and args)
                 new_tool_calls = []
                 duplicate_count = 0
@@ -812,6 +838,7 @@ class GaiaAgent:
                     # Store the raw result for this step
                     current_step_tool_results.append(tool_result)
                     tool_results_history.append(tool_result)
+                    total_tool_calls += 1  # Increment total tool call counter
                     
                     # Report tool result
                     print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result}")
@@ -855,6 +882,7 @@ class GaiaAgent:
                 # Store the raw result for this step
                 current_step_tool_results.append(tool_result)
                 tool_results_history.append(tool_result)
+                total_tool_calls += 1  # Increment total tool call counter
                 
                 # Report tool result
                 print(f"[Tool Loop] Tool result for '{tool_name}': {tool_result}")
