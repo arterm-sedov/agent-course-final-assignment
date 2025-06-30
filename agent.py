@@ -175,8 +175,7 @@ class GaiaAgent:
 
         # Rate limiting setup
         self.last_request_time = 0
-        # Minimum 1 second between requests
-        self.min_request_interval = 1
+        self.current_llm_type = None  # Track the current LLM type for rate limiting
 
         # Token management - LLM-specific limits (built from configuration)
         self.token_limits = {
@@ -329,11 +328,17 @@ class GaiaAgent:
         """
         Implement rate limiting to avoid hitting API limits.
         Waits if necessary to maintain minimum interval between requests.
+        For Groq and HuggingFace, wait 30 seconds; for others, wait 1 second.
         """
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
-        if time_since_last < self.min_request_interval:
-            sleep_time = self.min_request_interval - time_since_last
+        # Determine wait time based on current LLM type
+        if self.current_llm_type in ["groq", "huggingface"]:
+            min_interval = 30
+        else:
+            min_interval = 1
+        if time_since_last < min_interval:
+            sleep_time = min_interval - time_since_last
             # Add small random jitter to avoid thundering herd
             jitter = random.uniform(0, 0.2)
             time.sleep(sleep_time + jitter)
@@ -939,7 +944,8 @@ class GaiaAgent:
                     f"llm_type must be specified for _make_llm_request(). "
                     f"Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}"
                 )
-        
+        # Set the current LLM type for rate limiting
+        self.current_llm_type = llm_type
         llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
             raise Exception(f"{llm_name} LLM not available")
@@ -2108,6 +2114,12 @@ class GaiaAgent:
         
         # Check if error matches any pattern using vector similarity
         for pattern in error_patterns:
+            if self._vector_answers_match(error_str, pattern):
+                return True
+        
+        return False
+
+
             if self._vector_answers_match(error_str, pattern):
                 return True
         
