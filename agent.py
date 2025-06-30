@@ -464,19 +464,19 @@ class GaiaAgent:
             for msg in messages
         )
 
-    def _force_final_answer (self, messages: List, tool_results_history: List, llm) -> Any:
+    def _force_final_answer(self, messages: List, tool_results_history: List, llm) -> Any:
         """
         Handle duplicate tool calls by forcing final answer using LangChain's native mechanisms.
-        
+        For Gemini, always include tool results in the reminder. For others, only if not already present.
         Args:
             messages: Current message list
             tool_results_history: History of tool results (can be empty)
             llm: LLM instance
             
         Returns:
-            Response from LLM or fallback answer
+            Response from LLM
         """
-
+        llm_type = getattr(llm, 'llm_type', None) or getattr(llm, 'type_str', None) or ''
         # Create a more explicit reminder to provide final answer
         reminder = self._get_reminder_prompt(
             reminder_type="final_answer_prompt",
@@ -484,29 +484,34 @@ class GaiaAgent:
             tools=self.tools,
             tool_results_history=tool_results_history
         )
-        
         # Check if tool results are already in message history as ToolMessage objects
         has_tool_messages = self._has_tool_messages(messages)
         
         # Only include tool results in reminder if they're not already in message history
         if tool_results_history and not has_tool_messages:
+            include_tool_results = False
+        if tool_results_history:
+            if llm_type == "gemini":
+                include_tool_results = True
+            else:
+                has_tool_messages = self._has_tool_messages(messages)
+                if not has_tool_messages:
+                    include_tool_results = True
+        if include_tool_results:
             tool_results_text = "\n\nTOOL RESULTS:\n" + "\n".join([f"Result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
             reminder += tool_results_text
         
         # Add the reminder to the existing message history
         messages.append(HumanMessage(content=reminder))
-        
         try:
             print(f"[Tool Loop] Trying to force the final answer with {len(tool_results_history)} tool results.")
             final_response = llm.invoke(messages)
-            
             if hasattr(final_response, 'content') and final_response.content:
                 print(f"[Tool Loop] ✅ Final answer generated: {final_response.content[:200]}...")
                 return final_response
             else:
                 print("[Tool Loop] ❌ LLM returned empty response")
                 return AIMessage(content="Unable to determine the answer from the available information.")
-                
         except Exception as e:
             print(f"[Tool Loop] ❌ Failed to get final answer: {e}")
             return AIMessage(content="Error occurred while processing the question.")
@@ -1006,24 +1011,7 @@ class GaiaAgent:
             else:
                 raise Exception(f"{llm_name} failed: {e}")
 
-    def _is_token_limit_error(self, error) -> bool:
-        """
-        Check if the error is a Groq token limit error (413 or TPM limit exceeded).
-        
-        Args:
-            error: The exception object
-            
-        Returns:
-            bool: True if it's a Groq token limit error
-        """
-        error_str = str(error).lower()
-        return (
-            "413" in str(error) or 
-            "tokens per minute" in error_str or 
-            "tpm" in error_str or 
-            "rate_limit_exceeded" in error_str or
-            "request too large" in error_str
-        )
+    
 
     def _handle_groq_token_limit_error(self, messages, llm, llm_name, original_error):
         """
@@ -2098,39 +2086,19 @@ class GaiaAgent:
         
         # Token limit and router error patterns for vector similarity
         error_patterns = [
-            "413 request too large",
-            "token limit exceeded", 
-            "rate limit exceeded",
-            "context length exceeded",
-            "max tokens exceeded",
-            "response truncated",
-            "tokens per minute limit",
-            "tpm limit exceeded",
-            "413",
-            "token",
-            "limit", 
-            "rate_limit_exceeded",
-            "500 server error router.huggingface.co",
-            "internal server error router",
-            "router.huggingface.co error",
-            "500 Server Error:",
-            "Internal Server Error for url:",
-            "https://router.huggingface.co/hyperbolic/v1/chat/completions",
-            "Request ID: Root=1-6861e3b4-0d406b275c84761c4187ac84;0ff3df97-1b44-4a4d-824f-a7d43b6536fb",
-            "request too large",
-            "context length",
-            "max tokens",
-            "truncated"
+            "Error code: 413 - {'error': {'message': 'Request too large for model `qwen-qwq-32b` in organization `org_01jyfgv54ge5ste08j9248st66` service tier `on_demand` on tokens per minute (TPM): Limit 6000, Requested 9681, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}"
+            "500 Server Error: Internal Server Error for url: https://router.huggingface.co/hyperbolic/v1/chat/completions (Request ID: Root=1-6861ed33-7dd4232d49939c6f65f6e83d;164205eb-e591-4b20-8b35-5745a13f05aa)",
+            
         ]
+        
+        # Direct substring checks for efficiency
+        if any(term in error_str for term in ["413", "token", "limit", "tokens per minute", "truncated", "tpm", "router.huggingface.co"]):
+            return True
         
         # Check if error matches any pattern using vector similarity
         for pattern in error_patterns:
             if self._vector_answers_match(error_str, pattern):
                 return True
         
-        # Direct substring checks for efficiency
-        if any(term in error_str for term in ["413", "token", "limit", "truncated", "tpm", "router.huggingface.co"]):
-            return True
-            
         return False
 
