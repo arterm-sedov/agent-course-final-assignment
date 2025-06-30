@@ -1734,14 +1734,32 @@ class GaiaAgent:
             # For code tools, decode and inject the code content
             elif param_name == 'code':
                 import base64
+                import tempfile
                 try:
-                    # Decode base64 file data to get the actual code content
+                    # Get file extension
+                    temp_ext = os.path.splitext(self.current_file_name)[1].lower()
+                    code_str = tool_args.get('code', '')
+                    orig_file_name = self.current_file_name
                     file_data = base64.b64decode(self.current_file_data)
-                    code_content = file_data.decode('utf-8')
-                    tool_args[param_name] = code_content
-                    print(f"[Tool Loop] Injected code from attached file for {tool_name}: {len(code_content)} characters")
+                    # List of code file extensions
+                    code_exts = ['.py', '.js', '.cpp', '.c', '.java', '.rb', '.go', '.ts', '.sh', '.php', '.rs']
+                    if temp_ext in code_exts:
+                        # If it's a code file, decode as UTF-8 and inject as code
+                        code_content = file_data.decode('utf-8')
+                        tool_args[param_name] = code_content
+                        print(f"[Tool Loop] Injected code from attached file for {tool_name}: {len(code_content)} characters")
+                    else:
+                        # Otherwise, treat as data file: create temp file and patch code string
+                        with tempfile.NamedTemporaryFile(suffix=temp_ext, delete=False) as temp_file:
+                            temp_file.write(file_data)
+                            temp_file_path = temp_file.name
+                        print(f"[Tool Loop] Created temporary file {temp_file_path} for code execution")
+                        # Replace all occurrences of the original file name in the code string with the temp file path
+                        patched_code = code_str.replace(orig_file_name, temp_file_path)
+                        tool_args[param_name] = patched_code
+                        print(f"[Tool Loop] Patched code to use temp file path for {tool_name}")
                 except Exception as e:
-                    print(f"[Tool Loop] Failed to decode file data for code injection: {e}")
+                    print(f"[Tool Loop] Failed to patch code for code injection: {e}")
         
         return tool_args
 
