@@ -476,7 +476,12 @@ class GaiaAgent:
         Returns:
             Response from LLM
         """
+        # Initialize include_tool_results variable at the top
+        include_tool_results = False
+        
+        # Extract llm_type from llm
         llm_type = getattr(llm, 'llm_type', None) or getattr(llm, 'type_str', None) or ''
+        
         # Create a more explicit reminder to provide final answer
         reminder = self._get_reminder_prompt(
             reminder_type="final_answer_prompt",
@@ -486,9 +491,6 @@ class GaiaAgent:
         )
         # Check if tool results are already in message history as ToolMessage objects
         has_tool_messages = self._has_tool_messages(messages)
-        
-        # Initialize include_tool_results variable
-        include_tool_results = False
         
         # Determine whether to include tool results in the reminder
         if tool_results_history:
@@ -576,7 +578,7 @@ class GaiaAgent:
             if total_tool_calls >= max_total_tool_calls:
                 print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _force_final_answer ().")
                 # Let the LLM generate the final answer from tool results (or lack thereof)
-                return self._force_final_answer (messages, tool_results_history, llm)
+                return self._force_final_answer(messages, tool_results_history, llm)
             
             # Check for excessive tool usage
             for tool_name, count in tool_usage_count.items():
@@ -620,7 +622,7 @@ class GaiaAgent:
                 if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
                     print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
                     if tool_results_history:
-                        return self._force_final_answer (messages, tool_results_history, llm)
+                        return self._force_final_answer(messages, tool_results_history, llm)
                     else:
                         return AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
                 return AIMessage(content=f"Error during LLM processing: {str(e)}")
@@ -650,7 +652,7 @@ class GaiaAgent:
                     # If we have tool results but no content, force a final answer after 2 consecutive empty responses
                     if tool_results_history and consecutive_no_progress >= 1:
                         print(f"[Tool Loop] Empty content and we have {len(tool_results_history)} tool results for 2 consecutive steps. Forcing final answer.")
-                        return self._force_final_answer (messages, tool_results_history, llm)
+                        return self._force_final_answer(messages, tool_results_history, llm)
                     # Otherwise, increment no-progress counter and continue
                     consecutive_no_progress += 1
                     print(f"[Tool Loop] ❌ {llm_type} LLM returned empty response. Consecutive no-progress steps: {consecutive_no_progress}")
@@ -690,7 +692,7 @@ class GaiaAgent:
                     # If we have tool results, force a final answer before exiting
                     if tool_results_history:
                         print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results before exit")
-                        return self._force_final_answer (messages, tool_results_history, llm)
+                        return self._force_final_answer(messages, tool_results_history, llm)
                     break
                 elif consecutive_no_progress == 1:
                     # Add a gentle reminder to use tools
@@ -715,7 +717,7 @@ class GaiaAgent:
                     # If we have tool results but no FINAL ANSWER marker, force processing
                     if tool_results_history:
                         print(f"[Tool Loop] Content without FINAL ANSWER marker but we have {len(tool_results_history)} tool results. Forcing final answer.")
-                        return self._force_final_answer (messages, tool_results_history, llm)
+                        return self._force_final_answer(messages, tool_results_history, llm)
                     else:
                         print("[Tool Loop] 'FINAL ANSWER' marker not found. Reiterating with reminder.")
                         # Find the original question
@@ -780,7 +782,7 @@ class GaiaAgent:
                 # Only force final answer if ALL tool calls were duplicates AND we have tool results
                 if not new_tool_calls and tool_results_history:
                     print(f"[Tool Loop] All {len(tool_calls)} tool calls were duplicates and we have {len(tool_results_history)} tool results. Forcing final answer.")
-                    result = self._force_final_answer (messages, tool_results_history, llm)
+                    result = self._force_final_answer(messages, tool_results_history, llm)
                     if result:
                         return result
                 elif not new_tool_calls and not tool_results_history:
@@ -829,7 +831,7 @@ class GaiaAgent:
                     # Only force final answer if we have tool results
                     if tool_results_history:
                         print(f"[Tool Loop] Duplicate function_call with {len(tool_results_history)} tool results. Forcing final answer.")
-                        result = self._force_final_answer (messages, tool_results_history, llm)
+                        result = self._force_final_answer(messages, tool_results_history, llm)
                         if result:
                             return result
                     else:
@@ -882,7 +884,7 @@ class GaiaAgent:
         # If we have tool results but no final answer, force one
         if tool_results_history and (not hasattr(response, 'content') or not response.content or not self._has_final_answer_marker(response)):
             print(f"[Tool Loop] Forcing final answer with {len(tool_results_history)} tool results at loop exit")
-            return self._force_final_answer (messages, tool_results_history, llm)
+            return self._force_final_answer(messages, tool_results_history, llm)
         
         # Return the last response as-is, no partial answer extraction
         return response
