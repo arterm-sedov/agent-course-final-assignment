@@ -742,7 +742,7 @@ def arxiv_search(input: str) -> str:
 @tool
 def exa_ai_helper(question: str) -> str:
     """
-    Get direct, well-researched answers to questions using Exa's Answer API.
+    Get direct, well-researched answers to questions using AI engine Exa.
     
     This tool is particularly useful when:
     - You need authoritative, up-to-date information on a topic
