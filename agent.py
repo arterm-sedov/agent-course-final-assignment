@@ -1225,17 +1225,14 @@ class GaiaAgent:
                 original_question = msg.content
                 break
         
+        # --- Collect all LLM results for best-pick after loop ---
+        llm_results = []        
         for llm_type, llm_name in available_llms:
             try:
                 response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                 
                 # Try standard extraction first
                 answer = self._extract_final_answer(response)
-                
-                # If standard extraction didn't work well, try intelligent extraction
-                # if not answer:
-                #     print(f"⚠️ {llm_name} did not provide a properly formatted answer. Ret trying...")
-                #     answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                 
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
@@ -1246,8 +1243,10 @@ class GaiaAgent:
                     self.llm_success_count[llm_type] += 1
                     return answer, llm_name
                 
-                # Check similarity with reference
-                if self._vector_answers_match(answer, reference):
+                is_match, similarity = self._vector_answers_match(answer, reference)
+                llm_results.append((similarity, answer, llm_name))
+                
+                if is_match:
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
                     self.llm_success_count[llm_type] += 1
                     return answer, llm_name
@@ -1259,7 +1258,6 @@ class GaiaAgent:
                         print(f"🔄 Trying next LLM without reference...")
                         # Continue to next iteration to try next LLM
                     else:
-                        # This was the last LLM, fall back to reference answer
                         print(f"🔄 All LLMs tried, all failed")
                         # self.llm_success_count["reference_fallback"] += 1
                         # return reference, "reference_fallback"
@@ -1290,7 +1288,11 @@ class GaiaAgent:
                     raise Exception(f"All available LLMs failed. Last error from {llm_name}: {e}")
                 print(f"🔄 Trying next LLM...")
         
-        # This should never be reached, but just in case
+        # --- Return best answer if none passed threshold ---
+        if llm_results:
+            best_similarity, best_answer, best_llm = max(llm_results, key=lambda x: x[0])
+            print(f"🔄 Returning best answer by similarity: {best_answer} (LLM: {best_llm}, similarity: {best_similarity:.3f})")
+            return best_answer, best_llm        # This should never be reached, but just in case
         raise Exception("All LLMs failed")
 
     def _get_reference_answer(self, question: str) -> Optional[str]:
@@ -1378,12 +1380,15 @@ class GaiaAgent:
             
         return dot_product / (norm1 * norm2)
 
-    def _vector_answers_match(self, answer: str, reference: str) -> bool:
+    def _vector_answers_match(self, answer: str, reference: str):
+        """
+        Return (bool, similarity) where bool is if similarity >= threshold, and similarity is the float value.
+        """
         try:
             # Handle None or empty answers gracefully
             if not answer:
                 print("⚠️ Answer is empty, cannot compare with reference")
-                return False
+                return False, -1.0
                 
             norm_answer = self._normalize_answer(answer)
             norm_reference = self._normalize_answer(reference)
@@ -1394,7 +1399,7 @@ class GaiaAgent:
             
             if norm_answer == norm_reference:
                 print("✅ Exact match after normalization")
-                return True
+                return True, 1.0
             embeddings = self.embeddings
             
             # Get embeddings for both answers
@@ -1406,14 +1411,14 @@ class GaiaAgent:
             print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
             
             if cosine_similarity >= self.similarity_threshold:
-                return True
+                return True, cosine_similarity
             else:
                 print("🔄 Vector similarity below threshold")
-                return False
+                return False, cosine_similarity
                 
         except Exception as e:
             print(f"⚠️ Error in vector similarity matching: {e}")
-            return False
+            return False, -1.0
 
     def get_llm_stats(self) -> dict:
         """
