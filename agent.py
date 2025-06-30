@@ -1023,9 +1023,9 @@ class GaiaAgent:
                         # Continue to next iteration to try next LLM
                     else:
                         # This was the last LLM, fall back to reference answer
-                        print(f"🔄 All LLMs tried, falling back to reference answer")
-                        self.llm_success_count["reference_fallback"] += 1
-                        return reference, "reference_fallback"
+                        print(f"🔄 All LLMs tried, all failed")
+                        # self.llm_success_count["reference_fallback"] += 1
+                        # return reference, "reference_fallback"
                     
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
