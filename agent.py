@@ -1641,7 +1641,7 @@ class GaiaAgent:
             'understand_video', 'understand_audio',
             'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position',
             'execute_code_multilang',
-            'exa_ai_helper' 
+            #'exa_ai_helper' 
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
