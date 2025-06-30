@@ -88,6 +88,7 @@ class GaiaAgent:
             "type_str": "default",
             "token_limit": 2500,
             "max_history": 15,
+            "tool_support": False,
             },
         "gemini": {
             "name": "Google Gemini",
@@ -97,7 +98,8 @@ class GaiaAgent:
             "api_key_env": "GEMINI_KEY",
             "token_limit": None,  # No limit for Gemini (2M token context)
             "max_tokens": None,
-            "max_history": 25
+            "max_history": 25,
+            "tool_support": True,
         },
         "groq": {
             "name": "Groq",
@@ -107,7 +109,8 @@ class GaiaAgent:
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
             "token_limit": 4000,
             "max_tokens": 2048,
-            "max_history": 15
+            "max_history": 15,
+            "tool_support": True,
         },
         "huggingface": {
             "name": "HuggingFace",
@@ -116,6 +119,7 @@ class GaiaAgent:
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
             "token_limit": 1000,  # Conservative for HuggingFace
             "max_history": 20,
+            "tool_support": False,
             "models": [
                 {
                     "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -146,7 +150,7 @@ class GaiaAgent:
     DEFAULT_LLM_SEQUENCE = [
         "gemini",
         "groq", 
-        # "huggingface"
+        "huggingface"
     ]
     # Print truncation length for debug output
     MAX_PRINT_LEN = 1000
@@ -294,17 +298,17 @@ class GaiaAgent:
         # Bind all tools from tools.py
         self.tools = self._gather_tools()
         
-        if self.llm_primary:
+        if self.llm_primary and self.LLM_CONFIG["gemini"].get("tool_support", False):
             self.llm_primary_with_tools = self.llm_primary.bind_tools(self.tools)
         else:
             self.llm_primary_with_tools = None
             
-        if self.llm_fallback:
+        if self.llm_fallback and self.LLM_CONFIG["groq"].get("tool_support", False):
             self.llm_fallback_with_tools = self.llm_fallback.bind_tools(self.tools)
         else:
             self.llm_fallback_with_tools = None
             
-        if self.llm_third_fallback:
+        if self.llm_third_fallback and self.LLM_CONFIG["huggingface"].get("tool_support", False):
             self.llm_third_fallback_with_tools = self.llm_third_fallback.bind_tools(self.tools)
         else:
             self.llm_third_fallback_with_tools = None
@@ -942,9 +946,12 @@ class GaiaAgent:
     def _select_llm(self, llm_type, use_tools):
         if llm_type not in self.LLM_CONFIG:
             raise ValueError(f"Invalid llm_type: {llm_type}")
-            
-        config = self.LLM_CONFIG[llm_type]
         
+        config = self.LLM_CONFIG[llm_type]
+        # Only use tools if tool_support is True
+        if use_tools and not config.get("tool_support", False):
+            print(f"⚠️ {config['name']} does not support tool-calling. Disabling tools.")
+            use_tools = False
         # Get the appropriate LLM instance
         if llm_type == "gemini":
             llm = self.llm_primary_with_tools if use_tools else self.llm_primary
@@ -954,10 +961,8 @@ class GaiaAgent:
             llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
         else:
             raise ValueError(f"Invalid llm_type: {llm_type}")
-        
         llm_name = config["name"]
         llm_type_str = config["type_str"]
-        
         return llm, llm_name, llm_type_str
 
     def _make_llm_request(self, messages, use_tools=True, llm_type=None):
