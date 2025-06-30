@@ -105,8 +105,8 @@ class GaiaAgent:
             "model": "qwen-qwq-32b",
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 7200,  # Reduced by 10% from 8000
-            "max_tokens": 1843,   # Reduced by 10% from 2048
+            "token_limit": 4500,
+            "max_tokens": 2048,
             "max_history": 15
         },
         "huggingface": {
@@ -114,7 +114,7 @@ class GaiaAgent:
             "type_str": "huggingface",
             "temperature": 0,
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
-            "token_limit": 16000,  # Conservative for HuggingFace
+            "token_limit": 3000,  # Conservative for HuggingFace
             "max_history": 20,
             "models": [
                 {
@@ -1091,15 +1091,21 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 4500)  # Use 4500 as fallback (reduced by 10%)
-            safe_tokens = int(token_limit * 0.65) if token_limit else 3150  # Use 70% of limit to be safe
+            token_limit = self.token_limits.get(llm_type, 3000)
+            # Handle None token limits (like Gemini) by using a reasonable default
+            if token_limit is None:
+                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+            safe_tokens = int(token_limit * 0.65)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 4500)  # Use 4500 as fallback (reduced by 10%)
-            safe_tokens = int(token_limit * 0.65) if token_limit else 3150  # Use 70% of limit to be safe
+            token_limit = self.token_limits.get(llm_type, 3000)
+            # Handle None token limits (like Gemini) by using a reasonable default
+            if token_limit is None:
+                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+            safe_tokens = int(token_limit * 0.65)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
         
