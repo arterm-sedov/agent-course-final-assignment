@@ -1094,7 +1094,8 @@ class GaiaAgent:
 
     def _normalize_answer(self, ans: str) -> str:
         """
-        Normalize answer by removing common prefixes, normalizing whitespace, and removing punctuation for comparison.
+        Normalize answer by removing common prefixes and normalizing whitespace around commas.
+        Much simpler approach that preserves semantic meaning.
         """
         # Handle None or empty values gracefully
         if not ans:
@@ -1105,7 +1106,6 @@ class GaiaAgent:
             ans = ans[12:].strip()
         elif ans.startswith("final answer"):
             ans = ans[11:].strip()
-        ans = re.sub(r'[^\w\s]', '', ans)
         ans = re.sub(r'\s+', ' ', ans).strip()
         return ans
 
@@ -1150,7 +1150,13 @@ class GaiaAgent:
                 
             norm_answer = self._normalize_answer(answer)
             norm_reference = self._normalize_answer(reference)
+            
+            # Debug output to see what normalization is doing
+            print(f"🔍 Normalized answer: '{norm_answer}'")
+            print(f"🔍 Normalized reference: '{norm_reference}'")
+            
             if norm_answer == norm_reference:
+                print("✅ Exact match after normalization")
                 return True
             embeddings = self.embeddings
             
@@ -1161,37 +1167,16 @@ class GaiaAgent:
             # Calculate cosine similarity using the reusable method
             cosine_similarity = self._calculate_cosine_similarity(answer_embedding, reference_embedding)
             print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
-            return cosine_similarity >= self.similarity_threshold
+            
+            if cosine_similarity >= self.similarity_threshold:
+                return True
+            else:
+                print("🔄 Vector similarity below threshold")
+                return False
+                
         except Exception as e:
             print(f"⚠️ Error in vector similarity matching: {e}")
-            # Fallback to simple string matching if embedding fails
-            return self._fallback_string_match(answer, reference)
-
-    def _fallback_string_match(self, answer: str, reference: str) -> bool:
-        # Handle None or empty answers gracefully
-        if not answer:
             return False
-            
-        norm_answer = self._normalize_answer(answer)
-        norm_reference = self._normalize_answer(reference)
-        if norm_answer == norm_reference:
-            return True
-        
-        # Check if one contains the other (for partial matches)
-        if norm_answer in norm_reference or norm_reference in norm_answer:
-            return True
-        
-        # Check for numeric answers (common in math problems)
-        try:
-            # Extract numbers from both answers
-            import re
-            answer_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_answer)]
-            reference_nums = [float(x) for x in re.findall(r'-?\d+\.?\d*', norm_reference)]
-            if answer_nums and reference_nums and answer_nums == reference_nums:
-                return True
-        except:
-            pass
-        return False
 
     def get_llm_stats(self) -> dict:
         """
