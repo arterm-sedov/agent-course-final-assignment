@@ -86,7 +86,7 @@ class GaiaAgent:
     LLM_CONFIG = {
         "default": {
             "type_str": "default",
-            "token_limit": None,
+            "token_limit": 2500,
             "max_history": 15,
             },
         "gemini": {
@@ -146,7 +146,7 @@ class GaiaAgent:
     DEFAULT_LLM_SEQUENCE = [
         "gemini",
         "groq", 
-        "huggingface"
+        # "huggingface"
     ]
     # Print truncation length for debug output
     MAX_PRINT_LEN = 1000
@@ -476,10 +476,19 @@ class GaiaAgent:
             messages: Current message list
             tool_results_history: History of tool results (can be empty)
             llm: LLM instance
-            
         Returns:
-            Response from LLM
+            Response from LLM or direct FINAL ANSWER from tool results
         """
+        # 1. Scan tool results for FINAL ANSWER using _has_final_answer_marker
+        for result in reversed(tool_results_history):  # Prefer latest
+            if self._has_final_answer_marker(result):
+                # Extract the final answer text using _extract_final_answer
+                answer = self._extract_final_answer(result)
+                if answer:
+                    ai_msg = AIMessage(content=f"FINAL ANSWER: {answer}")
+                    messages.append(ai_msg)
+                    return ai_msg
+        
         # Initialize include_tool_results variable at the top
         include_tool_results = False
         
@@ -1090,20 +1099,20 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 3000)
+            token_limit = self.token_limits.get(llm_type, 2500)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+                token_limit = 2500  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 3000)
+            token_limit = self.token_limits.get(llm_type, 2500)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+                token_limit = 2500  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
