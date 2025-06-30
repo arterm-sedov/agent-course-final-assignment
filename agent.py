@@ -105,8 +105,8 @@ class GaiaAgent:
             "model": "qwen-qwq-32b",
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 8000,  # Increased from 5000 to allow longer reasoning
-            "max_tokens": 2048,
+            "token_limit": 7200,  # Reduced by 10% from 8000
+            "max_tokens": 1843,   # Reduced by 10% from 2048
             "max_history": 15
         },
         "huggingface": {
@@ -1091,15 +1091,15 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 5000)  # Use 5000 as fallback
-            safe_tokens = int(token_limit * 0.7) if token_limit else 3500  # Use 70% of limit to be safe
+            token_limit = self.token_limits.get(llm_type, 4500)  # Use 4500 as fallback (reduced by 10%)
+            safe_tokens = int(token_limit * 0.65) if token_limit else 3150  # Use 70% of limit to be safe
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 5000)  # Use 5000 as fallback
-            safe_tokens = int(token_limit * 0.7) if token_limit else 3500  # Use 70% of limit to be safe
+            token_limit = self.token_limits.get(llm_type, 4500)  # Use 4500 as fallback (reduced by 10%)
+            safe_tokens = int(token_limit * 0.65) if token_limit else 3150  # Use 70% of limit to be safe
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
         
@@ -1410,7 +1410,7 @@ class GaiaAgent:
         
         for llm_type, count in self.llm_success_count.items():
             if llm_type == "reference_fallback":
-                llm_name = "Reference Fallback"
+                llm_name = "All LLMs failed"
             else:
                 llm_name = self.LLM_CONFIG[llm_type]["name"]
             
@@ -1470,7 +1470,7 @@ class GaiaAgent:
             stats = self.get_llm_stats()
             print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
             for llm_name, data in stats['success_rates'].items():
-                print(f"   {llm_name}: {data['count']} successes ({data['rate']})")
+                print(f"   {llm_name}: {data['count']}: ({data['rate']})")
             
             return answer
         except Exception as e:
@@ -1481,7 +1481,7 @@ class GaiaAgent:
                 stats = self.get_llm_stats()
                 print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
                 for llm_name, data in stats['success_rates'].items():
-                    print(f"   {llm_name}: {data['count']} successes ({data['rate']})")
+                    print(f"   {llm_name}: {data['count']}: ({data['rate']})")
                 return reference
             else:
                 raise Exception("All LLMs failed and no reference answer available")
