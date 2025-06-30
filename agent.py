@@ -2118,10 +2118,3 @@ class GaiaAgent:
                 return True
         
         return False
-
-
-            if self._vector_answers_match(error_str, pattern):
-                return True
-        
-        return False
-
