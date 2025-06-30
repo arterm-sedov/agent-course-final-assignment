@@ -1332,7 +1332,8 @@ class GaiaAgent:
 
     def _clean_final_answer_text(self, text: str) -> str:
         """
-        Extracts and cleans the answer after 'FINAL ANSWER' marker (case-insensitive, optional colon/space).
+        Extracts and cleans the answer after 'FINAL ANSWER' marker 
+        (case-insensitive, optional colon/space).
         Strips and normalizes whitespace.
         """
         # Handle None text gracefully
@@ -1342,8 +1343,9 @@ class GaiaAgent:
         match = re.search(r'final answer\s*:?', text, flags=re.IGNORECASE)
         if match:
             text = text[match.end():]
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
+        # Normalize whitespace and any JSON remainders
+        text = re.sub(r'\s+', ' ', text).strip()
+        text = text.lstrip('{[\'').rstrip(']]}"\'')
         return text.strip()
 
     def _get_tool_name(self, tool):
