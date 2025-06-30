@@ -183,6 +183,17 @@ class GaiaAgent:
             for config in self.LLM_CONFIG.values()
         }
 
+        # LLM success counter - clean and lean
+        self.llm_success_count = {
+            "gemini": 0,
+            "groq": 0, 
+            "huggingface": 0,
+            "reference_fallback": 0
+        }
+        
+        # Total questions counter
+        self.total_questions = 0
+
         # Set up embeddings and supabase retriever
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
         self.supabase_client = create_client(
@@ -995,11 +1006,13 @@ class GaiaAgent:
                 # If no reference provided, return the first successful answer
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
+                    self.llm_success_count[llm_type] += 1
                     return answer, llm_name
                 
                 # Check similarity with reference
                 if self._vector_answers_match(answer, reference):
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
+                    self.llm_success_count[llm_type] += 1
                     return answer, llm_name
                 else:
                     print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
@@ -1011,6 +1024,7 @@ class GaiaAgent:
                     else:
                         # This was the last LLM, fall back to reference answer
                         print(f"🔄 All LLMs tried, falling back to reference answer")
+                        self.llm_success_count["reference_fallback"] += 1
                         return reference, "reference_fallback"
                     
             except Exception as e:
@@ -1028,6 +1042,7 @@ class GaiaAgent:
                             answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                         if answer and not answer == str(response).strip():
                             print(f"✅ HuggingFace retry succeeded: {answer}")
+                            self.llm_success_count[llm_type] += 1
                             return answer, llm_name
                     except Exception as retry_error:
                         print(f"❌ HuggingFace retry also failed: {retry_error}")
@@ -1178,6 +1193,34 @@ class GaiaAgent:
             pass
         return False
 
+    def get_llm_stats(self) -> dict:
+        """
+        Get clean statistics about LLM success rates.
+        
+        Returns:
+            dict: Dictionary with LLM names, success counts, and success rates
+        """
+        stats = {
+            "total_questions": self.total_questions,
+            "success_rates": {}
+        }
+        
+        for llm_type, count in self.llm_success_count.items():
+            if llm_type == "reference_fallback":
+                llm_name = "Reference Fallback"
+            else:
+                llm_name = self.LLM_CONFIG[llm_type]["name"]
+            
+            # Calculate success rate percentage
+            success_rate = (count / self.total_questions * 100) if self.total_questions > 0 else 0
+            
+            stats["success_rates"][llm_name] = {
+                "count": count,
+                "rate": f"{success_rate:.1f}%"
+            }
+        
+        return stats
+
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
@@ -1197,6 +1240,10 @@ class GaiaAgent:
             4. If no similar answer found, fall back to reference answer.
         """
         print(f"\n🔎 Processing question: {question}\n")
+        
+        # Increment total questions counter
+        self.total_questions += 1
+        
         # Store the original question for reuse throughout the process
         self.original_question = question
         
@@ -1215,11 +1262,23 @@ class GaiaAgent:
         try:
             answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
             print(f"🎯 Final answer from {llm_used}")
+            
+            # Display current stats
+            stats = self.get_llm_stats()
+            print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
+            for llm_name, data in stats['success_rates'].items():
+                print(f"   {llm_name}: {data['count']} successes ({data['rate']})")
+            
             return answer
         except Exception as e:
             print(f"❌ All LLMs failed: {e}")
             if reference:
                 print("⚠️ Falling back to reference answer")
+                self.llm_success_count["reference_fallback"] += 1
+                stats = self.get_llm_stats()
+                print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
+                for llm_name, data in stats['success_rates'].items():
+                    print(f"   {llm_name}: {data['count']} successes ({data['rate']})")
                 return reference
             else:
                 raise Exception("All LLMs failed and no reference answer available")
