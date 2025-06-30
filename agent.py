@@ -487,16 +487,18 @@ class GaiaAgent:
         # Check if tool results are already in message history as ToolMessage objects
         has_tool_messages = self._has_tool_messages(messages)
         
-        # Only include tool results in reminder if they're not already in message history
-        if tool_results_history and not has_tool_messages:
-            include_tool_results = False
+        # Initialize include_tool_results variable
+        include_tool_results = False
+        
+        # Determine whether to include tool results in the reminder
         if tool_results_history:
             if llm_type == "gemini":
                 include_tool_results = True
             else:
-                has_tool_messages = self._has_tool_messages(messages)
+                # For non-Gemini LLMs, only include if not already in message history
                 if not has_tool_messages:
                     include_tool_results = True
+        
         if include_tool_results:
             tool_results_text = "\n\nTOOL RESULTS:\n" + "\n".join([f"Result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
             reminder += tool_results_text
