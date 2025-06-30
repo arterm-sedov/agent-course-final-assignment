@@ -469,7 +469,7 @@ class GaiaAgent:
             for msg in messages
         )
 
-    def _force_final_answer(self, messages: List, tool_results_history: List, llm) -> Any:
+    def _force_final_answer(self, messages, tool_results_history, llm):
         """
         Handle duplicate tool calls by forcing final answer using LangChain's native mechanisms.
         For Gemini, always include tool results in the reminder. For others, only if not already present.
@@ -532,6 +532,35 @@ class GaiaAgent:
         except Exception as e:
             print(f"[Tool Loop] ❌ Failed to get final answer: {e}")
             return AIMessage(content="Error occurred while processing the question.")
+        # If Gemini, use a minimal, explicit prompt
+        if llm_type == "gemini" and tool_results_history:
+            tool_result = tool_results_history[-1]  # Use the latest tool result
+            original_question = None
+            for msg in messages:
+                if hasattr(msg, 'type') and msg.type == 'human':
+                    original_question = msg.content
+                    break
+            if not original_question:
+                original_question = "[Original question not found]"
+            prompt = (
+                "You have already used the tool and obtained the following result:\n\n"
+                f"TOOL RESULT:\n{tool_result}\n\n"
+                f"QUESTION:\n{original_question}\n\n"
+                "INSTRUCTIONS:\n"
+                "Extract the answer from the TOOL RESULT above. Your answer must start with 'FINAL ANSWER: [answer]"
+                "and follow the system prompt without any extra text numbers, just answer concisely and directly."
+            )
+            minimal_messages = [self.sys_msg, HumanMessage(content=prompt)]
+            try:
+                final_response = llm.invoke(minimal_messages)
+                if hasattr(final_response, 'content') and final_response.content:
+                    return final_response
+                else:
+                    # Fallback: return the tool result directly
+                    return AIMessage(content=f"RESULT: {tool_result}")
+            except Exception as e:
+                print(f"[Tool Loop] ❌ Gemini failed to extract final answer: {e}")
+                return AIMessage(content=f"RESULT: {tool_result}")
 
     def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
         """
