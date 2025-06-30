@@ -1250,7 +1250,7 @@ def combine_images(images_base64: List[str], operation: str,
 
 # ========== VIDEO/AUDIO UNDERSTANDING TOOLS ==========
 @tool
-def understand_video(youtube_url: str, prompt: str) -> str:
+def understand_video(youtube_url: str, prompt: str, system_prompt: str = None) -> str:
     """
     Analyze a YouTube video using Google Gemini's video understanding capabilities.
     
@@ -1261,6 +1261,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
     Args:
         youtube_url (str): The URL of the YouTube video to analyze.
         prompt (str): A question or request regarding the video content.
+        system_prompt (str, optional): System prompt for formatting guidance.
     
     Returns:
         str: Analysis of the video content based on the prompt, or error message.
@@ -1271,12 +1272,19 @@ def understand_video(youtube_url: str, prompt: str) -> str:
     """
     try:
         client = _get_gemini_client()
+        
+        # Create enhanced prompt with system prompt if provided
+        if system_prompt:
+            enhanced_prompt = f"{system_prompt}\n\nAnalyze the video at {youtube_url} and answer the following question:\n{prompt}\n\nProvide your answer in the required FINAL ANSWER format."
+        else:
+            enhanced_prompt = prompt
+        
         video_description = client.models.generate_content(
             model="gemini-2.5-pro",
             contents=types.Content(
                 parts=[
                     types.Part(file_data=types.FileData(file_uri=youtube_url)),
-                    types.Part(text=prompt)
+                    types.Part(text=enhanced_prompt)
                 ]
             )
         )
@@ -1285,7 +1293,7 @@ def understand_video(youtube_url: str, prompt: str) -> str:
         return f"Error understanding video: {str(e)}"
 
 @tool
-def understand_audio(file_path: str, prompt: str) -> str:
+def understand_audio(file_path: str, prompt: str, system_prompt: str = None) -> str:
     """
     Analyze an audio file using Google Gemini's audio understanding capabilities.
     
@@ -1297,6 +1305,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
     Args:
         file_path (str): The path to the local audio file to analyze, or base64 encoded audio data.
         prompt (str): A question or request regarding the audio content.
+        system_prompt (str, optional): System prompt for formatting guidance.
     
     Returns:
         str: Analysis of the audio content based on the prompt, or error message.
@@ -1307,6 +1316,7 @@ def understand_audio(file_path: str, prompt: str) -> str:
     """
     try:
         client = _get_gemini_client()
+        
         # Check if file_path is base64 data or actual file path
         if file_path.startswith('/') or os.path.exists(file_path):
             # It's a file path
@@ -1328,7 +1338,13 @@ def understand_audio(file_path: str, prompt: str) -> str:
             except Exception as decode_error:
                 return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
         
-        contents = [prompt, mp3_file]
+        # Create enhanced prompt with system prompt if provided
+        if system_prompt:
+            enhanced_prompt = f"{system_prompt}\n\nAnalyze the audio file and answer the following question:\n{prompt}\n\nProvide your answer in the required FINAL ANSWER format."
+        else:
+            enhanced_prompt = prompt
+        
+        contents = [enhanced_prompt, mp3_file]
         try:
             response = client.models.generate_content(
                 model="gemini-2.5-pro",

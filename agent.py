@@ -105,7 +105,7 @@ class GaiaAgent:
             "model": "qwen-qwq-32b",
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 4500,
+            "token_limit": 4000,
             "max_tokens": 2048,
             "max_history": 15
         },
@@ -114,7 +114,7 @@ class GaiaAgent:
             "type_str": "huggingface",
             "temperature": 0,
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
-            "token_limit": 3000,  # Conservative for HuggingFace
+            "token_limit": 1000,  # Conservative for HuggingFace
             "max_history": 20,
             "models": [
                 {
@@ -328,7 +328,6 @@ class GaiaAgent:
         """
         Implement rate limiting to avoid hitting API limits.
         Waits if necessary to maintain minimum interval between requests.
-        For Groq and HuggingFace, wait 30 seconds; for others, wait 1 second.
         """
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
@@ -336,7 +335,7 @@ class GaiaAgent:
         if self.current_llm_type in ["groq", "huggingface"]:
             min_interval = 30
         else:
-            min_interval = 1
+            min_interval = 30
         if time_since_last < min_interval:
             sleep_time = min_interval - time_since_last
             # Add small random jitter to avoid thundering herd
@@ -1095,7 +1094,7 @@ class GaiaAgent:
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
                 token_limit = 3000  # Reasonable default for LLMs with no explicit limit
-            safe_tokens = int(token_limit * 0.65)
+            safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
@@ -1105,13 +1104,13 @@ class GaiaAgent:
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
                 token_limit = 3000  # Reasonable default for LLMs with no explicit limit
-            safe_tokens = int(token_limit * 0.65)
+            safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
         
         # Process chunks with intervals (shorter for non-Groq LLMs)
         all_responses = []
-        wait_time = 60 if llm_type == "groq" else 10  # 60s for Groq, 10s for others
+        wait_time = 60
         
         for i, chunk in enumerate(chunks):
             print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
@@ -1680,14 +1679,14 @@ class GaiaAgent:
 
     def _inject_file_data_to_tool_args(self, tool_name: str, tool_args: dict) -> dict:
         """
-        Automatically inject file data into tool arguments if the tool needs it and file data is available.
+        Automatically inject file data and system prompt into tool arguments if needed.
         
         Args:
             tool_name (str): Name of the tool being called
             tool_args (dict): Original tool arguments
             
         Returns:
-            dict: Modified tool arguments with file data if needed
+            dict: Modified tool arguments with file data and system prompt if needed
         """
         # Tools that need file data
         file_tools = {
@@ -1703,6 +1702,14 @@ class GaiaAgent:
             'solve_chess_position': 'image_path',
             'execute_code_multilang': 'code'  # Add support for code injection
         }
+        
+        # Tools that need system prompt for better formatting
+        system_prompt_tools = ['understand_video', 'understand_audio']
+        
+        # Inject system prompt for video and audio understanding tools
+        if tool_name in system_prompt_tools and 'system_prompt' not in tool_args:
+            tool_args['system_prompt'] = self.system_prompt
+            print(f"[Tool Loop] Injected system prompt for {tool_name}")
         
         if tool_name in file_tools and self.current_file_data and self.current_file_name:
             param_name = file_tools[tool_name]
