@@ -37,3 +37,5 @@ nltk
 opencv-python
 python-chess
 tiktoken
+exa-py
+openai

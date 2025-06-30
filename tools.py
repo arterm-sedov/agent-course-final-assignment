@@ -90,6 +90,14 @@ except ImportError:
     ARXIVLOADER_AVAILABLE = False
     print("Warning: ArxivLoader not available. Install with: pip install langchain-community")
 
+# Try to import Exa for AI-powered answers
+try:
+    from exa_py import Exa
+    EXA_AVAILABLE = True
+except ImportError:
+    EXA_AVAILABLE = False
+    print("Warning: Exa not available. Install with: pip install exa-py")
+
 # Google Gemini imports for video/audio/chess understanding
 try:
     from google import genai
@@ -730,6 +738,63 @@ def arxiv_search(input: str) -> str:
         return {"arxiv_results": formatted_results}
     except Exception as e:
         return f"Error in Arxiv search: {str(e)}"
+
+@tool
+def exa_ai_helper(question: str) -> str:
+    """
+    Get direct, well-researched answers to questions using Exa's Answer API.
+    
+    This tool is particularly useful when:
+    - You need authoritative, up-to-date information on a topic
+    - You want to double-check your own knowledge or reasoning
+    - You're dealing with complex questions that require multiple sources
+    - You need citations and sources to back up your answer
+    - You're unsure about the accuracy of your response
+    
+    The tool performs an Exa search and uses an LLM to generate either:
+    - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
+    - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
+    
+    Args:
+        question (str): The question to get an answer for. Can be specific or open-ended.
+    
+    Returns:
+        str: A well-researched answer with citations and sources, or an error message.
+    
+    Note:
+        Requires EXA_API_KEY environment variable to be set.
+        Install with: pip install exa-py
+    """
+    if not EXA_AVAILABLE:
+        return "Exa AI Helper not available. Install with: pip install exa-py"
+    
+    try:
+        # Check if API key is available
+        exa_api_key = os.environ.get("EXA_API_KEY")
+        if not exa_api_key:
+            return "EXA_API_KEY not found in environment variables. Please set it in your .env file."
+        
+        # Initialize Exa client
+        exa = Exa(exa_api_key)
+        
+        # Get answer with streaming for better performance
+        result = exa.stream_answer(
+            question,
+            text=True,
+        )
+        
+        # Collect the streaming response
+        answer_parts = []
+        for chunk in result:
+            answer_parts.append(chunk)
+        
+        # Combine all parts into the final answer
+        full_answer = ''.join(answer_parts)
+        
+        return f"AI Helper Answer:\n\n{full_answer}"
+        
+    except Exception as e:
+        return f"Error getting AI Helper answer: {str(e)}"
 
 # ========== FILE/DATA TOOLS ==========
 @tool

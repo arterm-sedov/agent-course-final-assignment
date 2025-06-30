@@ -78,9 +78,10 @@ IMPORTANT RULES:
     - If links are included, process the linked content with the relevant tool before considering web search.
     - For questions that may benefit from external information and have no attached files:
         - Use web tools in this order, and only once per tool per question:
-            1. Tavily/web_search: Request a **single brief summary** to seed your answer.
-            2. Wikipedia/wiki_search: Use for **specific, targeted queries** only if Tavily is insufficient.
-            3. Arxiv/arxiv_search: Use for **specific, targeted queries** only if needed.
+            1. Exa's Answer API/exa_ai_helper: Request a **single brief summary** to seed your answer.
+            2. Tavily/web_search: Request a **single brief summary** to seed your answer.
+            3. Wikipedia/wiki_search: Use for **specific, targeted queries** only if Tavily is insufficient.
+            4. Arxiv/arxiv_search: Use for **specific, targeted queries** only if needed.
         - Do not call the same tool with the same or similar query more than once per question.
         - Avoid requesting large outputs; always ask for concise or summarized results.
         - If a tool returns a large result, summarize it before further use to avoid overloading the LLM.

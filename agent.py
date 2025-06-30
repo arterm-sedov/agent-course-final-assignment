@@ -597,14 +597,19 @@ class GaiaAgent:
             except Exception as e:
                 print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
                 
-                # Enhanced Groq token limit error handling
-                if llm_type == "groq" and self._is_groq_token_limit_error(e):
-                    print(f"[Tool Loop] Groq token limit error detected in tool calling loop")
+                # Enhanced token limit error handling for all LLMs
+                if self._is_token_limit_error(e, llm_type):
+                    print(f"[Tool Loop] Token limit error detected for {llm_type} in tool calling loop")
                     # Get the LLM name for proper logging
-                    _, llm_name, _ = self._select_llm("groq", True)
-                    return self._handle_groq_token_limit_error(messages, llm, llm_name, e)
+                    _, llm_name, _ = self._select_llm(llm_type, True)
+                    return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
                 
-                # Check for Groq token limit errors specifically
+                # Handle HuggingFace router errors with chunking
+                if llm_type == "huggingface" and self._is_token_limit_error(e):
+                    print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
+                    return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
+                
+                # Check for general token limit errors specifically
                 if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
                     print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
                     if tool_results_history:
@@ -618,7 +623,11 @@ class GaiaAgent:
                 finish_reason = response.response_metadata.get('finish_reason')
                 if finish_reason == 'length':
                     print(f"[Tool Loop] ❌ Hit token limit for {llm_type} LLM. Response was truncated. Cannot complete reasoning.")
-                    return AIMessage(content=f"Error: Hit token limit for {llm_type} LLM. Cannot complete reasoning.")
+                    # Handle response truncation using generic token limit error handler
+                    print(f"[Tool Loop] Applying chunking mechanism for {llm_type} response truncation")
+                    # Get the LLM name for proper logging
+                    _, llm_name, _ = self._select_llm(llm_type, True)
+                    return self._handle_token_limit_error(messages, llm, llm_name, Exception("Response truncated due to token limit"), llm_type)
 
             # === DEBUG OUTPUT ===
             # Print LLM response using the new helper function
@@ -970,12 +979,15 @@ class GaiaAgent:
             return response
         except Exception as e:
             # Enhanced Groq token limit error handling
-            if llm_type == "groq" and self._is_groq_token_limit_error(e):
+            if llm_type == "groq" and self._is_token_limit_error(e):
                 print(f"⚠️ Groq token limit error detected: {e}")
                 return self._handle_groq_token_limit_error(messages, llm, llm_name, e)
             
             # Special handling for HuggingFace router errors
-            if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+            if llm_type == "huggingface" and self._is_token_limit_error(e):
+                print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
+                return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
+            elif llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                 error_msg = f"HuggingFace router service error (500): {e}"
                 print(f"⚠️ {error_msg}")
                 print("💡 This is a known issue with HuggingFace's router service. Consider using Google Gemini or Groq instead.")
@@ -994,7 +1006,7 @@ class GaiaAgent:
             else:
                 raise Exception(f"{llm_name} failed: {e}")
 
-    def _is_groq_token_limit_error(self, error) -> bool:
+    def _is_token_limit_error(self, error) -> bool:
         """
         Check if the error is a Groq token limit error (413 or TPM limit exceeded).
         
@@ -1017,7 +1029,13 @@ class GaiaAgent:
         """
         Handle Groq token limit errors by chunking tool results and processing them in intervals.
         """
-        print(f"🔄 Handling Groq token limit error for {llm_name}")
+        return self._handle_token_limit_error(messages, llm, llm_name, original_error, "groq")
+
+    def _handle_token_limit_error(self, messages, llm, llm_name, original_error, llm_type="unknown"):
+        """
+        Generic token limit error handling that can be used for any LLM.
+        """
+        print(f"🔄 Handling token limit error for {llm_name} ({llm_type})")
         
         # Extract tool results from messages
         tool_results = []
@@ -1025,24 +1043,42 @@ class GaiaAgent:
             if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
                 tool_results.append(msg.content)
         
+        # If no tool results, try to chunk the entire message content
         if not tool_results:
-            return AIMessage(content=f"Error: {llm_name} token limit exceeded but no tool results available.")
+            print(f"📊 No tool results found, attempting to chunk entire message content")
+            # Extract all message content
+            all_content = []
+            for msg in messages:
+                if hasattr(msg, 'content') and msg.content:
+                    all_content.append(str(msg.content))
+            
+            if not all_content:
+                return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
+            
+            # Create chunks from all content (use LLM-specific limits)
+            max_tokens = self.token_limits.get(llm_type, 4000)
+            safe_tokens = max_tokens * 0.7  # Use 70% of limit to be safe
+            chunks = self._create_token_chunks(all_content, int(safe_tokens))
+            print(f"📦 Created {len(chunks)} chunks from message content")
+        else:
+            print(f"📊 Found {len(tool_results)} tool results to process in chunks")
+            # Create chunks (use LLM-specific limits)
+            max_tokens = self.token_limits.get(llm_type, 5500)
+            safe_tokens = max_tokens * 0.8  # Use 80% of limit to be safe
+            chunks = self._create_token_chunks(tool_results, int(safe_tokens))
+            print(f"📦 Created {len(chunks)} chunks")
         
-        print(f"📊 Found {len(tool_results)} tool results to process in chunks")
-        
-        # Create chunks (5500 tokens to be safe)
-        chunks = self._create_token_chunks(tool_results, 5500)
-        print(f"📦 Created {len(chunks)} chunks")
-        
-        # Process chunks with 1-minute intervals
+        # Process chunks with intervals (shorter for non-Groq LLMs)
         all_responses = []
+        wait_time = 60 if llm_type == "groq" else 10  # 60s for Groq, 10s for others
+        
         for i, chunk in enumerate(chunks):
             print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
             
-            # Wait 1 minute between chunks (except first)
+            # Wait between chunks (except first)
             if i > 0:
-                print(f"⏳ Waiting 60 seconds...")
-                time.sleep(60)
+                print(f"⏳ Waiting {wait_time} seconds...")
+                time.sleep(wait_time)
             
             # Create simple prompt for this chunk
             chunk_prompt = self._create_simple_chunk_prompt(messages, chunk, i+1, len(chunks))
@@ -1572,7 +1608,8 @@ class GaiaAgent:
             'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images',
             'understand_video', 'understand_audio',
             'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position',
-            'execute_code_multilang'
+            'execute_code_multilang',
+            'exa_ai_helper' 
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
@@ -2027,14 +2064,73 @@ class GaiaAgent:
                 original_question = msg.content
                 break
         
-        prompt = f"Question: {original_question}\n\nTool Results (Part {chunk_num}/{total_chunks}):\n"
-        for i, result in enumerate(chunk_results, 1):
-            prompt += f"{i}. {result}\n\n"
+        # Determine if this is tool results or general content
+        is_tool_results = any('tool' in str(result).lower() or 'result' in str(result).lower() for result in chunk_results)
+        
+        if is_tool_results:
+            prompt = f"Question: {original_question}\n\nTool Results (Part {chunk_num}/{total_chunks}):\n"
+            for i, result in enumerate(chunk_results, 1):
+                prompt += f"{i}. {result}\n\n"
+        else:
+            prompt = f"Question: {original_question}\n\nContent Analysis (Part {chunk_num}/{total_chunks}):\n"
+            for i, result in enumerate(chunk_results, 1):
+                prompt += f"{i}. {result}\n\n"
         
         if chunk_num < total_chunks:
-            prompt += "Analyze these results and provide key findings. More results coming."
+            prompt += "Analyze these results and provide key findings. More content coming."
         else:
-            prompt += "Provide your FINAL ANSWER based on all results, when you receive ALL results."
+            prompt += "Provide your FINAL ANSWER based on all content, when you receive it, following the system prompt format."
         
         return prompt
+
+    def _is_token_limit_error(self, error, llm_type="unknown") -> bool:
+        """
+        Check if the error is a token limit error or router error using vector similarity.
+        
+        Args:
+            error: The exception object
+            llm_type: Type of LLM for specific error patterns
+            
+        Returns:
+            bool: True if it's a token limit error or router error
+        """
+        error_str = str(error).lower()
+        
+        # Token limit and router error patterns for vector similarity
+        error_patterns = [
+            "413 request too large",
+            "token limit exceeded", 
+            "rate limit exceeded",
+            "context length exceeded",
+            "max tokens exceeded",
+            "response truncated",
+            "tokens per minute limit",
+            "tpm limit exceeded",
+            "413",
+            "token",
+            "limit", 
+            "rate_limit_exceeded",
+            "500 server error router.huggingface.co",
+            "internal server error router",
+            "router.huggingface.co error",
+            "500 Server Error:",
+            "Internal Server Error for url:",
+            "https://router.huggingface.co/hyperbolic/v1/chat/completions",
+            "Request ID: Root=1-6861e3b4-0d406b275c84761c4187ac84;0ff3df97-1b44-4a4d-824f-a7d43b6536fb",
+            "request too large",
+            "context length",
+            "max tokens",
+            "truncated"
+        ]
+        
+        # Check if error matches any pattern using vector similarity
+        for pattern in error_patterns:
+            if self._vector_answers_match(error_str, pattern):
+                return True
+        
+        # Direct substring checks for efficiency
+        if any(term in error_str for term in ["413", "token", "limit", "truncated", "tpm", "router.huggingface.co"]):
+            return True
+            
+        return False
 
