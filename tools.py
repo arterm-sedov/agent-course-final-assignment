@@ -477,7 +477,11 @@ def execute_code_multilang(code: str, language: str = "python") -> str:
     language = language.lower()
 
     if language not in supported_languages:
-        return f"❌ Unsupported language: {language}. Supported languages are: {', '.join(supported_languages)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "execute_code_multilang",
+            "error": f"❌ Unsupported language: {language}. Supported languages are: {', '.join(supported_languages)}"
+        })
 
     result = interpreter_instance.execute_code(code, language=language)
 
@@ -525,7 +529,11 @@ def execute_code_multilang(code: str, language: str = "python") -> str:
                 "\n**Error Log:**\n```\n" + result["stderr"].strip() + "\n```"
             )
 
-    return "\n".join(response)
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "execute_code_multilang",
+        "result": "\n".join(response)
+    })
 
 # ========== MATH TOOLS ==========
 @tool
@@ -644,10 +652,12 @@ def wiki_search(input: str) -> str:
         str: Formatted search results from Wikipedia with source information and content.
     """
     try:
-        # Check if WikipediaLoader is available
         if not WIKILOADER_AVAILABLE:
-            return "Wikipedia search not available. Install with: pip install langchain-community"
-        
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "wiki_search",
+                "error": "Wikipedia search not available. Install with: pip install langchain-community"
+            })
         search_docs = WikipediaLoader(query=input, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
@@ -655,9 +665,17 @@ def wiki_search(input: str) -> str:
                 for doc in search_docs
             ]
         )
-        return {"wiki_results": formatted_results}
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "wiki_search",
+            "wiki_results": formatted_results
+        })
     except Exception as e:
-        return f"Error in Wikipedia search: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "wiki_search",
+            "error": f"Error in Wikipedia search: {str(e)}"
+        })
 
 @tool
 def web_search(input: str) -> str:
@@ -682,20 +700,28 @@ def web_search(input: str) -> str:
         Install with: pip install langchain-tavily
     """
     if not TAVILY_AVAILABLE:
-        return "Tavily search not available. Install with: pip install langchain-tavily"
-    
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "web_search",
+            "error": "Tavily search not available. Install with: pip install langchain-tavily"
+        })
     try:
-        # Check if API key is available
         if not os.environ.get("TAVILY_API_KEY"):
-            return "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
-        
-        # Perform the search - pass input as positional argument
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "web_search",
+                "error": "TAVILY_API_KEY not found in environment variables. Please set it in your .env file."
+            })
         search_result = TavilySearch(max_results=SEARCH_LIMIT).invoke(input)
         
         # Handle different response types
         if isinstance(search_result, str):
             # If Tavily returned a string (error message or direct answer)
-            return {"web_results": search_result}
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "web_search",
+                "web_results": search_result
+            })
         elif isinstance(search_result, list):
             # If Tavily returned a list of Document objects
             formatted_results = "\n\n---\n\n".join(
@@ -704,13 +730,23 @@ def web_search(input: str) -> str:
                     for doc in search_result
                 ]
             )
-            return {"web_results": formatted_results}
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "web_search",
+                "web_results": formatted_results
+            })
         else:
-            # Handle other response types
-            return {"web_results": str(search_result)}
-        
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "web_search",
+                    "web_results": str(search_result)
+            })
     except Exception as e:
-        return f"Error in web search: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "web_search",
+            "error": f"Error in web search: {str(e)}"
+        })
 
 @tool
 def arxiv_search(input: str) -> str:
@@ -724,10 +760,12 @@ def arxiv_search(input: str) -> str:
         str: Formatted search results from Arxiv with paper metadata and abstracts.
     """
     try:
-        # Check if ArxivLoader is available
         if not ARXIVLOADER_AVAILABLE:
-            return "Arxiv search not available. Install with: pip install langchain-community"
-        
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "arxiv_search",
+                "error": "Arxiv search not available. Install with: pip install langchain-community"
+            })
         search_docs = ArxivLoader(query=input, load_max_docs=SEARCH_LIMIT).load()
         formatted_results = "\n\n---\n\n".join(
             [
@@ -735,9 +773,17 @@ def arxiv_search(input: str) -> str:
                 for doc in search_docs
             ]
         )
-        return {"arxiv_results": formatted_results}
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "arxiv_search",
+            "arxiv_results": formatted_results
+        })
     except Exception as e:
-        return f"Error in Arxiv search: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "arxiv_search",
+            "error": f"Error in Arxiv search: {str(e)}"
+        })
 
 @tool
 def exa_ai_helper(question: str) -> str:
@@ -766,35 +812,39 @@ def exa_ai_helper(question: str) -> str:
         Install with: pip install exa-py
     """
     if not EXA_AVAILABLE:
-        return "Exa AI Helper not available. Install with: pip install exa-py"
-    
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_ai_helper",
+            "error": "Exa AI Helper not available. Install with: pip install exa-py"
+        })
     try:
-        # Check if API key is available
         exa_api_key = os.environ.get("EXA_API_KEY")
         if not exa_api_key:
-            return "EXA_API_KEY not found in environment variables. Please set it in your .env file."
-        
-        # Initialize Exa client
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "exa_ai_helper",
+                "error": "EXA_API_KEY not found in environment variables. Please set it in your .env file."
+            })
         exa = Exa(exa_api_key)
-        
-        # Get answer with streaming for better performance
         result = exa.stream_answer(
             question,
             text=True,
         )
-        
-        # Collect the streaming response
         answer_parts = []
         for chunk in result:
             answer_parts.append(chunk)
-        
-        # Combine all parts into the final answer
         full_answer = ''.join(answer_parts)
-        
-        return f"AI Helper Answer:\n\n{full_answer}"
-        
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_ai_helper",
+            "answer": full_answer
+        })
     except Exception as e:
-        return f"Error getting AI Helper answer: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_ai_helper",
+            "error": f"Error getting AI Helper answer: {str(e)}"
+        })
 
 # ========== FILE/DATA TOOLS ==========
 @tool
@@ -817,7 +867,11 @@ def save_and_read_file(content: str, filename: Optional[str] = None) -> str:
         filepath = os.path.join(temp_dir, filename)
     with open(filepath, "w") as f:
         f.write(content)
-    return f"File saved to {filepath}. You can read this file to process its contents."
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "save_and_read_file",
+        "result": f"File saved to {filepath}. You can read this file to process its contents."
+    })
 
 @tool
 def download_file_from_url(url: str, filename: Optional[str] = None) -> str:
@@ -845,9 +899,17 @@ def download_file_from_url(url: str, filename: Optional[str] = None) -> str:
         with open(filepath, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
-        return f"File downloaded to {filepath}. You can read this file to process its contents."
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "download_file_from_url",
+            "result": f"File downloaded to {filepath}. You can read this file to process its contents."
+        })
     except Exception as e:
-        return f"Error downloading file: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "download_file_from_url",
+            "error": f"Error downloading file: {str(e)}"
+        })
 
 @tool
 def get_task_file(task_id: str, file_name: str) -> str:
@@ -877,7 +939,11 @@ def get_task_file(task_id: str, file_name: str) -> str:
         filepath = os.path.join(directory_name, file_name)
         with open(filepath, 'wb') as file:
             file.write(response.content)
-        return os.path.abspath(filepath)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_task_file",
+            "result": os.path.abspath(filepath)
+        })
     except Exception as e:
         # Fallback to local files
         try:
@@ -885,11 +951,23 @@ def get_task_file(task_id: str, file_name: str) -> str:
             if os.path.exists(local_filepath):
                 filepath = os.path.join(directory_name, file_name)
                 shutil.copy2(local_filepath, filepath)
-                return os.path.abspath(filepath)
+                return json.dumps({
+                    "type": "tool_response",
+                    "tool_name": "get_task_file",
+                    "result": os.path.abspath(filepath)
+                })
             else:
-                return f"Error: File {file_name} not found locally or via API"
+                return json.dumps({
+                    "type": "tool_response",
+                    "tool_name": "get_task_file",
+                    "error": f"Error: File {file_name} not found locally or via API"
+                })
         except Exception as local_error:
-            return f"Error downloading file: {str(e)}. Local fallback also failed: {str(local_error)}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "get_task_file",
+                "error": f"Error downloading file: {str(e)}. Local fallback also failed: {str(local_error)}"
+            })
 
 @tool
 def extract_text_from_image(image_path: str) -> str:
@@ -907,10 +985,22 @@ def extract_text_from_image(image_path: str) -> str:
         if PYTESSERACT_AVAILABLE:
             text = pytesseract.image_to_string(image)
         else:
-            return "OCR not available. Install with: pip install pytesseract"
-        return f"Extracted text from image:\n\n{text}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "extract_text_from_image",
+                "error": "OCR not available. Install with: pip install pytesseract"
+            })
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "extract_text_from_image",
+            "result": f"Extracted text from image:\n\n{text}"
+        })
     except Exception as e:
-        return f"Error extracting text from image: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "extract_text_from_image",
+            "error": f"Error extracting text from image: {str(e)}"
+        })
 
 @tool
 def analyze_csv_file(file_path: str, query: str) -> str:
@@ -930,9 +1020,17 @@ def analyze_csv_file(file_path: str, query: str) -> str:
         result += f"Columns: {', '.join(df.columns)}\n\n"
         result += "Summary statistics:\n"
         result += str(df.describe())
-        return result
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_csv_file",
+            "result": result
+        })
     except Exception as e:
-        return f"Error analyzing CSV file: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_csv_file",
+            "error": f"Error analyzing CSV file: {str(e)}"
+        })
 
 @tool
 def analyze_excel_file(file_path: str, query: str) -> str:
@@ -952,9 +1050,25 @@ def analyze_excel_file(file_path: str, query: str) -> str:
         result += f"Columns: {', '.join(df.columns)}\n\n"
         result += "Summary statistics:\n"
         result += str(df.describe())
-        return result
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_excel_file",
+            "result": result
+        })
     except Exception as e:
-        return f"Error analyzing Excel file: {str(e)}"
+        # Enhanced error reporting: print columns and head if possible
+        try:
+            df = pd.read_excel(file_path)
+            columns = list(df.columns)
+            head = df.head().to_dict('records')
+            error_details = f"Error analyzing Excel file: {str(e)}\nColumns: {columns}\nHead: {head}"
+        except Exception as inner_e:
+            error_details = f"Error analyzing Excel file: {str(e)}\nAdditionally, failed to read columns/head: {str(inner_e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_excel_file",
+            "error": error_details
+        })
 
 # ========== IMAGE ANALYSIS/GENERATION TOOLS ==========
 @tool
@@ -994,9 +1108,17 @@ def analyze_image(image_base64: str) -> str:
             "color_analysis": color_analysis,
             "thumbnail": thumbnail_base64,
         }
-        return json.dumps(result, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_image",
+            "result": result
+        }, indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "analyze_image",
+            "error": str(e)
+        }, indent=2)
 
 @tool
 def transform_image(image_base64: str, operation: str, params: Optional[Dict[str, Any]] = None) -> str:
@@ -1014,7 +1136,6 @@ def transform_image(image_base64: str, operation: str, params: Optional[Dict[str
     try:
         img = decode_image(image_base64)
         params = params or {}
-
         if operation == "resize":
             width = params.get("width", img.width)
             height = params.get("height", img.height)
@@ -1042,13 +1163,24 @@ def transform_image(image_base64: str, operation: str, params: Optional[Dict[str
             enhancer = ImageEnhance.Contrast(img)
             img = enhancer.enhance(factor)
         else:
-            return json.dumps({"error": f"Unsupported operation: {operation}"}, indent=2)
-
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "transform_image",
+                "error": f"Unsupported operation: {operation}"
+            }, indent=2)
         result_path = save_image(img)
         result_base64 = encode_image(result_path)
-        return json.dumps({"transformed_image": result_base64}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "transform_image",
+            "transformed_image": result_base64
+        }, indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "transform_image",
+            "error": str(e)
+        }, indent=2)
 
 @tool
 def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) -> str:
@@ -1066,18 +1198,15 @@ def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) 
     try:
         img = decode_image(image_base64)
         draw = ImageDraw.Draw(img)
-
         if drawing_type == "text":
             text = params.get("text", "")
             position = params.get("position", (10, 10))
             color = params.get("color", "black")
             size = params.get("size", 20)
-            
             try:
                 font = ImageFont.truetype("arial.ttf", size)
             except:
                 font = ImageFont.load_default()
-            
             draw.text(position, text, fill=color, font=font)
         elif drawing_type == "rectangle":
             coords = params.get("coords", [10, 10, 100, 100])
@@ -1089,7 +1218,6 @@ def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) 
             radius = params.get("radius", 30)
             color = params.get("color", "blue")
             width = params.get("width", 2)
-            
             bbox = [center[0] - radius, center[1] - radius, 
                    center[0] + radius, center[1] + radius]
             draw.ellipse(bbox, outline=color, width=width)
@@ -1100,13 +1228,24 @@ def draw_on_image(image_base64: str, drawing_type: str, params: Dict[str, Any]) 
             width = params.get("width", 2)
             draw.line([start, end], fill=color, width=width)
         else:
-            return json.dumps({"error": f"Unsupported drawing type: {drawing_type}"}, indent=2)
-
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "draw_on_image",
+                "error": f"Unsupported drawing type: {drawing_type}"
+            }, indent=2)
         result_path = save_image(img)
         result_base64 = encode_image(result_path)
-        return json.dumps({"modified_image": result_base64}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "draw_on_image",
+            "modified_image": result_base64
+        }, indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "draw_on_image",
+            "error": str(e)
+        }, indent=2)
 
 @tool
 def generate_simple_image(image_type: str, width: int = 500, height: int = 500, 
@@ -1125,7 +1264,6 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
     """
     try:
         params = params or {}
-        
         if image_type == "solid":
             color = params.get("color", (255, 255, 255))
             img = Image.new("RGB", (width, height), color)
@@ -1133,10 +1271,8 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
             start_color = params.get("start_color", (255, 0, 0))
             end_color = params.get("end_color", (0, 0, 255))
             direction = params.get("direction", "horizontal")
-            
             img = Image.new("RGB", (width, height))
             draw = ImageDraw.Draw(img)
-            
             if direction == "horizontal":
                 for x in range(width):
                     r = int(start_color[0] + (end_color[0] - start_color[0]) * x / width)
@@ -1165,13 +1301,24 @@ def generate_simple_image(image_type: str, width: int = 500, height: int = 500,
                             if x + dx < width and y + dy < height:
                                 img.putpixel((x + dx, y + dy), color)
         else:
-            return json.dumps({"error": f"Unsupported image_type {image_type}"}, indent=2)
-
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "generate_simple_image",
+                "error": f"Unsupported image_type {image_type}"
+            }, indent=2)
         result_path = save_image(img)
         result_base64 = encode_image(result_path)
-        return json.dumps({"generated_image": result_base64}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "generate_simple_image",
+            "generated_image": result_base64
+        }, indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "generate_simple_image",
+            "error": str(e)
+        }, indent=2)
 
 @tool
 def combine_images(images_base64: List[str], operation: str, 
@@ -1189,11 +1336,13 @@ def combine_images(images_base64: List[str], operation: str,
     """
     try:
         if len(images_base64) < 2:
-            return json.dumps({"error": "At least 2 images required for combination"}, indent=2)
-        
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "combine_images",
+                "error": "At least 2 images required for combination"
+            }, indent=2)
         images = [decode_image(b64) for b64 in images_base64]
         params = params or {}
-        
         if operation == "horizontal":
             # Combine images side by side
             total_width = sum(img.width for img in images)
@@ -1240,13 +1389,24 @@ def combine_images(images_base64: List[str], operation: str,
                     result.paste(img, (0, y))
                     y += img.height
         else:
-            return json.dumps({"error": f"Unsupported combination operation: {operation}"}, indent=2)
-
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "combine_images",
+                "error": f"Unsupported combination operation: {operation}"
+            }, indent=2)
         result_path = save_image(result)
         result_base64 = encode_image(result_path)
-        return json.dumps({"combined_image": result_base64}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "combine_images",
+            "combined_image": result_base64
+        }, indent=2)
     except Exception as e:
-        return json.dumps({"error": str(e)}, indent=2)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "combine_images",
+            "error": str(e)
+        }, indent=2)
 
 # ========== VIDEO/AUDIO UNDERSTANDING TOOLS ==========
 @tool
@@ -1288,9 +1448,17 @@ def understand_video(youtube_url: str, prompt: str, system_prompt: str = None) -
                 ]
             )
         )
-        return video_description.text
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "understand_video",
+            "result": video_description.text
+        })
     except Exception as e:
-        return f"Error understanding video: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "understand_video",
+            "error": f"Error understanding video: {str(e)}"
+        })
 
 @tool
 def understand_audio(file_path: str, prompt: str, system_prompt: str = None) -> str:
@@ -1336,7 +1504,11 @@ def understand_audio(file_path: str, prompt: str, system_prompt: str = None) -> 
                     # Clean up temporary file
                     os.unlink(temp_file_path)
             except Exception as decode_error:
-                return f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
+                return json.dumps({
+                    "type": "tool_response",
+                    "tool_name": "understand_audio",
+                    "error": f"Error processing audio data: {str(decode_error)}. Expected base64 encoded audio data or valid file path."
+                })
         
         # Create enhanced prompt with system prompt if provided
         if system_prompt:
@@ -1350,11 +1522,23 @@ def understand_audio(file_path: str, prompt: str, system_prompt: str = None) -> 
                 model="gemini-2.5-pro",
                 contents=contents
             )
-            return response.text
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "understand_audio",
+                "result": response.text
+            })
         except Exception as e:
-            return f"Error in audio understanding request: {str(e)}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "understand_audio",
+                "error": f"Error in audio understanding request: {str(e)}"
+            })
     except Exception as e:
-        return f"Error understanding audio: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "understand_audio",
+            "error": f"Error understanding audio: {str(e)}"
+        })
 
 # ========== CHESS TOOLS ==========
 def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
@@ -1374,7 +1558,11 @@ def _convert_chess_move_internal(piece_placement: str, move: str) -> str:
     
     Return only the algebraic notation (e.g., "e4", "Nf3", "O-O", "Qxd5", etc.)
     """
-    return _get_gemini_response(prompt, "Chess move conversion", "gemini-2.5-pro")
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "convert_chess_move",
+        "result": _get_gemini_response(prompt, "Chess move conversion", "gemini-2.5-pro")
+    })
 
 @tool
 def convert_chess_move(piece_placement: str, move: str) -> str:
@@ -1404,7 +1592,11 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         f"Do not provide any additional thinking or commentary in the response, "
         f"just the algebraic notation only."
     )
-    return _get_gemini_response(move_message, "Chess move conversion", "gemini-2.5-pro")
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "convert_chess_move",
+        "result": _get_gemini_response(move_message, "Chess move conversion", "gemini-2.5-pro")
+    })
 
 def _get_best_chess_move_internal(fen: str) -> str:
     """
@@ -1430,16 +1622,32 @@ def _get_best_chess_move_internal(fen: str) -> str:
                     first_move = moves_string.split()[0]
                     return first_move
                 else:
-                    return f"Error getting chess evaluation: No moves in response"
+                    return json.dumps({
+                        "type": "tool_response",
+                        "tool_name": "get_best_chess_move",
+                        "error": "Error getting chess evaluation: No moves in response"
+                    })
             else:
-                return f"Error getting chess evaluation: No pvs data in response"
+                return json.dumps({
+                    "type": "tool_response",
+                    "tool_name": "get_best_chess_move",
+                    "error": "Error getting chess evaluation: No pvs data in response"
+                })
         elif response.status_code == 404:
             # Position not found in Lichess database - try alternative APIs
             return _get_best_move_fallback(fen)
         else:
-            return f"Error getting chess evaluation: HTTP {response.status_code}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "get_best_chess_move",
+                "error": f"Error getting chess evaluation: HTTP {response.status_code}"
+            })
     except Exception as e:
-        return f"Error getting chess evaluation: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "error": f"Error getting chess evaluation: {str(e)}"
+        })
 
 def _get_best_move_fallback(fen: str) -> str:
     """
@@ -1482,14 +1690,22 @@ def _get_best_move_fallback(fen: str) -> str:
                         move = legal_moves[0]
                         return chess.square_name(move.from_square) + chess.square_name(move.to_square)
                 else:
-                    return "Error: No legal moves available"
+                    return json.dumps({
+                        "type": "tool_response",
+                        "tool_name": "get_best_chess_move",
+                        "error": "Error: No legal moves available"
+                    })
                 
         except ImportError:
             # python-chess not available, use simple heuristic
             return _get_best_move_simple_heuristic(fen)
             
     except Exception as e:
-        return f"Error in fallback chess evaluation: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "error": f"Error in fallback chess evaluation: {str(e)}"
+        })
 
 def _try_stockfish_online_api_v2(fen: str) -> str:
     """
@@ -1520,15 +1736,31 @@ def _try_stockfish_online_api_v2(fen: str) -> str:
                     else:
                         return bestmove  # Return full string if parsing fails
                 else:
-                    return "Error: No bestmove in Stockfish API response"
+                    return json.dumps({
+                        "type": "tool_response",
+                        "tool_name": "get_best_chess_move",
+                        "error": "Error: No bestmove in Stockfish API response"
+                    })
             else:
                 error_msg = data.get('data', 'Unknown error')
-                return f"Error: Stockfish API failed - {error_msg}"
+                return json.dumps({
+                    "type": "tool_response",
+                    "tool_name": "get_best_chess_move",
+                    "error": f"Error: Stockfish API failed - {error_msg}"
+                })
         
-        return f"Error: Stockfish API returned status {response.status_code}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "error": f"Error: Stockfish API returned status {response.status_code}"
+        })
         
     except Exception as e:
-        return f"Error accessing Stockfish Online API v2: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "error": f"Error accessing Stockfish Online API v2: {str(e)}"
+        })
 
 def _evaluate_moves_simple(board, legal_moves):
     """
@@ -1583,7 +1815,11 @@ def _get_best_move_simple_heuristic(fen: str) -> str:
         # Parse FEN to understand the position
         parts = fen.split()
         if len(parts) < 1:
-            return "Error: Invalid FEN format"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "get_best_chess_move",
+                "error": "Error: Invalid FEN format"
+            })
         
         board_part = parts[0]
         side_to_move = parts[1] if len(parts) > 1 else 'w'
@@ -1668,10 +1904,18 @@ def _get_best_move_simple_heuristic(fen: str) -> str:
                 return from_square + 'g1' if side_to_move == 'w' else from_square + 'g8'
         
         # Fallback: return a basic move
-        return "e2e4" if side_to_move == 'w' else "e7e5"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "result": "e2e4" if side_to_move == 'w' else "e7e5"
+        })
         
     except Exception as e:
-        return f"Error in simple heuristic: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_best_chess_move",
+            "error": f"Error in simple heuristic: {str(e)}"
+        })
 
 # ========== FEN HELPER FUNCTIONS ==========
 
@@ -1695,7 +1939,11 @@ def get_best_chess_move(fen: str) -> str:
     Note:
         Requires CHESS_EVAL_URL environment variable to be set.
     """
-    return _get_best_chess_move_internal(fen)
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "get_best_chess_move",
+        "result": _get_best_chess_move_internal(fen)
+    })
 
 # ========== FEN PROCESSING HELPERS ==========
 def _add_fen_game_state(board_placement,
@@ -1728,7 +1976,11 @@ def _add_fen_game_state(board_placement,
     # Validate side_to_move
     side_to_move_lower = str(side_to_move).lower()
     if side_to_move_lower not in ['w', 'b']:
-        return f"Error: side_to_move must be 'w' or 'b', received '{side_to_move}'"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "add_fen_game_state",
+            "error": f"Error: side_to_move must be 'w' or 'b', received '{side_to_move}'"
+        })
 
     # Validate clock values (should be non-negative integers, fullmove >= 1)
     try:
@@ -1739,9 +1991,13 @@ def _add_fen_game_state(board_placement,
         if fullmove_number < 1:
             raise ValueError("fullmove_number must be 1 or greater.")
     except (ValueError, TypeError):
-        return (f"Error: halfmove_clock ('{halfmove_clock}') and "
-                f"fullmove_number ('{fullmove_number}') must be valid integers "
-                f"(non-negative and positive respectively).")
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "add_fen_game_state",
+            "error": f"Error: halfmove_clock ('{halfmove_clock}') and "
+                    f"fullmove_number ('{fullmove_number}') must be valid integers "
+                    f"(non-negative and positive respectively)."
+        })
 
     # Assemble the full FEN string using the validated/defaulted values
     # Note: castling and en_passant strings are used directly as passed or defaulted.
@@ -1749,7 +2005,11 @@ def _add_fen_game_state(board_placement,
     full_fen = (f"{board_placement} {side_to_move_lower} {castling} "
                 f"{en_passant} {halfmove_clock} {fullmove_number}")
 
-    return full_fen
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "add_fen_game_state",
+        "result": full_fen
+    })
 
 def _get_chess_board_fen_internal(image_input: str) -> str:
     """
@@ -1783,11 +2043,23 @@ def _get_chess_board_fen_internal(image_input: str) -> str:
                 for item in data:
                     if isinstance(item, str) and item.count('/') == 7:
                         return item
-            return f"Error: FEN not found in API response: {result}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "get_chess_board_fen",
+                "error": f"Error: FEN not found in API response: {result}"
+            })
         else:
-            return f"Error: API call failed: {response.text}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "get_chess_board_fen",
+                "error": f"Error: API call failed: {response.text}"
+            })
     except Exception as e:
-        return f"Error running image-to-FEN API: {str(e)}"
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "get_chess_board_fen",
+            "error": f"Error running image-to-FEN API: {str(e)}"
+        })
 
 @tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
@@ -1801,7 +2073,11 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     Returns:
         str: The FEN representation of the chess position, or error message.
     """
-    return _get_chess_board_fen_internal(image_path)
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "get_chess_board_fen",
+        "result": _get_chess_board_fen_internal(image_path)
+    })
 
 @tool
 def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
@@ -1825,17 +2101,29 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         # Step 1: Get FEN from image - the internal function handles both file paths and base64 data
         fen = _get_chess_board_fen_internal(image_path)
         if isinstance(fen, str) and fen.startswith("Error"):
-            return f"Error getting FEN: {fen}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "solve_chess_position",
+                "error": f"Error getting FEN: {fen}"
+            })
         # Step 2: Get best move in coordinate notation (using internal function)
         best_move_coord = _get_best_chess_move_internal(fen)
         if best_move_coord.startswith("Error"):
-            return f"Error getting best move: {best_move_coord}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "solve_chess_position",
+                "error": f"Error getting best move: {best_move_coord}"
+            })
         # Step 3: Convert to algebraic notation (using internal function)
         # Create a simple piece placement description for the LLM
         piece_placement = f"FEN: {fen}"
         algebraic_move = _convert_chess_move_internal(piece_placement, best_move_coord)
         if algebraic_move.startswith("Error"):
-            return f"Error converting move: {algebraic_move}"
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "solve_chess_position",
+                "error": f"Error converting move: {algebraic_move}"
+            })
         # Step 4: Format the response
         result = f"Chess Position Analysis:\n"
         result += f"FEN: {fen}\n"
@@ -1845,15 +2133,27 @@ def solve_chess_position(image_path: str, player_turn: str, question: str = "") 
         if question:
             result += f"\nQuestion: {question}\n"
             result += f"Answer: {algebraic_move}"
-        return result
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "solve_chess_position",
+            "result": result
+        })
     except AttributeError as e:
         # Handle AttributeError specifically (like parent_run_id issues)
         error_msg = f"Tool execution error (AttributeError): {str(e)}"
         print(f"[Chess Tool] {error_msg}")
-        return error_msg
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "solve_chess_position",
+            "error": error_msg
+        })
     except Exception as e:
         error_msg = f"Error solving chess position: {str(e)}"
         print(f"[Chess Tool] {error_msg}")
-        return error_msg
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "solve_chess_position",
+            "error": error_msg
+        })
 
 # ========== END OF TOOLS.PY ========== 

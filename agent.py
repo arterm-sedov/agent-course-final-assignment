@@ -26,7 +26,6 @@ import re
 import numpy as np
 import tempfile
 import base64
-#import hashlib
 import tiktoken
 from typing import List, Dict, Any, Optional
 from tools import *
@@ -1331,22 +1330,21 @@ class GaiaAgent:
             messages.append(HumanMessage(content=f"Reference answer: {reference}"))
         return messages
 
-    def _normalize_answer(self, ans: str) -> str:
+    def _clean_final_answer_text(self, text: str) -> str:
         """
-        Normalize answer by removing common prefixes and normalizing whitespace around commas.
-        Much simpler approach that preserves semantic meaning.
+        Extracts and cleans the answer after 'FINAL ANSWER' marker (case-insensitive, optional colon/space).
+        Strips and normalizes whitespace.
         """
-        # Handle None or empty values gracefully
-        if not ans:
+        # Handle None text gracefully
+        if not text:
             return ""
-        
-        ans = ans.strip().lower()
-        if ans.startswith("final answer:"):
-            ans = ans[12:].strip()
-        elif ans.startswith("final answer"):
-            ans = ans[11:].strip()
-        ans = re.sub(r'\s+', ' ', ans).strip()
-        return ans
+        # Remove everything before and including 'final answer' (case-insensitive, optional colon/space)
+        match = re.search(r'final answer\s*:?', text, flags=re.IGNORECASE)
+        if match:
+            text = text[match.end():]
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
 
     def _get_tool_name(self, tool):
         if hasattr(tool, 'name'):
@@ -1389,33 +1387,26 @@ class GaiaAgent:
             if not answer:
                 print("⚠️ Answer is empty, cannot compare with reference")
                 return False, -1.0
-                
-            norm_answer = self._normalize_answer(answer)
-            norm_reference = self._normalize_answer(reference)
-            
+            norm_answer = self._clean_final_answer_text(answer)
+            norm_reference = self._clean_final_answer_text(reference)
             # Debug output to see what normalization is doing
             print(f"🔍 Normalized answer: '{norm_answer}'")
             print(f"🔍 Normalized reference: '{norm_reference}'")
-            
             if norm_answer == norm_reference:
                 print("✅ Exact match after normalization")
                 return True, 1.0
             embeddings = self.embeddings
-            
             # Get embeddings for both answers
             answer_embedding = embeddings.embed_query(norm_answer)
             reference_embedding = embeddings.embed_query(norm_reference)
-            
             # Calculate cosine similarity using the reusable method
             cosine_similarity = self._calculate_cosine_similarity(answer_embedding, reference_embedding)
             print(f"🔍 Answer similarity: {cosine_similarity:.3f} (threshold: {self.similarity_threshold})")
-            
             if cosine_similarity >= self.similarity_threshold:
                 return True, cosine_similarity
             else:
                 print("🔄 Vector similarity below threshold")
                 return False, cosine_similarity
-                
         except Exception as e:
             print(f"⚠️ Error in vector similarity matching: {e}")
             return False, -1.0
@@ -1431,21 +1422,24 @@ class GaiaAgent:
             "total_questions": self.total_questions,
             "success_rates": {}
         }
-        
-        for llm_type, count in self.llm_success_count.items():
-            if llm_type == "reference_fallback":
-                llm_name = "All LLMs failed"
-            else:
-                llm_name = self.LLM_CONFIG[llm_type]["name"]
-            
-            # Calculate success rate percentage
+        # Exclude 'reference_fallback' from LLMs
+        llm_types = [k for k in self.llm_success_count if k != "reference_fallback"]
+        total_success = sum(self.llm_success_count[k] for k in llm_types)
+        all_failed = self.total_questions - total_success
+        for llm_type in llm_types:
+            llm_name = self.LLM_CONFIG[llm_type]["name"]
+            count = self.llm_success_count[llm_type]
             success_rate = (count / self.total_questions * 100) if self.total_questions > 0 else 0
-            
             stats["success_rates"][llm_name] = {
                 "count": count,
                 "rate": f"{success_rate:.1f}%"
             }
-        
+        # Add All LLMs failed
+        failed_rate = (all_failed / self.total_questions * 100) if self.total_questions > 0 else 0
+        stats["success_rates"]["All LLMs failed"] = {
+            "count": all_failed,
+            "rate": f"{failed_rate:.1f}%"
+        }
         return stats
 
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
@@ -1510,28 +1504,6 @@ class GaiaAgent:
             else:
                 raise Exception("All LLMs failed and no reference answer available")
 
-    def _clean_final_answer_text(self, text: str) -> str:
-        """
-        Cleans up the answer text by:
-        - Removing everything before and including the first 'FINAL ANSWER:' (case-insensitive, with/without colon/space)
-        - Stripping leading/trailing whitespace
-        - Normalizing whitespace
-        """
-        import re
-        # Handle None text gracefully
-        if not text:
-            return ""
-            
-        print(f"[CleanFinalAnswer] Original text before stripping: {text}")
-        # Find the first occurrence of 'FINAL ANSWER' (case-insensitive)
-        match = re.search(r'final answer\s*:?', text, flags=re.IGNORECASE)
-        if match:
-            # Only keep what comes after 'FINAL ANSWER'
-            text = text[match.end():]
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        return text.strip()
-
     def _extract_text_from_response(self, response: Any) -> str:
         """
         Helper method to extract text content from various response object types.
@@ -1565,10 +1537,9 @@ class GaiaAgent:
             bool: True if the response contains "FINAL ANSWER:" marker, False otherwise.
         """
         text = self._extract_text_from_response(response)
-        
-        # Check if any line starts with "FINAL ANSWER" (case-insensitive)
+        # Check if any line contains 'final answer' (case-insensitive, optional colon/space)
         for line in text.splitlines():
-            if line.strip().upper().startswith("FINAL ANSWER"):
+            if re.search(r'final answer\s*:?', line, flags=re.IGNORECASE):
                 return True
         return False
 
@@ -1739,21 +1710,15 @@ class GaiaAgent:
                 print(f"[Tool Loop] Injected base64 image data for {tool_name}")
             # For file path tools, create a temporary file
             elif 'file_path' in param_name:
-                import tempfile
-                import base64
-                
                 # Decode base64 and create temporary file
                 file_data = base64.b64decode(self.current_file_data)
                 with tempfile.NamedTemporaryFile(suffix=os.path.splitext(self.current_file_name)[1], delete=False) as temp_file:
                     temp_file.write(file_data)
                     temp_file_path = temp_file.name
-                
                 tool_args[param_name] = temp_file_path
                 print(f"[Tool Loop] Created temporary file {temp_file_path} for {tool_name}")
             # For code tools, decode and inject the code content
             elif param_name == 'code':
-                import base64
-                import tempfile
                 try:
                     # Get file extension
                     temp_ext = os.path.splitext(self.current_file_name)[1].lower()
