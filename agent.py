@@ -440,6 +440,21 @@ class GaiaAgent:
         
         return str(tool_result)
 
+    def _has_tool_messages(self, messages: List) -> bool:
+        """
+        Check if the message history contains ToolMessage objects.
+        
+        Args:
+            messages: List of message objects
+            
+        Returns:
+            bool: True if ToolMessage objects are present, False otherwise
+        """
+        return any(
+            hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content') 
+            for msg in messages
+        )
+
     def _force_final_answer (self, messages: List, tool_results_history: List, llm) -> Any:
         """
         Handle duplicate tool calls by forcing final answer using LangChain's native mechanisms.
@@ -461,8 +476,11 @@ class GaiaAgent:
             tool_results_history=tool_results_history
         )
         
-        # If we have tool results, explicitly include them in the reminder
-        if tool_results_history:
+        # Check if tool results are already in message history as ToolMessage objects
+        has_tool_messages = self._has_tool_messages(messages)
+        
+        # Only include tool results in reminder if they're not already in message history
+        if tool_results_history and not has_tool_messages:
             tool_results_text = "\n\nTOOL RESULTS:\n" + "\n".join([f"Result {i+1}: {result}" for i, result in enumerate(tool_results_history)])
             reminder += tool_results_text
         
@@ -898,26 +916,33 @@ class GaiaAgent:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
                     llm_no_tools, _, _ = self._select_llm(llm_type, False)
                     if llm_no_tools:
-                        # Extract raw tool results from message history for _get_reminder_prompt
-                        tool_results_history = []
-                        for msg in messages:
-                            if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
-                                tool_results_history.append(msg.content)
+                        # Check if tool results are already in message history as ToolMessage objects
+                        has_tool_messages = self._has_tool_messages(messages)
                         
-                        if tool_results_history:
-                            print(f"⚠️ Retrying {llm_name} without tools with enhanced context")
-                            print(f"📝 Tool results included: {len(tool_results_history)} tools")
-                            reminder = self._get_reminder_prompt(
-                                reminder_type="final_answer_prompt",
-                                messages=messages,
-                                tools=self.tools,
-                                tool_results_history=tool_results_history
-                            )
-                            enhanced_messages = [self.system_prompt, HumanMessage(content=reminder)]
-                            response = llm_no_tools.invoke(enhanced_messages)
-                        else:
-                            print(f"⚠️ Retrying {llm_name} without tools (no tool results found)")
+                        if has_tool_messages:
+                            print(f"⚠️ Retrying {llm_name} without tools (tool results already in message history)")
                             response = llm_no_tools.invoke(messages)
+                        else:
+                            # Extract raw tool results from message history for _get_reminder_prompt
+                            tool_results_history = []
+                            for msg in messages:
+                                if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
+                                    tool_results_history.append(msg.content)
+                            
+                            if tool_results_history:
+                                print(f"⚠️ Retrying {llm_name} without tools with enhanced context")
+                                print(f"📝 Tool results included: {len(tool_results_history)} tools")
+                                reminder = self._get_reminder_prompt(
+                                    reminder_type="final_answer_prompt",
+                                    messages=messages,
+                                    tools=self.tools,
+                                    tool_results_history=tool_results_history
+                                )
+                                enhanced_messages = [self.system_prompt, HumanMessage(content=reminder)]
+                                response = llm_no_tools.invoke(enhanced_messages)
+                            else:
+                                print(f"⚠️ Retrying {llm_name} without tools (no tool results found)")
+                                response = llm_no_tools.invoke(messages)
                     
                     # NEW: If still no content, this might be a token limit issue
                     if not hasattr(response, 'content') or not response.content:
