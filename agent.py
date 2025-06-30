@@ -1091,14 +1091,16 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            safe_tokens = self.token_limits.get(5000) * 0.7  # Use 70% of limit to be safe
-            chunks = self._create_token_chunks(all_content, int(safe_tokens))
+            token_limit = self.token_limits.get(llm_type, 5000)  # Use 5000 as fallback
+            safe_tokens = int(token_limit * 0.7) if token_limit else 3500  # Use 70% of limit to be safe
+            chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            safe_tokens = self.token_limits.get(5500) * 0.7  # Use 80% of limit to be safe
-            chunks = self._create_token_chunks(tool_results, int(safe_tokens))
+            token_limit = self.token_limits.get(llm_type, 5000)  # Use 5000 as fallback
+            safe_tokens = int(token_limit * 0.7) if token_limit else 3500  # Use 70% of limit to be safe
+            chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
         
         # Process chunks with intervals (shorter for non-Groq LLMs)
