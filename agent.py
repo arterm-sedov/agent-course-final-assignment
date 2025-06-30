@@ -27,6 +27,7 @@ import numpy as np
 import tempfile
 import base64
 #import hashlib
+import tiktoken
 from typing import List, Dict, Any, Optional
 from tools import *
 # Import tools module to get its functions
@@ -340,9 +341,17 @@ class GaiaAgent:
 
     def _estimate_tokens(self, text: str) -> int:
         """
-        Rough estimation of token count (4 chars per token is a reasonable approximation).
+        Estimate token count using tiktoken for accurate counting.
         """
-        return len(text) // 4
+        try:
+            # Use GPT-4 encoding as a reasonable approximation for most models
+            encoding = tiktoken.encoding_for_model("gpt-4")
+            tokens = encoding.encode(text)
+            return len(tokens)
+        except Exception as e:
+            # Fallback to character-based estimation if tiktoken fails
+            print(f"⚠️ Tiktoken failed, using fallback: {e}")
+            return len(text) // 4
 
     def _truncate_messages(self, messages: List[Any], llm_type: str = None) -> List[Any]:
         """
@@ -587,6 +596,13 @@ class GaiaAgent:
                 response = llm.invoke(messages)
             except Exception as e:
                 print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
+                
+                # Enhanced Groq token limit error handling
+                if llm_type == "groq" and self._is_groq_token_limit_error(e):
+                    print(f"[Tool Loop] Groq token limit error detected in tool calling loop")
+                    # Get the LLM name for proper logging
+                    _, llm_name, _ = self._select_llm("groq", True)
+                    return self._handle_groq_token_limit_error(messages, llm, llm_name, e)
                 
                 # Check for Groq token limit errors specifically
                 if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
@@ -953,6 +969,11 @@ class GaiaAgent:
             print(f"--- Raw response from {llm_name} ---")
             return response
         except Exception as e:
+            # Enhanced Groq token limit error handling
+            if llm_type == "groq" and self._is_groq_token_limit_error(e):
+                print(f"⚠️ Groq token limit error detected: {e}")
+                return self._handle_groq_token_limit_error(messages, llm, llm_name, e)
+            
             # Special handling for HuggingFace router errors
             if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                 error_msg = f"HuggingFace router service error (500): {e}"
@@ -972,6 +993,107 @@ class GaiaAgent:
                 raise Exception(error_msg)
             else:
                 raise Exception(f"{llm_name} failed: {e}")
+
+    def _is_groq_token_limit_error(self, error) -> bool:
+        """
+        Check if the error is a Groq token limit error (413 or TPM limit exceeded).
+        
+        Args:
+            error: The exception object
+            
+        Returns:
+            bool: True if it's a Groq token limit error
+        """
+        error_str = str(error).lower()
+        return (
+            "413" in str(error) or 
+            "tokens per minute" in error_str or 
+            "tpm" in error_str or 
+            "rate_limit_exceeded" in error_str or
+            "request too large" in error_str
+        )
+
+    def _handle_groq_token_limit_error(self, messages, llm, llm_name, original_error):
+        """
+        Handle Groq token limit errors by chunking tool results and processing them in intervals.
+        """
+        print(f"🔄 Handling Groq token limit error for {llm_name}")
+        
+        # Extract tool results from messages
+        tool_results = []
+        for msg in messages:
+            if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
+                tool_results.append(msg.content)
+        
+        if not tool_results:
+            return AIMessage(content=f"Error: {llm_name} token limit exceeded but no tool results available.")
+        
+        print(f"📊 Found {len(tool_results)} tool results to process in chunks")
+        
+        # Create chunks (5500 tokens to be safe)
+        chunks = self._create_token_chunks(tool_results, 5500)
+        print(f"📦 Created {len(chunks)} chunks")
+        
+        # Process chunks with 1-minute intervals
+        all_responses = []
+        for i, chunk in enumerate(chunks):
+            print(f"🔄 Processing chunk {i+1}/{len(chunks)}")
+            
+            # Wait 1 minute between chunks (except first)
+            if i > 0:
+                print(f"⏳ Waiting 60 seconds...")
+                time.sleep(60)
+            
+            # Create simple prompt for this chunk
+            chunk_prompt = self._create_simple_chunk_prompt(messages, chunk, i+1, len(chunks))
+            chunk_messages = [self.sys_msg, HumanMessage(content=chunk_prompt)]
+            
+            try:
+                response = llm.invoke(chunk_messages)
+                if hasattr(response, 'content') and response.content:
+                    all_responses.append(response.content)
+                    print(f"✅ Chunk {i+1} processed")
+            except Exception as e:
+                print(f"❌ Chunk {i+1} failed: {e}")
+                continue
+        
+        if not all_responses:
+            return AIMessage(content=f"Error: Failed to process any chunks for {llm_name}")
+        
+        # Simple final synthesis
+        final_prompt = f"Combine these analyses into a final answer:\n\n" + "\n\n".join(all_responses)
+        final_messages = [self.sys_msg, HumanMessage(content=final_prompt)]
+        
+        try:
+            final_response = llm.invoke(final_messages)
+            return final_response
+        except Exception as e:
+            print(f"❌ Final synthesis failed: {e}")
+            return AIMessage(content=f"OUTPUT {' '.join(all_responses)}")
+
+    def _create_token_chunks(self, tool_results, max_tokens_per_chunk):
+        """
+        Create chunks of tool results that fit within the token limit.
+        """
+        chunks = []
+        current_chunk = []
+        current_tokens = 0
+        
+        for result in tool_results:
+            # Use tiktoken for accurate token counting
+            result_tokens = self._estimate_tokens(result)
+            if current_tokens + result_tokens > max_tokens_per_chunk and current_chunk:
+                chunks.append(current_chunk)
+                current_chunk = [result]
+                current_tokens = result_tokens
+            else:
+                current_chunk.append(result)
+                current_tokens += result_tokens
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return chunks
 
     def _try_llm_sequence(self, messages, use_tools=True, reference=None):
         """
@@ -1895,4 +2017,24 @@ class GaiaAgent:
             ),
         }
         return reminders.get(reminder_type, "Please provide your FINAL ANSWER.")
+
+    def _create_simple_chunk_prompt(self, messages, chunk_results, chunk_num, total_chunks):
+        """Create a simple prompt for processing a chunk."""
+        # Find original question
+        original_question = ""
+        for msg in messages:
+            if hasattr(msg, 'type') and msg.type == 'human':
+                original_question = msg.content
+                break
+        
+        prompt = f"Question: {original_question}\n\nTool Results (Part {chunk_num}/{total_chunks}):\n"
+        for i, result in enumerate(chunk_results, 1):
+            prompt += f"{i}. {result}\n\n"
+        
+        if chunk_num < total_chunks:
+            prompt += "Analyze these results and provide key findings. More results coming."
+        else:
+            prompt += "Provide your FINAL ANSWER based on all results, when you receive ALL results."
+        
+        return prompt
 

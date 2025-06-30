@@ -36,3 +36,4 @@ networkx
 nltk
 opencv-python
 python-chess
+tiktoken
