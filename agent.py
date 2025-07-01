@@ -15,7 +15,7 @@ Environment Variables:
     - SUPABASE_KEY: Key for Supabase access
 
 Files required in the same directory:
-    - system_prompt.md
+    - system_prompt.json
 """
 import os
 import json
@@ -314,17 +314,16 @@ class GaiaAgent:
 
     def _load_system_prompt(self):
         """
-        Load the system prompt from the system_prompt.md file.
-        """        
+        Load the system prompt from the system_prompt.json file as a JSON string.
+        """
         try:
-            with open("system_prompt.md", "r", encoding="utf-8") as f:
-                return f.read()
+            with open("system_prompt.json", "r", encoding="utf-8") as f:
+                taxonomy = json.load(f)
+                return json.dumps(taxonomy, ensure_ascii=False)
         except FileNotFoundError:
-            print("⚠️ system_prompt.md not found, using default system prompt")
-            
+            print("⚠️ system_prompt.json not found, using default system prompt")
         except Exception as e:
-            print(f"⚠️ Error reading system_prompt.md: {e}")
-        
+            print(f"⚠️ Error reading system_prompt.json: {e}")
         return "You are a helpful assistant. Please provide clear and accurate responses."
     
     def _rate_limit(self):
