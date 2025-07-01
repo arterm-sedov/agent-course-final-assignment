@@ -225,24 +225,16 @@ class GaiaAgent:
                 self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
             else:
                 self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
-        self.llm_success_count = {
-            "gemini": 0,
-            "groq": 0, 
-            "huggingface": 0,
-            "reference_fallback": 0
-        }
-        self.llm_threshold_success_count = {
-            "gemini": 0,
-            "groq": 0, 
-            "huggingface": 0,
-            "openrouter": 0
-        }
-        self.llm_finalist_success_count = {
-            "gemini": 0,
-            "groq": 0, 
-            "huggingface": 0,
-            "openrouter": 0
-        }
+        # Unified LLM tracking system
+        self.llm_tracking = {}
+        for llm_type in self.DEFAULT_LLM_SEQUENCE:
+            self.llm_tracking[llm_type] = {
+                "successes": 0,
+                "failures": 0,
+                "threshold_passes": 0,
+                "finalist_wins": 0,
+                "total_attempts": 0
+            }
         self.total_questions = 0
 
         # Set up embeddings and supabase retriever
@@ -1238,8 +1230,8 @@ class GaiaAgent:
                 print(f"✅ Reference: {reference}")
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
-                    self.llm_success_count[llm_type] += 1
-                    self.llm_finalist_success_count[llm_type] += 1
+                    self._update_llm_tracking(llm_type, "success")
+                    self._update_llm_tracking(llm_type, "finalist_win")
                     return answer, llm_name
                 is_match, similarity = self._vector_answers_match(answer, reference)
                 if is_match:
@@ -1249,13 +1241,15 @@ class GaiaAgent:
                 llm_results.append((similarity, answer, llm_name, llm_type))
                 # Count every LLM that passes the threshold
                 if similarity >= self.similarity_threshold:
-                    self.llm_threshold_success_count[llm_type] += 1
+                    self._update_llm_tracking(llm_type, "threshold_pass")
                 if llm_type != available_llms[-1][0]:
                     print(f"🔄 Trying next LLM without reference...")
                 else:
                     print(f"🔄 All LLMs tried, all failed")
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
+                # Track failure
+                self._update_llm_tracking(llm_type, "failure")
                 # Special retry logic for HuggingFace router errors
                 if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                     print("🔄 HuggingFace router error detected, retrying once...")
@@ -1267,8 +1261,11 @@ class GaiaAgent:
                             answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                         if answer and not answer == str(response).strip():
                             print(f"✅ HuggingFace retry succeeded: {answer}")
-                            self.llm_threshold_success_count[llm_type] += 1
+                            self._update_llm_tracking(llm_type, "threshold_pass")
+                            self._update_llm_tracking(llm_type, "success")
                             llm_results.append((1.0, answer, llm_name, llm_type))
+                            # Decrement failure count since retry succeeded
+                            self._update_llm_tracking(llm_type, "failure", -1)
                     except Exception as retry_error:
                         print(f"❌ HuggingFace retry also failed: {retry_error}")
                 if llm_type == available_llms[-1][0]:
@@ -1279,13 +1276,13 @@ class GaiaAgent:
             for sim, ans, name, llm_type in llm_results:
                 if sim >= threshold:
                     print(f"🎯 First answer above threshold: {ans} (LLM: {name}, similarity: {sim:.3f})")
-                    self.llm_success_count[llm_type] += 1
-                    self.llm_finalist_success_count[llm_type] += 1
+                    self._update_llm_tracking(llm_type, "success")
+                    self._update_llm_tracking(llm_type, "finalist_win")
                     return ans, name
             best_similarity, best_answer, best_llm, best_llm_type = max(llm_results, key=lambda x: x[0])
             print(f"🔄 Returning best answer by similarity: {best_answer} (LLM: {best_llm}, similarity: {best_similarity:.3f})")
-            self.llm_success_count[best_llm_type] += 1
-            self.llm_finalist_success_count[best_llm_type] += 1
+            self._update_llm_tracking(best_llm_type, "success")
+            self._update_llm_tracking(best_llm_type, "finalist_win")
             return best_answer, best_llm
         raise Exception("All LLMs failed")
 
@@ -1410,45 +1407,88 @@ class GaiaAgent:
 
     def get_llm_stats(self) -> dict:
         """
-        Get clean statistics about LLM success rates, including threshold-passing and finalist counts.
+        Get comprehensive statistics about LLM success and failure rates.
         Returns:
-            dict: Dictionary with LLM names, success counts, and success rates
+            dict: Dictionary with LLM names, success/failure counts, and rates
         """
         stats = {
             "total_questions": self.total_questions,
-            "success_rates": {},
-            "threshold_passes": {},
-            "finalist_wins": {}
+            "llm_stats": {},
+            "summary": {}
         }
-        llm_types = [k for k in self.llm_success_count if k != "reference_fallback"]
-        total_success = sum(self.llm_success_count[k] for k in llm_types)
+        
+        llm_types = list(self.llm_tracking.keys())
+        total_success = sum(self.llm_tracking[k]["successes"] for k in llm_types)
+        total_failures = sum(self.llm_tracking[k]["failures"] for k in llm_types)
         all_failed = self.total_questions - total_success
+        
+        # Calculate total attempts per LLM
         for llm_type in llm_types:
             llm_name = self.LLM_CONFIG[llm_type]["name"]
-            count = self.llm_success_count[llm_type]
-            threshold_count = self.llm_threshold_success_count.get(llm_type, 0)
-            finalist_count = self.llm_finalist_success_count.get(llm_type, 0)
-            success_rate = (count / self.total_questions * 100) if self.total_questions > 0 else 0
+            tracking = self.llm_tracking[llm_type]
+            successes = tracking["successes"]
+            failures = tracking["failures"]
+            threshold_count = tracking["threshold_passes"]
+            finalist_count = tracking["finalist_wins"]
+            total_attempts = tracking["total_attempts"]
+            
+            # Calculate rates
+            success_rate = (successes / self.total_questions * 100) if self.total_questions > 0 else 0
+            failure_rate = (failures / self.total_questions * 100) if self.total_questions > 0 else 0
             threshold_rate = (threshold_count / self.total_questions * 100) if self.total_questions > 0 else 0
             finalist_rate = (finalist_count / self.total_questions * 100) if self.total_questions > 0 else 0
-            stats["success_rates"][llm_name] = {
-                "finalist_count": count,
-                "finalist_rate": f"{success_rate:.1f}%"
+            
+            stats["llm_stats"][llm_name] = {
+                "successes": successes,
+                "failures": failures,
+                "total_attempts": total_attempts,
+                "success_rate": f"{success_rate:.1f}%",
+                "failure_rate": f"{failure_rate:.1f}%",
+                "threshold_passes": threshold_count,
+                "threshold_rate": f"{threshold_rate:.1f}%",
+                "finalist_wins": finalist_count,
+                "finalist_rate": f"{finalist_rate:.1f}%"
             }
-            stats["threshold_passes"][llm_name] = {
-                "count": threshold_count,
-                "rate": f"{threshold_rate:.1f}%"
-            }
-            stats["finalist_wins"][llm_name] = {
-                "count": finalist_count,
-                "rate": f"{finalist_rate:.1f}%"
-            }
-        failed_rate = (all_failed / self.total_questions * 100) if self.total_questions > 0 else 0
-        stats["success_rates"]["All LLMs failed"] = {
-            "finalist_count": all_failed,
-            "finalist_rate": f"{failed_rate:.1f}%"
+        
+        # Overall summary
+        overall_success_rate = (total_success / self.total_questions * 100) if self.total_questions > 0 else 0
+        overall_failure_rate = (total_failures / self.total_questions * 100) if self.total_questions > 0 else 0
+        all_failed_rate = (all_failed / self.total_questions * 100) if self.total_questions > 0 else 0
+        
+        stats["summary"] = {
+            "total_questions": self.total_questions,
+            "total_successes": total_success,
+            "total_failures": total_failures,
+            "all_llms_failed": all_failed,
+            "overall_success_rate": f"{overall_success_rate:.1f}%",
+            "overall_failure_rate": f"{overall_failure_rate:.1f}%",
+            "all_failed_rate": f"{all_failed_rate:.1f}%"
         }
+        
         return stats
+    
+    def _update_llm_tracking(self, llm_type: str, event_type: str, increment: int = 1):
+        """
+        Helper method to update LLM tracking statistics.
+        
+        Args:
+            llm_type (str): The LLM type (e.g., 'gemini', 'groq')
+            event_type (str): The type of event ('success', 'failure', 'threshold_pass', 'finalist_win')
+            increment (int): Amount to increment (default: 1)
+        """
+        if llm_type not in self.llm_tracking:
+            return
+            
+        if event_type == "success":
+            self.llm_tracking[llm_type]["successes"] += increment
+            self.llm_tracking[llm_type]["total_attempts"] += increment
+        elif event_type == "failure":
+            self.llm_tracking[llm_type]["failures"] += increment
+            self.llm_tracking[llm_type]["total_attempts"] += increment
+        elif event_type == "threshold_pass":
+            self.llm_tracking[llm_type]["threshold_passes"] += increment
+        elif event_type == "finalist_win":
+            self.llm_tracking[llm_type]["finalist_wins"] += increment
 
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
         """
@@ -1492,25 +1532,35 @@ class GaiaAgent:
             answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
             print(f"🎯 Final answer from {llm_used}")
             
-            # Display current stats
+            # Display comprehensive stats
             stats = self.get_llm_stats()
-            print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
-            for llm_name, data in stats['success_rates'].items():
-                print(f"   {llm_name}: {data['count']}: ({data['rate']})")
+            print(f"\n📊 LLM Performance Statistics (Total Questions: {stats['summary']['total_questions']}):")
+            print(f"🎯 Overall: {stats['summary']['total_successes']} successes, {stats['summary']['total_failures']} failures ({stats['summary']['overall_success_rate']} success rate)")
+            print(f"❌ All LLMs failed: {stats['summary']['all_llms_failed']} times ({stats['summary']['all_failed_rate']})")
+            print("\n📈 Per-LLM Breakdown:")
+            for llm_name, data in stats['llm_stats'].items():
+                print(f"   {llm_name}: {data['successes']}✅/{data['failures']}❌ ({data['success_rate']} success, {data['failure_rate']} failure)")
+                if data['threshold_passes'] > 0:
+                    print(f"      └─ Threshold passes: {data['threshold_passes']} ({data['threshold_rate']})")
+                if data['finalist_wins'] > 0:
+                    print(f"      └─ Finalist wins: {data['finalist_wins']} ({data['finalist_rate']})")
             
             return answer
         except Exception as e:
             print(f"❌ All LLMs failed: {e}")
-            if reference:
-                print("⚠️ Falling back to reference answer")
-                self.llm_success_count["reference_fallback"] += 1
-                stats = self.get_llm_stats()
-                print(f"📊 LLM Success Stats (Total Questions: {stats['total_questions']}):")
-                for llm_name, data in stats['success_rates'].items():
-                    print(f"   {llm_name}: {data['count']}: ({data['rate']})")
-                return reference
-            else:
-                raise Exception("All LLMs failed and no reference answer available")
+            # Display comprehensive stats even when all LLMs fail
+            stats = self.get_llm_stats()
+            print(f"\n📊 LLM Performance Statistics (Total Questions: {stats['summary']['total_questions']}):")
+            print(f"🎯 Overall: {stats['summary']['total_successes']} successes, {stats['summary']['total_failures']} failures ({stats['summary']['overall_success_rate']} success rate)")
+            print(f"❌ All LLMs failed: {stats['summary']['all_llms_failed']} times ({stats['summary']['all_failed_rate']})")
+            print("\n📈 Per-LLM Breakdown:")
+            for llm_name, data in stats['llm_stats'].items():
+                print(f"   {llm_name}: {data['successes']}✅/{data['failures']}❌ ({data['success_rate']} success, {data['failure_rate']} failure)")
+                if data['threshold_passes'] > 0:
+                    print(f"      └─ Threshold passes: {data['threshold_passes']} ({data['threshold_rate']})")
+                if data['finalist_wins'] > 0:
+                    print(f"      └─ Finalist wins: {data['finalist_wins']} ({data['finalist_rate']})")
+            raise Exception(f"All LLMs failed: {e}")
 
     def _extract_text_from_response(self, response: Any) -> str:
         """
