@@ -202,7 +202,7 @@ class GaiaAgent:
         # Store the original question for reuse
         self.original_question = None
         # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
-        self.similarity_threshold = 0.9
+        self.similarity_threshold = 0.95
         # Tool calls deduplication threshold
         self.tool_calls_similarity_threshold=0.90
         # Global token limit for summaries
@@ -224,6 +224,20 @@ class GaiaAgent:
             "groq": 0, 
             "huggingface": 0,
             "reference_fallback": 0
+        }
+        # New: LLM threshold-passing counter
+        self.llm_threshold_success_count = {
+            "gemini": 0,
+            "groq": 0, 
+            "huggingface": 0,
+            "openrouter": 0
+        }
+        # New: LLM finalist counter
+        self.llm_finalist_success_count = {
+            "gemini": 0,
+            "groq": 0, 
+            "huggingface": 0,
+            "openrouter": 0
         }
         
         # Total questions counter
@@ -1263,24 +1277,23 @@ class GaiaAgent:
 
     def _try_llm_sequence(self, messages, use_tools=True, reference=None):
         """
-        Try multiple LLMs in sequence until one succeeds and produces a similar answer to reference.
+        Try multiple LLMs in sequence, collect all results and their similarity scores, and pick the best one.
+        Even if _vector_answers_match returns true, continue with the next models, 
+        then choose the best one (highest similarity) or the first one with similar scores.
         Only one attempt per LLM, then move to the next.
-        
+
         Args:
-            messages: The messages to send to the LLM
-            use_tools (bool): Whether to use tools
-            reference (str, optional): Reference answer to compare against
-            
+            messages (list): The messages to send to the LLM.
+            use_tools (bool): Whether to use tools.
+            reference (str, optional): Reference answer to compare against.
+
         Returns:
-            tuple: (answer, llm_used) where answer is the final answer and llm_used is the name of the LLM that succeeded
-            
+            tuple: (answer, llm_used) where answer is the final answer and llm_used is the name of the LLM that succeeded.
+
         Raises:
-            Exception: If all LLMs fail or none produce similar enough answers
+            Exception: If all LLMs fail or none produce similar enough answers.
         """
-        # Use the default LLM sequence from class configuration
         llm_sequence = self.DEFAULT_LLM_SEQUENCE
-        
-        # Filter out unavailable LLMs
         available_llms = []
         for llm_type in llm_sequence:
             llm, llm_name, _ = self._select_llm(llm_type, True)
@@ -1288,87 +1301,72 @@ class GaiaAgent:
                 available_llms.append((llm_type, llm_name))
             else:
                 print(f"⚠️ {llm_name} not available, skipping...")
-
         if not available_llms:
             raise Exception("No LLMs are available. Please check your API keys and configuration.")
-        
         print(f"🔄 Available LLMs: {[name for _, name in available_llms]}")
-        
-        # Extract the original question for intelligent extraction
         original_question = ""
         for msg in messages:
             if hasattr(msg, 'type') and msg.type == 'human':
                 original_question = msg.content
                 break
-        
-        # --- Collect all LLM results for best-pick after loop ---
-        llm_results = []        
+        llm_results = []
         for llm_type, llm_name in available_llms:
             try:
                 response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
-                
-                # Try standard extraction first
                 answer = self._extract_final_answer(response)
-                
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
-                
-                # If no reference provided, return the first successful answer
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
                     self.llm_success_count[llm_type] += 1
+                    self.llm_finalist_success_count[llm_type] += 1
                     return answer, llm_name
-                
                 is_match, similarity = self._vector_answers_match(answer, reference)
-                llm_results.append((similarity, answer, llm_name))
-                
                 if is_match:
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
-                    self.llm_success_count[llm_type] += 1
-                    return answer, llm_name
                 else:
                     print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
-                    
-                    # Try the next LLM without reference if this isn't the last one
-                    if llm_type != available_llms[-1][0]:
-                        print(f"🔄 Trying next LLM without reference...")
-                        # Continue to next iteration to try next LLM
-                    else:
-                        print(f"🔄 All LLMs tried, all failed")
-                        # self.llm_success_count["reference_fallback"] += 1
-                        # return reference, "reference_fallback"
-                    
+                llm_results.append((similarity, answer, llm_name, llm_type))
+                # Count every LLM that passes the threshold
+                if similarity >= self.similarity_threshold:
+                    self.llm_threshold_success_count[llm_type] += 1
+                if llm_type != available_llms[-1][0]:
+                    print(f"🔄 Trying next LLM without reference...")
+                else:
+                    print(f"🔄 All LLMs tried, all failed")
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
-                
                 # Special retry logic for HuggingFace router errors
                 if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
                     print("🔄 HuggingFace router error detected, retrying once...")
                     try:
-                        time.sleep(2)  # Wait 2 seconds before retry
+                        time.sleep(2)
                         response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
                         answer = self._extract_final_answer(response)
                         if not answer:
-                            # Inject message to get final answer instead of making new LLM call
                             answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
                         if answer and not answer == str(response).strip():
                             print(f"✅ HuggingFace retry succeeded: {answer}")
-                            self.llm_success_count[llm_type] += 1
-                            return answer, llm_name
+                            self.llm_threshold_success_count[llm_type] += 1
+                            llm_results.append((1.0, answer, llm_name, llm_type))
                     except Exception as retry_error:
                         print(f"❌ HuggingFace retry also failed: {retry_error}")
-                
-                # Check if this was the last available LLM
                 if llm_type == available_llms[-1][0]:
-                    # This was the last LLM, re-raise the exception
                     raise Exception(f"All available LLMs failed. Last error from {llm_name}: {e}")
                 print(f"🔄 Trying next LLM...")
-        
-        # --- Return best answer if none passed threshold ---
         if llm_results:
-            best_similarity, best_answer, best_llm = max(llm_results, key=lambda x: x[0])
+            threshold = self.similarity_threshold
+            for sim, ans, name, llm_type in llm_results:
+                if sim >= threshold:
+                    print(f"🎯 First answer above threshold: {ans} (LLM: {name}, similarity: {sim:.3f})")
+                    self.llm_success_count[llm_type] += 1
+                    self.llm_finalist_success_count[llm_type] += 1
+                    return ans, name
+            best_similarity, best_answer, best_llm, best_llm_type = max(llm_results, key=lambda x: x[0])
             print(f"🔄 Returning best answer by similarity: {best_answer} (LLM: {best_llm}, similarity: {best_similarity:.3f})")
-            return best_answer, best_llm        # This should never be reached, but just in case
+            self.llm_success_count[best_llm_type] += 1
+            self.llm_finalist_success_count[best_llm_type] += 1
+            return best_answer, best_llm
         raise Exception("All LLMs failed")
 
     def _get_reference_answer(self, question: str) -> Optional[str]:
@@ -1492,32 +1490,43 @@ class GaiaAgent:
 
     def get_llm_stats(self) -> dict:
         """
-        Get clean statistics about LLM success rates.
-        
+        Get clean statistics about LLM success rates, including threshold-passing and finalist counts.
         Returns:
             dict: Dictionary with LLM names, success counts, and success rates
         """
         stats = {
             "total_questions": self.total_questions,
-            "success_rates": {}
+            "success_rates": {},
+            "threshold_passes": {},
+            "finalist_wins": {}
         }
-        # Exclude 'reference_fallback' from LLMs
         llm_types = [k for k in self.llm_success_count if k != "reference_fallback"]
         total_success = sum(self.llm_success_count[k] for k in llm_types)
         all_failed = self.total_questions - total_success
         for llm_type in llm_types:
             llm_name = self.LLM_CONFIG[llm_type]["name"]
             count = self.llm_success_count[llm_type]
+            threshold_count = self.llm_threshold_success_count.get(llm_type, 0)
+            finalist_count = self.llm_finalist_success_count.get(llm_type, 0)
             success_rate = (count / self.total_questions * 100) if self.total_questions > 0 else 0
+            threshold_rate = (threshold_count / self.total_questions * 100) if self.total_questions > 0 else 0
+            finalist_rate = (finalist_count / self.total_questions * 100) if self.total_questions > 0 else 0
             stats["success_rates"][llm_name] = {
-                "count": count,
-                "rate": f"{success_rate:.1f}%"
+                "finalist_count": count,
+                "finalist_rate": f"{success_rate:.1f}%"
             }
-        # Add All LLMs failed
+            stats["threshold_passes"][llm_name] = {
+                "count": threshold_count,
+                "rate": f"{threshold_rate:.1f}%"
+            }
+            stats["finalist_wins"][llm_name] = {
+                "count": finalist_count,
+                "rate": f"{finalist_rate:.1f}%"
+            }
         failed_rate = (all_failed / self.total_questions * 100) if self.total_questions > 0 else 0
         stats["success_rates"]["All LLMs failed"] = {
-            "count": all_failed,
-            "rate": f"{failed_rate:.1f}%"
+            "finalist_count": all_failed,
+            "finalist_rate": f"{failed_rate:.1f}%"
         }
         return stats
 
