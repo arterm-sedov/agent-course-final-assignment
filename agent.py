@@ -272,15 +272,6 @@ class GaiaAgent:
         # Prepare storage for LLM instances
         self.llm_instances = {}
         self.llm_instances_with_tools = {}
-        # Legacy compatibility
-        self.llm_primary = None
-        self.llm_primary_with_tools = None
-        self.llm_fallback = None
-        self.llm_fallback_with_tools = None
-        self.llm_third_fallback = None
-        self.llm_third_fallback_with_tools = None
-        self.llm_openrouter = None
-        self.llm_openrouter_with_tools = None
         for idx, llm_type in enumerate(llm_types_to_init):
             config = self.LLM_CONFIG[llm_type]
             llm_name = config["name"]
@@ -1786,7 +1777,9 @@ class GaiaAgent:
 
     def _init_huggingface_llm(self, config, model_config):
         from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-        endpoint = HuggingFaceEndpoint(**model_config)
+        # Filter out token_limit as it's not a valid parameter for HuggingFaceEndpoint
+        filtered_config = {k: v for k, v in model_config.items() if k != 'token_limit'}
+        endpoint = HuggingFaceEndpoint(**filtered_config)
         return ChatHuggingFace(
             llm=endpoint,
             verbose=True,
@@ -1911,66 +1904,89 @@ class GaiaAgent:
             return f"Truncated. Original length: {orig_len}\n{s[:max_len]}"
         return s
 
+    def _format_value_for_print(self, value):
+        """
+        Smart value formatter that handles JSON serialization, fallback, and trimming.
+        Returns a formatted string ready for printing.
+        """
+        if isinstance(value, str):
+            return self._trim_for_print(value)
+        elif isinstance(value, (dict, list)):
+            try:
+                # Use JSON for complex objects, with smart formatting
+                json_str = json.dumps(value, indent=2, ensure_ascii=False, default=str)
+                return self._trim_for_print(json_str)
+            except (TypeError, ValueError):
+                # Fallback to string representation
+                return self._trim_for_print(str(value))
+        else:
+            return self._trim_for_print(str(value))
+
+    def _print_meaningful_attributes(self, msg, attributes, separator, printed_attrs=None):
+        """
+        Generic helper to check and print meaningful attributes from a message object.
+        
+        Args:
+            msg: The message object to inspect
+            attributes: List of attribute names to check
+            separator: String separator to print before each attribute
+            printed_attrs: Set of already printed attributes (optional, for tracking)
+        """
+        if printed_attrs is None:
+            printed_attrs = set()
+            
+        for attr in attributes:
+            if hasattr(msg, attr):
+                value = getattr(msg, attr)
+                if value is not None and value != "" and value != [] and value != {}:
+                    print(separator)
+                    print(f"  {attr}: {self._format_value_for_print(value)}")
+                    printed_attrs.add(attr)
+        
+        return printed_attrs
+
     def _print_message_components(self, msg, msg_index):
         """
-        Type-aware helper to print message components with proper truncation.
-        Only prints relevant components based on message type.
+        Smart, agnostic message component printer that dynamically discovers and prints all relevant attributes.
+        Uses introspection, JSON-like handling, and smart filtering for optimal output.
         """
-        print("------------------------------------------------\n") 
+        separator = "------------------------------------------------\n"
+        print(separator) 
         print(f"Message {msg_index}:")
         
-        # Get message type
+        # Get message type dynamically
         msg_type = getattr(msg, 'type', 'unknown')
         print(f"  type: {msg_type}")
         
-        # Print components based on message type
-        if msg_type == 'system':
-            # System messages: content only
-            if hasattr(msg, 'content') and msg.content:
-                print(f"  content: {self._trim_for_print(msg.content)}")
-                
-        elif msg_type == 'human':
-            # Human messages: content only
-            if hasattr(msg, 'content') and msg.content:
-                print(f"  content: {self._trim_for_print(msg.content)}")
-                
-        elif msg_type == 'ai':
-            # AI messages: content, tool_calls, function_call
-            if hasattr(msg, 'content') and msg.content:
-                print("------------------------------------------------\n")
-                print(f"  content: {self._trim_for_print(msg.content)}")
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                print("------------------------------------------------\n")
-                print(f"  tool_calls: {self._trim_for_print(msg.tool_calls)}")
-            if hasattr(msg, 'function_call') and msg.function_call:
-                print("------------------------------------------------\n")
-                print(f"  function_call: {self._trim_for_print(msg.function_call)}")
-                
-        elif msg_type == 'tool':
-            # Tool messages: content, name, tool_call_id
-            if hasattr(msg, 'content') and msg.content:
-                print("------------------------------------------------\n")
-                print(f"  content: {self._trim_for_print(msg.content)}")
-            if hasattr(msg, 'name') and msg.name:
-                print("------------------------------------------------\n")
-                print(f"  name: {msg.name}")
-            if hasattr(msg, 'tool_call_id') and msg.tool_call_id:
-                print("------------------------------------------------\n")
-                print(f"  tool_call_id: {msg.tool_call_id}")
-                
-        else:
-            # Unknown type: print all common attributes
-            if hasattr(msg, 'content') and msg.content:
-                print("------------------------------------------------\n")
-                print(f"  content: {self._trim_for_print(msg.content)}")
-            if hasattr(msg, 'additional_kwargs') and msg.additional_kwargs:
-                print("------------------------------------------------\n")
-                print(f"  additional_kwargs: {self._trim_for_print(msg.additional_kwargs)}")
-            if hasattr(msg, 'response_metadata') and msg.response_metadata:
-                print("------------------------------------------------\n")
-                print(f"  response_metadata: {self._trim_for_print(msg.response_metadata)}")
+        # Define priority attributes to check first (most important)
+        priority_attrs = ['content', 'tool_calls', 'function_call', 'name', 'tool_call_id']
         
-        print("------------------------------------------------\n")
+        # Define secondary attributes to check if they exist and have meaningful values
+        secondary_attrs = ['additional_kwargs', 'response_metadata', 'id', 'timestamp', 'metadata']
+        
+        # Smart attribute discovery and printing
+        printed_attrs = set()
+        
+        # Check priority attributes first
+        printed_attrs = self._print_meaningful_attributes(msg, priority_attrs, separator, printed_attrs)
+        
+        # Check secondary attributes if they exist and haven't been printed
+        self._print_meaningful_attributes(msg, secondary_attrs, separator, printed_attrs)
+        
+        # Dynamic discovery: check for any other non-private attributes we might have missed
+        dynamic_attrs = []
+        for attr_name in dir(msg):
+            if (not attr_name.startswith('_') and 
+                attr_name not in printed_attrs and 
+                attr_name not in secondary_attrs and
+                attr_name not in ['type'] and  # Already printed
+                not callable(getattr(msg, attr_name))):  # Skip methods
+                dynamic_attrs.append(attr_name)
+        
+        # Print any dynamically discovered meaningful attributes
+        self._print_meaningful_attributes(msg, dynamic_attrs, separator, printed_attrs)
+        
+        print(separator)
 
     def _deep_trim_dict(self, obj, max_len=None):
         """
