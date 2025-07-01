@@ -1713,23 +1713,25 @@ def _get_best_move_fallback(fen: str) -> str:
             "error": f"Error in fallback chess evaluation: {str(e)}"
         })
 
-def _try_stockfish_online_api_v2(fen: str) -> str:
+def _try_stockfish_online_api_v2(fen: str, depth: int = 15) -> str:
     """
     Try to get best move using Stockfish Online API v2 (https://stockfish.online/api/s/v2.php).
-    Based on the official documentation.
+    Based on the official documentation. Adds debug output for troubleshooting.
     """
     try:
         # Use Stockfish Online API v2
         api_url = "https://stockfish.online/api/s/v2.php"
         params = {
             'fen': fen,
-            'depth': 15
+            'depth': depth
         }
-        
+        print(f"[DEBUG] Requesting Stockfish API: {api_url}")
+        print(f"[DEBUG] Params: {params}")
         response = requests.get(api_url, params=params, timeout=15)
+        print(f"[DEBUG] Status code: {response.status_code}")
+        print(f"[DEBUG] Response text: {response.text}")
         if response.status_code == 200:
             data = response.json()
-            
             # Check if request was successful
             if data.get('success') == True:
                 bestmove = data.get('bestmove', '')
@@ -1745,22 +1747,23 @@ def _try_stockfish_online_api_v2(fen: str) -> str:
                     return json.dumps({
                         "type": "tool_response",
                         "tool_name": "get_best_chess_move",
-                        "error": "Error: No bestmove in Stockfish API response"
+                        "error": "Error: No bestmove in Stockfish API response",
+                        "api_response": data
                     })
             else:
                 error_msg = data.get('data', 'Unknown error')
                 return json.dumps({
                     "type": "tool_response",
                     "tool_name": "get_best_chess_move",
-                    "error": f"Error: Stockfish API failed - {error_msg}"
+                    "error": f"Error: Stockfish API failed - {error_msg}",
+                    "api_response": data
                 })
-        
         return json.dumps({
             "type": "tool_response",
             "tool_name": "get_best_chess_move",
-            "error": f"Error: Stockfish API returned status {response.status_code}"
+            "error": f"Error: Stockfish API returned status {response.status_code}",
+            "response_text": response.text
         })
-        
     except Exception as e:
         return json.dumps({
             "type": "tool_response",
