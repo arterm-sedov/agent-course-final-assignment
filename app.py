@@ -5,6 +5,8 @@ import inspect
 import pandas as pd
 import random
 from agent import GaiaAgent
+import datetime
+import yaml
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -116,6 +118,17 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
+
+    # --- Save log to logs/ folder with timestamp ---
+    try:
+        os.makedirs("logs", exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = f"logs/LOG_{timestamp}.yaml"
+        with open(log_path, "w", encoding="utf-8") as f:
+            yaml.dump(results_log, f, allow_unicode=True)
+        print(f"✅ Results log saved to: {log_path}")
+    except Exception as e:
+        print(f"⚠️ Failed to save results log: {e}")
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
