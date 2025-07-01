@@ -39,3 +39,4 @@ python-chess
 tiktoken
 exa-py
 openai
+chess

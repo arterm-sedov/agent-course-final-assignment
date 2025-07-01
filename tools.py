@@ -20,6 +20,7 @@ import time
 import re
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 from typing import Any, Dict, List, Optional, Union
+import chess
 
 # Try to import matplotlib, but make it optional
 try:
@@ -2020,6 +2021,25 @@ def _add_fen_game_state(board_placement,
         "result": full_fen
     })
 
+def _fen_normalize(fen: str, default_side='w'):
+    """
+    Normalize and validate a FEN string. Always return a best-effort valid FEN.
+    - If only the board part is present, append default fields.
+    - If FEN is valid, return as is.
+    - If not valid, try to fix or return a clear error FEN.
+    """
+    fen = fen.strip()
+    parts = fen.split()
+    # If only board part, append defaults
+    if len(parts) == 1 and parts[0].count('/') == 7:
+        fen = f"{fen} {default_side} - - 0 1"
+    # Validate using python-chess
+    try:
+        board = chess.Board(fen)
+        return board.fen()
+    except Exception as e:
+        return f"8/8/8/8/8/8/8/8 w - - 0 1"  # Return an empty board as a fallback
+
 def _get_chess_board_fen_internal(image_input: str) -> str:
     """
     Internal function to get the FEN representation from an image of a chess board.
@@ -2037,7 +2057,6 @@ def _get_chess_board_fen_internal(image_input: str) -> str:
                 img_b64 = base64.b64encode(f.read()).decode("utf-8")
         else:
             img_b64 = image_input
-            
         payload = {"data": [img_b64]}
         response = requests.post(api_url, json=payload, timeout=60)
         if response.ok:
@@ -2047,11 +2066,11 @@ def _get_chess_board_fen_internal(image_input: str) -> str:
                 # FEN is usually the last string in the list
                 fen_candidate = data[-1]
                 if isinstance(fen_candidate, str) and fen_candidate.count('/') == 7:
-                    return fen_candidate
+                    return _fen_normalize(fen_candidate)
                 # Fallback: search for a line with 7 slashes
                 for item in data:
                     if isinstance(item, str) and item.count('/') == 7:
-                        return item
+                        return _fen_normalize(item)
             return json.dumps({
                 "type": "tool_response",
                 "tool_name": "get_chess_board_fen",
@@ -2082,10 +2101,20 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     Returns:
         str: The FEN representation of the chess position, or error message.
     """
+    fen = _get_chess_board_fen_internal(image_path)
+    # If the result is a JSON error, pass it through
+    try:
+        import json
+        data = json.loads(fen)
+        if isinstance(data, dict) and 'error' in data:
+            return fen
+    except Exception:
+        pass
+    # Otherwise, return the normalized FEN in the required structure
     return json.dumps({
         "type": "tool_response",
         "tool_name": "get_chess_board_fen",
-        "result": _get_chess_board_fen_internal(image_path)
+        "result": _fen_normalize(fen, default_side='b' if player_turn.lower().startswith('b') else 'w')
     })
 
 @tool
