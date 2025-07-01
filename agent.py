@@ -89,41 +89,49 @@ class GaiaAgent:
             "token_limit": 2500,
             "max_history": 15,
             "tool_support": False,
-            },
+            "models": []
+        },
         "gemini": {
             "name": "Google Gemini",
             "type_str": "gemini",
-            "model": "gemini-2.5-pro",
-            "temperature": 0,
             "api_key_env": "GEMINI_KEY",
-            "token_limit": 2000000,  # No limit for Gemini (2M token context)
-            "max_tokens": 2000000,
             "max_history": 25,
             "tool_support": True,
+            "models": [
+                {
+                    "model": "gemini-2.5-pro",
+                    "token_limit": 2000000,
+                    "max_tokens": 2000000,
+                    "temperature": 0
+                }
+            ]
         },
         "groq": {
             "name": "Groq",
-            "type_str": "groq", 
-            "model": "qwen-qwq-32b",
-            "temperature": 0,
-            "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 3000,
-            "max_tokens": 2048,
+            "type_str": "groq",
+            "api_key_env": "GROQ_API_KEY",
             "max_history": 15,
             "tool_support": True,
+            "models": [
+                {
+                    "model": "qwen-qwq-32b",
+                    "token_limit": 3000,
+                    "max_tokens": 2048,
+                    "temperature": 0
+                }
+            ]
         },
         "huggingface": {
             "name": "HuggingFace",
             "type_str": "huggingface",
-            "temperature": 0,
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
-            "token_limit": 1000,  # Conservative for HuggingFace
             "max_history": 20,
             "tool_support": False,
             "models": [
                 {
                     "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
                     "task": "text-generation",
+                    "token_limit": 1000,
                     "max_new_tokens": 1024,
                     "do_sample": False,
                     "temperature": 0
@@ -131,14 +139,16 @@ class GaiaAgent:
                 {
                     "repo_id": "microsoft/DialoGPT-medium",
                     "task": "text-generation",
-                    "max_new_tokens": 512,  # Shorter for reliability
+                    "token_limit": 1000,
+                    "max_new_tokens": 512,
                     "do_sample": False,
                     "temperature": 0
                 },
                 {
                     "repo_id": "gpt2",
-                    "task": "text-generation", 
-                    "max_new_tokens": 256,  # Even shorter for basic model
+                    "task": "text-generation",
+                    "token_limit": 1000,
+                    "max_new_tokens": 256,
                     "do_sample": False,
                     "temperature": 0
                 }
@@ -150,27 +160,25 @@ class GaiaAgent:
             "api_key_env": "OPENROUTER_API_KEY",
             "api_base_env": "OPENROUTER_BASE_URL",
             "max_history": 20,
+            "tool_support": True,
             "models": [
                 {
                     "model": "deepseek/deepseek-chat-v3-0324:free",
-                    "temperature": 0,
                     "token_limit": 1000000,
                     "max_tokens": 2048,
-                    "tool_support": True
+                    "temperature": 0
                 },
                 {
                     "model": "openrouter/cypher-alpha:free",
-                    "temperature": 0,
                     "token_limit": 1000000,
                     "max_tokens": 2048,
-                    "tool_support": True
+                    "temperature": 0
                 },
                 {
                     "model": "mistralai/mistral-small-3.2-24b-instruct:free",
-                    "temperature": 0,
                     "token_limit": 1000000,
                     "max_tokens": 2048,
-                    "tool_support": True
+                    "temperature": 0
                 }
             ]
         },
@@ -213,10 +221,13 @@ class GaiaAgent:
         self.current_llm_type = None  # Track the current LLM type for rate limiting
 
         # Token management - LLM-specific limits (built from configuration)
-        self.token_limits = {
-            config["type_str"]: config["token_limit"] 
-            for config in self.LLM_CONFIG.values()
-        }
+        self.token_limits = {}
+        for provider_key, config in self.LLM_CONFIG.items():
+            models = config.get("models", [])
+            if models:
+                self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
+            else:
+                self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
 
         # LLM success counter - clean and lean
         self.llm_success_count = {
@@ -275,16 +286,27 @@ class GaiaAgent:
             print(f"🔄 Initializing LLM {gemini_name} ({gemini_position} of {len(llm_types_to_init)})")
             try:
                 config = self.LLM_CONFIG["gemini"]
-                self.llm_primary = ChatGoogleGenerativeAI(
-                    model=config["model"], 
-                    temperature=config["temperature"], 
-                    google_api_key=os.environ.get(config["api_key_env"]),
-                    max_tokens=config["max_tokens"]
-                )
-                print(f"✅ LLM ({gemini_name}) initialized successfully")
-                # Test the LLM with Hello message
-                if not self._ping_llm(self.llm_primary, gemini_name):
-                    print(f"⚠️ {gemini_name} test failed, setting to None")
+                for model_config in config["models"]:
+                    try:
+                        self.llm_primary = ChatGoogleGenerativeAI(
+                            model=model_config["model"],
+                            temperature=model_config["temperature"],
+                            google_api_key=os.environ.get(config["api_key_env"]),
+                            max_tokens=model_config["max_tokens"]
+                        )
+                        print(f"✅ LLM ({gemini_name}) initialized successfully with model {model_config['model']}")
+                        # Test the LLM with Hello message
+                        if self._ping_llm(self.llm_primary, gemini_name):
+                            self.active_model_config["gemini"] = model_config
+                            break
+                        else:
+                            print(f"⚠️ {gemini_name} test failed, trying next model...")
+                            self.llm_primary = None
+                    except Exception as e:
+                        print(f"⚠️ Failed to initialize {gemini_name} model {model_config['model']}: {e}")
+                        self.llm_primary = None
+                else:
+                    print(f"❌ All Gemini models failed to initialize")
                     self.llm_primary = None
             except Exception as e:
                 print(f"⚠️ Failed to initialize {gemini_name}: {e}")
@@ -305,15 +327,25 @@ class GaiaAgent:
                     print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping {groq_name}...")
                     self.llm_fallback = None
                 else:
-                    self.llm_fallback = ChatGroq(
-                        model=config["model"], 
-                        temperature=config["temperature"],
-                        max_tokens=config["max_tokens"]
-                    )
-                    print(f"✅ LLM ({groq_name}) initialized successfully")
-                    # Test the LLM with Hello message
-                    if not self._ping_llm(self.llm_fallback, groq_name):
-                        print(f"⚠️ {groq_name} test failed, setting to None")
+                    for model_config in config["models"]:
+                        try:
+                            self.llm_fallback = ChatGroq(
+                                model=model_config["model"],
+                                temperature=model_config["temperature"],
+                                max_tokens=model_config["max_tokens"]
+                            )
+                            print(f"✅ LLM ({groq_name}) initialized successfully with model {model_config['model']}")
+                            if self._ping_llm(self.llm_fallback, groq_name):
+                                self.active_model_config["groq"] = model_config
+                                break
+                            else:
+                                print(f"⚠️ {groq_name} test failed, trying next model...")
+                                self.llm_fallback = None
+                        except Exception as e:
+                            print(f"⚠️ Failed to initialize {groq_name} model {model_config['model']}: {e}")
+                            self.llm_fallback = None
+                    else:
+                        print(f"❌ All Groq models failed to initialize")
                         self.llm_fallback = None
             except Exception as e:
                 print(f"⚠️ Failed to initialize {groq_name}: {e}")
@@ -327,12 +359,29 @@ class GaiaAgent:
             huggingface_position = llm_types_to_init.index("huggingface") + 1
             print(f"🔄 Initializing LLM {huggingface_name} ({huggingface_position} of {len(llm_types_to_init)})")
             try:
-                self.llm_third_fallback = self._create_huggingface_llm()
-                if self.llm_third_fallback is not None:
-                    print(f"✅ LLM ({huggingface_name}) initialized successfully")
-                    # Note: HuggingFace LLM is already tested in _create_huggingface_llm()
+                config = self.LLM_CONFIG["huggingface"]
+                for model_config in config["models"]:
+                    try:
+                        endpoint = HuggingFaceEndpoint(**model_config)
+                        llm = ChatHuggingFace(
+                            llm=endpoint,
+                            verbose=True,
+                        )
+                        model_name = f"HuggingFace ({model_config['repo_id']})"
+                        if self._ping_llm(llm, model_name):
+                            print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
+                            self.llm_third_fallback = llm
+                            self.active_model_config["huggingface"] = model_config
+                            break
+                        else:
+                            print(f"⚠️ {model_config['repo_id']} test failed, trying next model...")
+                            continue
+                    except Exception as e:
+                        print(f"⚠️ Failed to initialize {model_config['repo_id']}: {e}")
+                        continue
                 else:
-                    print(f"❌ LLM ({huggingface_name}) failed to initialize")
+                    print("❌ All HuggingFace models failed to initialize")
+                    self.llm_third_fallback = None
             except Exception as e:
                 print(f"⚠️ Failed to initialize {huggingface_name}: {e}")
                 self.llm_third_fallback = None
@@ -364,6 +413,7 @@ class GaiaAgent:
                             )
                             if self._ping_llm(candidate, f"{openrouter_name} ({model_config['model']})"):
                                 self.llm_openrouter = candidate
+                                self.active_model_config["openrouter"] = model_config
                                 print(f"✅ LLM ({openrouter_name}) initialized successfully with model {model_config['model']}")
                                 break
                             else:
@@ -401,6 +451,8 @@ class GaiaAgent:
             self.llm_openrouter_with_tools = self.llm_openrouter.bind_tools(self.tools)
         else:
             self.llm_openrouter_with_tools = None
+
+        self.active_model_config = {}  # Store the config of the successfully initialized model per provider
 
     def _load_system_prompt(self):
         """
@@ -662,7 +714,7 @@ class GaiaAgent:
                 print(f"[Tool Loop] ❌ Gemini failed to extract final answer: {e}")
                 return AIMessage(content=f"RESULT: {tool_result}")
 
-    def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown"):
+    def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown", model_index: int = 0):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
         - Uses adaptive step limits based on LLM type (Gemini: 25, Groq: 15, HuggingFace: 20, unknown: 20).
@@ -676,6 +728,7 @@ class GaiaAgent:
             messages: The message history (list)
             tool_registry: Dict mapping tool names to functions
             llm_type: Type of LLM ("gemini", "groq", "huggingface", or "unknown")
+            model_index: Index of the model to use for token limits
         Returns:
             The final LLM response (with content)
         """
@@ -741,7 +794,7 @@ class GaiaAgent:
             # Check token limits and summarize if needed
             total_text = "".join(str(getattr(msg, 'content', '')) for msg in messages)
             estimated_tokens = self._estimate_tokens(total_text)
-            token_limit = self.token_limits.get(llm_type)
+            token_limit = self._get_token_limit(llm_type)
             
             try:
                 response = llm.invoke(messages)
@@ -1194,20 +1247,20 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 2800)
+            token_limit = self._get_token_limit(llm_type)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 2800  # Reasonable default for LLMs with no explicit limit
+                token_limit = self.LLM_CONFIG["default"]["token_limit"]
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 2800)
+            token_limit = self._get_token_limit(llm_type)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 2800  # Reasonable default for LLMs with no explicit limit
+                token_limit = self.LLM_CONFIG["default"]["token_limit"]
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
@@ -2252,3 +2305,15 @@ class GaiaAgent:
                 return True
         
         return False
+
+    def _get_token_limit(self, provider: str) -> int:
+        """
+        Get the token limit for a given provider, using the active model config, with fallback to default.
+        """
+        try:
+            if provider in self.active_model_config:
+                return self.active_model_config[provider].get("token_limit", self.LLM_CONFIG["default"]["token_limit"])
+            else:
+                return self.LLM_CONFIG["default"]["token_limit"]
+        except Exception:
+            return self.LLM_CONFIG["default"]["token_limit"]
