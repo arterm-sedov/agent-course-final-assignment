@@ -832,7 +832,13 @@ def exa_ai_helper(question: str) -> str:
         )
         answer_parts = []
         for chunk in result:
-            answer_parts.append(chunk)
+            # If chunk is a StreamChunk, extract its text/content
+            if hasattr(chunk, 'text'):
+                answer_parts.append(chunk.text)
+            elif isinstance(chunk, str):
+                answer_parts.append(chunk)
+            else:
+                answer_parts.append(str(chunk))
         full_answer = ''.join(answer_parts)
         return json.dumps({
             "type": "tool_response",
