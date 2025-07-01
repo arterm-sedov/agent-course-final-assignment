@@ -1816,7 +1816,7 @@ class GaiaAgent:
             return False
             
         try:
-            test_message = [HumanMessage(content="Hello, report about yourself briefly.")]
+            test_message = [HumanMessage(content="Hello, report about yourself briefly. Max 150 words (250 tokens)")]
             print(f"🧪 Testing {llm_name} with 'Hello' message...")
             
             start_time = time.time()
