@@ -41,6 +41,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AI
 from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
+from langchain_openai import ChatOpenAI  # Add at the top with other imports
 
 class GaiaAgent:
     """
@@ -95,8 +96,8 @@ class GaiaAgent:
             "model": "gemini-2.5-pro",
             "temperature": 0,
             "api_key_env": "GEMINI_KEY",
-            "token_limit": None,  # No limit for Gemini (2M token context)
-            "max_tokens": None,
+            "token_limit": 2000000,  # No limit for Gemini (2M token context)
+            "max_tokens": 2000000,
             "max_history": 25,
             "tool_support": True,
         },
@@ -142,13 +143,44 @@ class GaiaAgent:
                     "temperature": 0
                 }
             ]
-        }
+        },
+        "openrouter": {
+            "name": "OpenRouter",
+            "type_str": "openrouter",
+            "api_key_env": "OPENROUTER_API_KEY",
+            "api_base_env": "OPENROUTER_BASE_URL",
+            "max_history": 20,
+            "models": [
+                {
+                    "model": "deepseek/deepseek-chat-v3-0324:free",
+                    "temperature": 0,
+                    "token_limit": 1000000,
+                    "max_tokens": 2048,
+                    "tool_support": True
+                },
+                {
+                    "model": "openrouter/cypher-alpha:free",
+                    "temperature": 0,
+                    "token_limit": 1000000,
+                    "max_tokens": 2048,
+                    "tool_support": True
+                },
+                {
+                    "model": "mistralai/mistral-small-3.2-24b-instruct:free",
+                    "temperature": 0,
+                    "token_limit": 1000000,
+                    "max_tokens": 2048,
+                    "tool_support": True
+                }
+            ]
+        },
     }
     
     # Default LLM sequence order - references LLM_CONFIG keys
     DEFAULT_LLM_SEQUENCE = [
+        "openrouter",
         "gemini",
-        "groq", 
+        "groq",
         "huggingface"
     ]
     # Print truncation length for debug output
@@ -294,6 +326,45 @@ class GaiaAgent:
             print(f"⏭️ Skipping {huggingface_name} LLM (not in sequence)")
             self.llm_third_fallback = None
         
+        openrouter_name = self.LLM_CONFIG['openrouter']['name']
+        if "openrouter" in llm_types_to_init:
+            openrouter_position = llm_types_to_init.index("openrouter") + 1
+            print(f"🔄 Initializing LLM {openrouter_name} ({openrouter_position} of {len(llm_types_to_init)})")
+            try:
+                config = self.LLM_CONFIG["openrouter"]
+                api_key = os.environ.get(config["api_key_env"])
+                api_base = os.environ.get(config["api_base_env"])
+                if not api_key or not api_base:
+                    print(f"⚠️ {config['api_key_env']} or {config['api_base_env']} not found in environment variables. Skipping {openrouter_name}...")
+                    self.llm_openrouter = None
+                else:
+                    self.llm_openrouter = None
+                    for model_config in config["models"]:
+                        try:
+                            candidate = ChatOpenAI(
+                                openai_api_key=api_key,
+                                openai_api_base=api_base,
+                                model_name=model_config["model"],
+                                temperature=model_config["temperature"],
+                                max_tokens=model_config["max_tokens"]
+                            )
+                            if self._ping_llm(candidate, f"{openrouter_name} ({model_config['model']})"):
+                                self.llm_openrouter = candidate
+                                print(f"✅ LLM ({openrouter_name}) initialized successfully with model {model_config['model']}")
+                                break
+                            else:
+                                print(f"⚠️ {openrouter_name} model {model_config['model']} test failed, trying next...")
+                        except Exception as e:
+                            print(f"⚠️ Failed to initialize {openrouter_name} model {model_config['model']}: {e}")
+                    if self.llm_openrouter is None:
+                        print(f"❌ All OpenRouter models failed to initialize")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize {openrouter_name}: {e}")
+                self.llm_openrouter = None
+        else:
+            print(f"⏭️ Skipping {openrouter_name} (not in sequence)")
+            self.llm_openrouter = None
+        
         # Bind all tools from tools.py
         self.tools = self._gather_tools()
         
@@ -311,6 +382,11 @@ class GaiaAgent:
             self.llm_third_fallback_with_tools = self.llm_third_fallback.bind_tools(self.tools)
         else:
             self.llm_third_fallback_with_tools = None
+        
+        if self.llm_openrouter and self.LLM_CONFIG["openrouter"].get("tool_support", False):
+            self.llm_openrouter_with_tools = self.llm_openrouter.bind_tools(self.tools)
+        else:
+            self.llm_openrouter_with_tools = None
 
     def _load_system_prompt(self):
         """
@@ -957,6 +1033,8 @@ class GaiaAgent:
             llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
         elif llm_type == "huggingface":
             llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
+        elif llm_type == "openrouter":
+            llm = self.llm_openrouter_with_tools if use_tools else self.llm_openrouter
         else:
             raise ValueError(f"Invalid llm_type: {llm_type}")
         llm_name = config["name"]

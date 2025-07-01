@@ -1,8 +1,9 @@
 # Core dependencies for Hugging Face Space and Linux deployment
 gradio
 requests
-langchain
+#langchain
 langchain-community
+langchain-openai
 langchain-core
 langchain-google-genai
 langchain-huggingface
