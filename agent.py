@@ -1103,20 +1103,20 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 2500)
+            token_limit = self.token_limits.get(llm_type, 3000)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 2500  # Reasonable default for LLMs with no explicit limit
+                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 2500)
+            token_limit = self.token_limits.get(llm_type, 3000)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 2500  # Reasonable default for LLMs with no explicit limit
+                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
@@ -1641,7 +1641,7 @@ class GaiaAgent:
             'understand_video', 'understand_audio',
             'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position',
             'execute_code_multilang',
-            #'exa_ai_helper' 
+            'exa_ai_helper' 
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
