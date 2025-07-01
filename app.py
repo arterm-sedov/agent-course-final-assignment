@@ -7,6 +7,7 @@ import random
 from agent import GaiaAgent
 import datetime
 import yaml
+import subprocess
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -127,6 +128,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         with open(log_path, "w", encoding="utf-8") as f:
             yaml.dump(results_log, f, allow_unicode=True)
         print(f"✅ Results log saved to: {log_path}")
+        # --- Auto-commit the new log file to git ---
+        try:
+            subprocess.run(["git", "add", log_path], check=True)
+            commit_msg = f"Add agent results log {timestamp}"
+            subprocess.run(["git", "commit", "-m", commit_msg], check=True)
+            print(f"✅ Log file committed to git with message: {commit_msg}")
+        except Exception as git_e:
+            print(f"⚠️ Failed to commit log file to git: {git_e}")
     except Exception as e:
         print(f"⚠️ Failed to save results log: {e}")
 
