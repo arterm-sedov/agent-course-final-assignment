@@ -106,7 +106,7 @@ class GaiaAgent:
             "model": "qwen-qwq-32b",
             "temperature": 0,
             "api_key_env": "GROQ_API_KEY", # Groq uses the GROQ_API_KEY environment variable automatically
-            "token_limit": 4000,
+            "token_limit": 3000,
             "max_tokens": 2048,
             "max_history": 15,
             "tool_support": True,
@@ -1102,20 +1102,20 @@ class GaiaAgent:
                 return AIMessage(content=f"Error: {llm_name} token limit exceeded but no content available to process.")
             
             # Create chunks from all content (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 3000)
+            token_limit = self.token_limits.get(llm_type, 2800)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+                token_limit = 2800  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(all_content, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from message content")
         else:
             print(f"📊 Found {len(tool_results)} tool results to process in chunks")
             # Create chunks (use LLM-specific limits)
-            token_limit = self.token_limits.get(llm_type, 3000)
+            token_limit = self.token_limits.get(llm_type, 2800)
             # Handle None token limits (like Gemini) by using a reasonable default
             if token_limit is None:
-                token_limit = 3000  # Reasonable default for LLMs with no explicit limit
+                token_limit = 2800  # Reasonable default for LLMs with no explicit limit
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")

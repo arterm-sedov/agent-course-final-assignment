@@ -141,7 +141,7 @@ def _get_gemini_response(prompt, error_prefix="Gemini", model_name="gemini-2.5-f
     Returns:
         str: The Gemini response text, or an error message if the request fails.
     """
-    client = _get_gemini_client(model_name)
+    client = _get_gemini_client()
     if not client:
         return f"{error_prefix} client not available. Check installation and API key configuration."
     try:
