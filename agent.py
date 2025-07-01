@@ -204,23 +204,20 @@ class GaiaAgent:
         Raises:
             ValueError: If an invalid provider is specified.
         """
-        
+        # Store the config of the successfully initialized model per provider
+        self.active_model_config = {} 
         self.system_prompt = self._load_system_prompt()
         self.sys_msg = SystemMessage(content=self.system_prompt)
-        # Store the original question for reuse
         self.original_question = None
         # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
         self.similarity_threshold = 0.95
         # Tool calls deduplication threshold
-        self.tool_calls_similarity_threshold=0.90
+        self.tool_calls_similarity_threshold = 0.90
         # Global token limit for summaries
-        self.max_summary_tokens = 255
-
-        # Rate limiting setup
+        # self.max_summary_tokens = 255
         self.last_request_time = 0
-        self.current_llm_type = None  # Track the current LLM type for rate limiting
-
-        # Token management - LLM-specific limits (built from configuration)
+        # Track the current LLM type for rate limiting
+        self.current_llm_type = None
         self.token_limits = {}
         for provider_key, config in self.LLM_CONFIG.items():
             models = config.get("models", [])
@@ -228,30 +225,24 @@ class GaiaAgent:
                 self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
             else:
                 self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
-
-        # LLM success counter - clean and lean
         self.llm_success_count = {
             "gemini": 0,
             "groq": 0, 
             "huggingface": 0,
             "reference_fallback": 0
         }
-        # New: LLM threshold-passing counter
         self.llm_threshold_success_count = {
             "gemini": 0,
             "groq": 0, 
             "huggingface": 0,
             "openrouter": 0
         }
-        # New: LLM finalist counter
         self.llm_finalist_success_count = {
             "gemini": 0,
             "groq": 0, 
             "huggingface": 0,
             "openrouter": 0
         }
-        
-        # Total questions counter
         self.total_questions = 0
 
         # Set up embeddings and supabase retriever
@@ -278,181 +269,78 @@ class GaiaAgent:
         print(f"🔄 Initializing LLMs based on sequence:")
         for i, name in enumerate(llm_names, 1):
             print(f"   {i}. {name}")
-
-        # Set up LLMs based on the sequence configuration
-        gemini_name = self.LLM_CONFIG['gemini']['name']
-        if "gemini" in llm_types_to_init:
-            gemini_position = llm_types_to_init.index("gemini") + 1
-            print(f"🔄 Initializing LLM {gemini_name} ({gemini_position} of {len(llm_types_to_init)})")
+        # Prepare storage for LLM instances
+        self.llm_instances = {}
+        self.llm_instances_with_tools = {}
+        # Legacy compatibility
+        self.llm_primary = None
+        self.llm_primary_with_tools = None
+        self.llm_fallback = None
+        self.llm_fallback_with_tools = None
+        self.llm_third_fallback = None
+        self.llm_third_fallback_with_tools = None
+        self.llm_openrouter = None
+        self.llm_openrouter_with_tools = None
+        for idx, llm_type in enumerate(llm_types_to_init):
+            config = self.LLM_CONFIG[llm_type]
+            llm_name = config["name"]
+            print(f"🔄 Initializing LLM {llm_name} ({idx+1} of {len(llm_types_to_init)})")
+            llm_instance = None
+            model_config_used = None
             try:
-                config = self.LLM_CONFIG["gemini"]
-                for model_config in config["models"]:
-                    try:
-                        self.llm_primary = ChatGoogleGenerativeAI(
-                            model=model_config["model"],
-                            temperature=model_config["temperature"],
-                            google_api_key=os.environ.get(config["api_key_env"]),
-                            max_tokens=model_config["max_tokens"]
-                        )
-                        print(f"✅ LLM ({gemini_name}) initialized successfully with model {model_config['model']}")
-                        # Test the LLM with Hello message
-                        if self._ping_llm(self.llm_primary, gemini_name):
-                            self.active_model_config["gemini"] = model_config
-                            break
-                        else:
-                            print(f"⚠️ {gemini_name} test failed, trying next model...")
-                            self.llm_primary = None
-                    except Exception as e:
-                        print(f"⚠️ Failed to initialize {gemini_name} model {model_config['model']}: {e}")
-                        self.llm_primary = None
-                else:
-                    print(f"❌ All Gemini models failed to initialize")
-                    self.llm_primary = None
-            except Exception as e:
-                print(f"⚠️ Failed to initialize {gemini_name}: {e}")
-                self.llm_primary = None
-        else:
-            print(f"⏭️ Skipping {gemini_name} (not in sequence)")
-            self.llm_primary = None
-        
-        groq_name = self.LLM_CONFIG['groq']['name']
-        if "groq" in llm_types_to_init:
-            groq_position = llm_types_to_init.index("groq") + 1
-            print(f"🔄 Initializing LLM {groq_name} ({groq_position} of {len(llm_types_to_init)})")
-            try:
-                config = self.LLM_CONFIG["groq"]
-                # Groq uses the GROQ_API_KEY environment variable automatically
-                # We check if it's available
-                if not os.environ.get(config["api_key_env"]):
-                    print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping {groq_name}...")
-                    self.llm_fallback = None
-                else:
-                    for model_config in config["models"]:
-                        try:
-                            self.llm_fallback = ChatGroq(
-                                model=model_config["model"],
-                                temperature=model_config["temperature"],
-                                max_tokens=model_config["max_tokens"]
-                            )
-                            print(f"✅ LLM ({groq_name}) initialized successfully with model {model_config['model']}")
-                            if self._ping_llm(self.llm_fallback, groq_name):
-                                self.active_model_config["groq"] = model_config
-                                break
-                            else:
-                                print(f"⚠️ {groq_name} test failed, trying next model...")
-                                self.llm_fallback = None
-                        except Exception as e:
-                            print(f"⚠️ Failed to initialize {groq_name} model {model_config['model']}: {e}")
-                            self.llm_fallback = None
+                def get_llm_instance(llm_type, config, model_config):
+                    if llm_type == "gemini":
+                        return self._init_gemini_llm(config, model_config)
+                    elif llm_type == "groq":
+                        return self._init_groq_llm(config, model_config)
+                    elif llm_type == "huggingface":
+                        return self._init_huggingface_llm(config, model_config)
+                    elif llm_type == "openrouter":
+                        return self._init_openrouter_llm(config, model_config)
                     else:
-                        print(f"❌ All Groq models failed to initialize")
-                        self.llm_fallback = None
-            except Exception as e:
-                print(f"⚠️ Failed to initialize {groq_name}: {e}")
-                self.llm_fallback = None
-        else:
-            print(f"⏭️ Skipping LLM {groq_name} (not in sequence)")
-            self.llm_fallback = None
-        
-        huggingface_name = self.LLM_CONFIG['huggingface']['name']
-        if "huggingface" in llm_types_to_init:
-            huggingface_position = llm_types_to_init.index("huggingface") + 1
-            print(f"🔄 Initializing LLM {huggingface_name} ({huggingface_position} of {len(llm_types_to_init)})")
-            try:
-                config = self.LLM_CONFIG["huggingface"]
+                        return None
                 for model_config in config["models"]:
                     try:
-                        endpoint = HuggingFaceEndpoint(**model_config)
-                        llm = ChatHuggingFace(
-                            llm=endpoint,
-                            verbose=True,
-                        )
-                        model_name = f"HuggingFace ({model_config['repo_id']})"
-                        if self._ping_llm(llm, model_name):
-                            print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
-                            self.llm_third_fallback = llm
-                            self.active_model_config["huggingface"] = model_config
-                            break
-                        else:
-                            print(f"⚠️ {model_config['repo_id']} test failed, trying next model...")
-                            continue
-                    except Exception as e:
-                        print(f"⚠️ Failed to initialize {model_config['repo_id']}: {e}")
-                        continue
-                else:
-                    print("❌ All HuggingFace models failed to initialize")
-                    self.llm_third_fallback = None
-            except Exception as e:
-                print(f"⚠️ Failed to initialize {huggingface_name}: {e}")
-                self.llm_third_fallback = None
-        else:
-            print(f"⏭️ Skipping {huggingface_name} LLM (not in sequence)")
-            self.llm_third_fallback = None
-        
-        openrouter_name = self.LLM_CONFIG['openrouter']['name']
-        if "openrouter" in llm_types_to_init:
-            openrouter_position = llm_types_to_init.index("openrouter") + 1
-            print(f"🔄 Initializing LLM {openrouter_name} ({openrouter_position} of {len(llm_types_to_init)})")
-            try:
-                config = self.LLM_CONFIG["openrouter"]
-                api_key = os.environ.get(config["api_key_env"])
-                api_base = os.environ.get(config["api_base_env"])
-                if not api_key or not api_base:
-                    print(f"⚠️ {config['api_key_env']} or {config['api_base_env']} not found in environment variables. Skipping {openrouter_name}...")
-                    self.llm_openrouter = None
-                else:
-                    self.llm_openrouter = None
-                    for model_config in config["models"]:
-                        try:
-                            candidate = ChatOpenAI(
-                                openai_api_key=api_key,
-                                openai_api_base=api_base,
-                                model_name=model_config["model"],
-                                temperature=model_config["temperature"],
-                                max_tokens=model_config["max_tokens"]
-                            )
-                            if self._ping_llm(candidate, f"{openrouter_name} ({model_config['model']})"):
-                                self.llm_openrouter = candidate
-                                self.active_model_config["openrouter"] = model_config
-                                print(f"✅ LLM ({openrouter_name}) initialized successfully with model {model_config['model']}")
+                        llm_instance = get_llm_instance(llm_type, config, model_config)
+                        if llm_instance is not None:
+                            print(f"✅ LLM ({llm_name}) initialized successfully with model {model_config.get('model', model_config.get('repo_id', ''))}")
+                            if self._ping_llm(llm_instance, llm_name):
+                                model_config_used = model_config
                                 break
                             else:
-                                print(f"⚠️ {openrouter_name} model {model_config['model']} test failed, trying next...")
-                        except Exception as e:
-                            print(f"⚠️ Failed to initialize {openrouter_name} model {model_config['model']}: {e}")
-                    if self.llm_openrouter is None:
-                        print(f"❌ All OpenRouter models failed to initialize")
+                                print(f"⚠️ {llm_name} test failed, trying next model...")
+                                llm_instance = None
+                        else:
+                            print(f"⚠️ {llm_name} instantiation returned None for model {model_config.get('model', model_config.get('repo_id', ''))}")
+                    except Exception as e:
+                        print(f"⚠️ Failed to initialize {llm_name} model {model_config.get('model', model_config.get('repo_id', ''))}: {e}")
+                        llm_instance = None
             except Exception as e:
-                print(f"⚠️ Failed to initialize {openrouter_name}: {e}")
-                self.llm_openrouter = None
-        else:
-            print(f"⏭️ Skipping {openrouter_name} (not in sequence)")
-            self.llm_openrouter = None
-        
-        # Bind all tools from tools.py
+                print(f"⚠️ Failed to initialize {llm_name}: {e}")
+                llm_instance = None
+            if llm_instance and model_config_used:
+                self.active_model_config[llm_type] = model_config_used
+                self.llm_instances[llm_type] = llm_instance
+                if config.get("tool_support", False):
+                    self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self._gather_tools())
+                else:
+                    self.llm_instances_with_tools[llm_type] = None
+            else:
+                self.llm_instances[llm_type] = None
+                self.llm_instances_with_tools[llm_type] = None
+        # Legacy assignments for backward compatibility
         self.tools = self._gather_tools()
-        
-        if self.llm_primary and self.LLM_CONFIG["gemini"].get("tool_support", False):
-            self.llm_primary_with_tools = self.llm_primary.bind_tools(self.tools)
-        else:
-            self.llm_primary_with_tools = None
-            
-        if self.llm_fallback and self.LLM_CONFIG["groq"].get("tool_support", False):
-            self.llm_fallback_with_tools = self.llm_fallback.bind_tools(self.tools)
-        else:
-            self.llm_fallback_with_tools = None
-            
-        if self.llm_third_fallback and self.LLM_CONFIG["huggingface"].get("tool_support", False):
-            self.llm_third_fallback_with_tools = self.llm_third_fallback.bind_tools(self.tools)
-        else:
-            self.llm_third_fallback_with_tools = None
-        
-        if self.llm_openrouter and self.LLM_CONFIG["openrouter"].get("tool_support", False):
-            self.llm_openrouter_with_tools = self.llm_openrouter.bind_tools(self.tools)
-        else:
-            self.llm_openrouter_with_tools = None
-
-        self.active_model_config = {}  # Store the config of the successfully initialized model per provider
+        # Arrays for all initialized LLMs and tool-bound LLMs, in order
+        self.llms = []
+        self.llms_with_tools = []
+        self.llm_provider_names = []
+        for llm_type in llm_types_to_init:
+            llm = self.llm_instances.get(llm_type)
+            llm_with_tools = self.llm_instances_with_tools.get(llm_type)
+            if llm:
+                self.llms.append(llm)
+                self.llms_with_tools.append(llm_with_tools)
+                self.llm_provider_names.append(llm_type)
 
     def _load_system_prompt(self):
         """
@@ -1085,27 +973,15 @@ class GaiaAgent:
         return response
 
     def _select_llm(self, llm_type, use_tools):
+        # Updated to use arrays and provider names
         if llm_type not in self.LLM_CONFIG:
             raise ValueError(f"Invalid llm_type: {llm_type}")
-        
-        config = self.LLM_CONFIG[llm_type]
-        # Only use tools if tool_support is True
-        if use_tools and not config.get("tool_support", False):
-            print(f"⚠️ {config['name']} does not support tool-calling. Disabling tools.")
-            use_tools = False
-        # Get the appropriate LLM instance
-        if llm_type == "gemini":
-            llm = self.llm_primary_with_tools if use_tools else self.llm_primary
-        elif llm_type == "groq":
-            llm = self.llm_fallback_with_tools if use_tools else self.llm_fallback
-        elif llm_type == "huggingface":
-            llm = self.llm_third_fallback_with_tools if use_tools else self.llm_third_fallback
-        elif llm_type == "openrouter":
-            llm = self.llm_openrouter_with_tools if use_tools else self.llm_openrouter
-        else:
-            raise ValueError(f"Invalid llm_type: {llm_type}")
-        llm_name = config["name"]
-        llm_type_str = config["type_str"]
+        if llm_type not in self.llm_provider_names:
+            raise ValueError(f"LLM {llm_type} not initialized")
+        idx = self.llm_provider_names.index(llm_type)
+        llm = self.llms_with_tools[idx] if use_tools else self.llms[idx]
+        llm_name = self.LLM_CONFIG[llm_type]["name"]
+        llm_type_str = self.LLM_CONFIG[llm_type]["type_str"]
         return llm, llm_name, llm_type_str
 
     def _make_llm_request(self, messages, use_tools=True, llm_type=None):
@@ -1346,10 +1222,10 @@ class GaiaAgent:
         Raises:
             Exception: If all LLMs fail or none produce similar enough answers.
         """
-        llm_sequence = self.DEFAULT_LLM_SEQUENCE
+        # Use the arrays for cycling
         available_llms = []
-        for llm_type in llm_sequence:
-            llm, llm_name, _ = self._select_llm(llm_type, True)
+        for idx, llm_type in enumerate(self.llm_provider_names):
+            llm, llm_name, _ = self._select_llm(llm_type, use_tools)
             if llm:
                 available_llms.append((llm_type, llm_name))
             else:
@@ -1888,46 +1764,48 @@ class GaiaAgent:
         
         return tool_args
 
-    def _create_huggingface_llm(self):
-        """
-        Create HuggingFace LLM with multiple fallback options to handle router issues.
-        """
-        config = self.LLM_CONFIG["huggingface"]
-        
-        # Check if HuggingFace API token is available
-        if os.environ.get("HUGGINGFACEHUB_API_TOKEN") or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_API_KEY"):
-            print("✅ HuggingFace API token configured")
-        else:
-            print("⚠️ No HuggingFace API token found - HuggingFace LLM may not work")
+    def _init_gemini_llm(self, config, model_config):
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(
+            model=model_config["model"],
+            temperature=model_config["temperature"],
+            google_api_key=os.environ.get(config["api_key_env"]),
+            max_tokens=model_config["max_tokens"]
+        )
+
+    def _init_groq_llm(self, config, model_config):
+        from langchain_groq import ChatGroq
+        if not os.environ.get(config["api_key_env"]):
+            print(f"⚠️ {config['api_key_env']} not found in environment variables. Skipping Groq...")
             return None
-        
-        # Try models in priority order from config
-        for model_config in config["models"]:
-            try:
-                # Create the endpoint
-                endpoint = HuggingFaceEndpoint(**model_config)
-                
-                # Create the chat model
-                llm = ChatHuggingFace(
-                    llm=endpoint,
-                    verbose=True,
-                )
-                
-                # Test the model using the standardized test function
-                model_name = f"HuggingFace ({model_config['repo_id']})"
-                if self._ping_llm(llm, model_name):
-                    print(f"✅ HuggingFace LLM initialized and tested with {model_config['repo_id']}")
-                    return llm
-                else:
-                    print(f"⚠️ {model_config['repo_id']} test failed, trying next model...")
-                    continue
-                
-            except Exception as e:
-                print(f"⚠️ Failed to initialize {model_config['repo_id']}: {e}")
-                continue
-        
-        print("❌ All HuggingFace models failed to initialize")
-        return None
+        return ChatGroq(
+            model=model_config["model"],
+            temperature=model_config["temperature"],
+            max_tokens=model_config["max_tokens"]
+        )
+
+    def _init_huggingface_llm(self, config, model_config):
+        from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+        endpoint = HuggingFaceEndpoint(**model_config)
+        return ChatHuggingFace(
+            llm=endpoint,
+            verbose=True,
+        )
+
+    def _init_openrouter_llm(self, config, model_config):
+        from langchain_openai import ChatOpenAI
+        api_key = os.environ.get(config["api_key_env"])
+        api_base = os.environ.get(config["api_base_env"])
+        if not api_key or not api_base:
+            print(f"⚠️ {config['api_key_env']} or {config['api_base_env']} not found in environment variables. Skipping OpenRouter...")
+            return None
+        return ChatOpenAI(
+            openai_api_key=api_key,
+            openai_api_base=api_base,
+            model_name=model_config["model"],
+            temperature=model_config["temperature"],
+            max_tokens=model_config["max_tokens"]
+        )
 
     def _ping_llm(self, llm, llm_name: str) -> bool:
         """
