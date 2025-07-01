@@ -57,29 +57,26 @@ IMPORTANT RULES:
 8. After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.
 9. NEVER call a tool with the same arguments. Do NOT make duplicate tool calls or infinite loops.
 10. Use tools to gather information, then stop and provide your answer.
+    - Do not call the same tool with the same or similar query more than once per question.
+    - Avoid requesting large outputs; always ask for concise or summarized results.
+    - If a tool returns a large result, summarize it before further use to avoid overloading the LLM.
+    - Do not loop or repeat tool calls if the answer is not found; provide your best answer based on available information.
 11. CHOOSING THE TOOL: consider the nature of the question first:
     - For logic, math, riddles, or wordplay questions where web search may contaminate reasoning:
-        - Do not use Tavily/web_search or other web tools.
-        - Answer using your own reasoning.
+        - First, answer using your own reasoning.
+        - Search internet for reference if you can't answer the question.
     - If files are attached, use the appropriate file tools first.
     - If links are included, process the linked content with the relevant tool before considering web search.
+    - For science questions, reason yourself, then use exa_ai_helper, web_search, arxiv_search to get a brief reference.
     - For questions that may benefit from external information and have no attached files:
         - Use web tools in this order, and only once per tool per question:
-            1. AI research tool exa_ai_helper: Request a **single brief summary*- to seed your answer.
-            2. Tavily/web_search: Request a **single brief summary*- to seed your answer.
-            3. Wikipedia/wiki_search: Use for **specific, targeted queries*- only if Tavily is insufficient.
-            4. Arxiv/arxiv_search: Use for **specific, targeted queries*- only if needed.
-        - Do not call the same tool with the same or similar query more than once per question.
-        - Avoid requesting large outputs; always ask for concise or summarized results.
-        - If a tool returns a large result, summarize it before further use to avoid overloading the LLM.
-        - For science questions, use Tavily/web_search for a very brief summary, but always verify and reason yourself before answering.
-        - If Tavily's summary is not credible or sufficient, use Wikipedia or Arxiv directly with a focused query.
-        - Always analyze search results critically and use your own judgement. Do not loop or repeat tool calls if the answer is not found; provide your best answer based on available information.
+            1. AI web research tool exa_ai_helper: Ask to **answer the original question**.
+            2. Tavily/web_search: Request a **single brief summary on the original question**.
+            3. Arxiv/arxiv_search, Wikipedia/wiki_search: Use for **specific, targeted queries** to get reference materials.
 
 Now, I will ask you a question.
 
-Report your thoughts, and finish your answer with the following template in one line.
-
-**CRITICAL**: Put your answer in a single line. Your answer must start with "FINAL ANSWER:" followed by the answer.
+**CRITICAL**:
+Finish your answer with the following template in one line:
 
 FINAL ANSWER: [YOUR ANSWER]
