@@ -170,7 +170,7 @@ class GaiaAgent:
                 },
                 {
                     "model": "deepseek/deepseek-chat-v3-0324:free",
-                    "token_limit": 1000000,
+                    "token_limit": 16000,
                     "max_tokens": 2048,
                     "temperature": 0
                 },
