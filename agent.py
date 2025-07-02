@@ -255,6 +255,10 @@ class GaiaAgent:
             description="A tool to retrieve similar questions from a vector store.",
         )
 
+        # Arrays for all initialized LLMs and tool-bound LLMs, in order (initialize before LLM setup loop)
+        self.llms = []
+        self.llms_with_tools = []
+        self.llm_provider_names = []
         # Get the LLM types that should be initialized based on the sequence
         llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
         llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
@@ -327,22 +331,15 @@ class GaiaAgent:
                 else:
                     # For models without tool support, never bind tools or reference them
                     self.llm_instances_with_tools[llm_type] = None
+                # Append to arrays here for each successful LLM
+                self.llms.append(llm_instance)
+                self.llms_with_tools.append(self.llm_instances_with_tools[llm_type])
+                self.llm_provider_names.append(llm_type)
             else:
                 self.llm_instances[llm_type] = None
                 self.llm_instances_with_tools[llm_type] = None
         # Legacy assignments for backward compatibility
         self.tools = self._gather_tools()
-        # Arrays for all initialized LLMs and tool-bound LLMs, in order
-        self.llms = []
-        self.llms_with_tools = []
-        self.llm_provider_names = []
-        for llm_type in llm_types_to_init:
-            llm = self.llm_instances.get(llm_type)
-            llm_with_tools = self.llm_instances_with_tools.get(llm_type)
-            if llm:
-                self.llms.append(llm)
-                self.llms_with_tools.append(llm_with_tools)
-                self.llm_provider_names.append(llm_type)
 
     def _load_system_prompt(self):
         """
