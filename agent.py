@@ -259,6 +259,8 @@ class GaiaAgent:
         self.llms = []
         self.llms_with_tools = []
         self.llm_provider_names = []
+        # Track initialization results for summary
+        self.llm_init_results = []
         # Get the LLM types that should be initialized based on the sequence
         llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
         llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
@@ -274,73 +276,85 @@ class GaiaAgent:
         for idx, llm_type in enumerate(llm_types_to_init):
             config = self.LLM_CONFIG[llm_type]
             llm_name = config["name"]
-            print(f"🔄 Initializing LLM {llm_name} ({idx+1} of {len(llm_types_to_init)})")
-            llm_instance = None
-            model_config_used = None
-            try:
-                def get_llm_instance(llm_type, config, model_config):
-                    if llm_type == "gemini":
-                        return self._init_gemini_llm(config, model_config)
-                    elif llm_type == "groq":
-                        return self._init_groq_llm(config, model_config)
-                    elif llm_type == "huggingface":
-                        return self._init_huggingface_llm(config, model_config)
-                    elif llm_type == "openrouter":
-                        return self._init_openrouter_llm(config, model_config)
-                    else:
-                        return None
-                for model_config in config["models"]:
-                    try:
-                        llm_instance = get_llm_instance(llm_type, config, model_config)
-                        if llm_instance is not None:
-                            print(f"✅ LLM ({llm_name}) initialized successfully with model {model_config.get('model', model_config.get('repo_id', ''))}")
-                            # Use direct instance for pinging
-                            plain_ok = self._ping_llm(llm_name, llm_type, use_tools=False, llm_instance=llm_instance)
-                            if config.get("tool_support", False) and self.tools:
-                                llm_with_tools = llm_instance.bind_tools(self.tools)
-                                tools_ok = self._ping_llm(llm_name + " (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
-                                if plain_ok and tools_ok:
-                                    model_config_used = model_config
-                                    break
-                                else:
-                                    print(f"⚠️ {llm_name} test failed (plain_ok={plain_ok}, tools_ok={tools_ok}), trying next model...")
-                                    llm_instance = None
-                            else:
-                                if plain_ok:
-                                    model_config_used = model_config
-                                    break
-                                else:
-                                    print(f"⚠️ {llm_name} test failed (plain), trying next model...")
-                                    llm_instance = None
-                        else:
-                            print(f"⚠️ {llm_name} instantiation returned None for model {model_config.get('model', model_config.get('repo_id', ''))}")
-                    except Exception as e:
-                        print(f"⚠️ Failed to initialize {llm_name} model {model_config.get('model', model_config.get('repo_id', ''))}: {e}")
-                        llm_instance = None
-            except Exception as e:
-                print(f"⚠️ Failed to initialize {llm_name}: {e}")
+            for model_config in config["models"]:
+                model_id = model_config.get("model", model_config.get("repo_id", ""))
+                print(f"🔄 Initializing LLM {llm_name} (model: {model_id}) ({idx+1} of {len(llm_types_to_init)})")
                 llm_instance = None
-            if llm_instance and model_config_used:
-                self.active_model_config[llm_type] = model_config_used
-                self.llm_instances[llm_type] = llm_instance
-                if config.get("tool_support", False):
-                    # Only bind tools if tool support is enabled and tools exist
-                    if self.tools:
-                        self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
+                model_config_used = None
+                plain_ok = False
+                tools_ok = None
+                error_plain = None
+                error_tools = None
+                try:
+                    def get_llm_instance(llm_type, config, model_config):
+                        if llm_type == "gemini":
+                            return self._init_gemini_llm(config, model_config)
+                        elif llm_type == "groq":
+                            return self._init_groq_llm(config, model_config)
+                        elif llm_type == "huggingface":
+                            return self._init_huggingface_llm(config, model_config)
+                        elif llm_type == "openrouter":
+                            return self._init_openrouter_llm(config, model_config)
+                        else:
+                            return None
+                    llm_instance = get_llm_instance(llm_type, config, model_config)
+                    if llm_instance is not None:
+                        plain_ok = self._ping_llm(f"{llm_name} (model: {model_id})", llm_type, use_tools=False, llm_instance=llm_instance)
                     else:
+                        error_plain = "instantiation returned None"
+                    if config.get("tool_support", False) and self.tools and llm_instance is not None:
+                        try:
+                            llm_with_tools = llm_instance.bind_tools(self.tools)
+                            tools_ok = self._ping_llm(f"{llm_name} (model: {model_id}) (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
+                        except Exception as e:
+                            tools_ok = False
+                            error_tools = str(e)
+                    else:
+                        tools_ok = None
+                    # Store result for summary
+                    self.llm_init_results.append({
+                        "provider": llm_name,
+                        "llm_type": llm_type,
+                        "model": model_id,
+                        "plain_ok": plain_ok,
+                        "tools_ok": tools_ok,
+                        "error_plain": error_plain,
+                        "error_tools": error_tools
+                    })
+                    # Only add to active if plain_ok and (tools_ok if tool_support else True)
+                    if llm_instance and plain_ok and (not config.get("tool_support", False) or tools_ok):
+                        self.active_model_config[llm_type] = model_config
+                        self.llm_instances[llm_type] = llm_instance
+                        if config.get("tool_support", False) and tools_ok:
+                            self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
+                        else:
+                            self.llm_instances_with_tools[llm_type] = None
+                        self.llms.append(llm_instance)
+                        self.llms_with_tools.append(self.llm_instances_with_tools[llm_type])
+                        self.llm_provider_names.append(llm_type)
+                        print(f"✅ LLM ({llm_name}) initialized successfully with model {model_id}")
+                        break
+                    else:
+                        self.llm_instances[llm_type] = None
                         self.llm_instances_with_tools[llm_type] = None
-                else:
-                    # For models without tool support, never bind tools or reference them
+                        print(f"⚠️ {llm_name} (model: {model_id}) failed initialization (plain_ok={plain_ok}, tools_ok={tools_ok})")
+                except Exception as e:
+                    print(f"⚠️ Failed to initialize {llm_name} (model: {model_id}): {e}")
+                    self.llm_init_results.append({
+                        "provider": llm_name,
+                        "llm_type": llm_type,
+                        "model": model_id,
+                        "plain_ok": False,
+                        "tools_ok": False,
+                        "error_plain": str(e),
+                        "error_tools": str(e)
+                    })
+                    self.llm_instances[llm_type] = None
                     self.llm_instances_with_tools[llm_type] = None
-                # Append to arrays here for each successful LLM
-                self.llms.append(llm_instance)
-                self.llms_with_tools.append(self.llm_instances_with_tools[llm_type])
-                self.llm_provider_names.append(llm_type)
-            else:
-                self.llm_instances[llm_type] = None
-                self.llm_instances_with_tools[llm_type] = None
         # Legacy assignments for backward compatibility
         self.tools = self._gather_tools()
+        # Print summary table after all initializations
+        self._print_llm_init_summary()
 
     def _load_system_prompt(self):
         """
@@ -2297,3 +2311,29 @@ class GaiaAgent:
         """
         config = self.LLM_CONFIG.get(llm_type, {})
         return config.get("tool_support", False)
+
+    def _print_llm_init_summary(self):
+        """
+        Print a structured summary table of all LLMs and models initialized, with plain/tools status and errors.
+        """
+        if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
+            return
+        print("\n===== LLM Initialization Summary =====")
+        header = f"{'Provider':<14} | {'Model':<40} | {'Plain':<5} | {'Tools':<5} | {'Error (tools)':<20}"
+        print(header)
+        print("-" * len(header))
+        for r in self.llm_init_results:
+            plain = '✅' if r['plain_ok'] else '❌'
+            if r['tools_ok'] is None:
+                tools = 'N/A'
+            else:
+                tools = '✅' if r['tools_ok'] else '❌'
+            error_tools = ''
+            if r['tools_ok'] is False and r['error_tools']:
+                # Try to extract error code if present
+                if '400' in r['error_tools']:
+                    error_tools = '400'
+                else:
+                    error_tools = r['error_tools'][:18]
+            print(f"{r['provider']:<14} | {r['model']:<40} | {plain:<5} | {tools:<5} | {error_tools:<20}")
+        print("======================================\n")
