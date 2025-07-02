@@ -169,17 +169,17 @@ class GaiaAgent:
             "force_tools": False,
             "models": [
                 {
+                    "model": "deepseek/deepseek-chat-v3-0324:free",
+                    "token_limit": 100000,
+                    "max_tokens": 2048,
+                    "temperature": 0,
+                    "force_tools": True
+                },
+                {
                     "model": "mistralai/mistral-small-3.2-24b-instruct:free",
                     "token_limit": 90000,
                     "max_tokens": 2048,
                     "temperature": 0
-                },
-                {
-                    "model": "deepseek/deepseek-chat-v3-0324:free",
-                    "token_limit": 16000,
-                    "max_tokens": 2048,
-                    "temperature": 0,
-                    "force_tools": True
                 },
                 {
                     "model": "openrouter/cypher-alpha:free",
