@@ -114,13 +114,14 @@ class GaiaAgent:
             "api_key_env": "GROQ_API_KEY",
             "max_history": 15,
             "tool_support": True,
-            "force_tools": False,
+            "force_tools": True,
             "models": [
                 {
                     "model": "qwen-qwq-32b",
                     "token_limit": 3000,
                     "max_tokens": 2048,
-                    "temperature": 0
+                    "temperature": 0,
+                    "force_tools": True
                 }
             ]
         },
@@ -2337,7 +2338,7 @@ class GaiaAgent:
         plain_w = 5
         tools_w = 5
         error_w = 20
-        header = f"{{'Provider':<{provider_w}}}| {{'Model':<{model_w}}}| {{'Plain':<{plain_w}}}| {{'Tools':<{tools_w}}}| {{'Error (tools)':<{error_w}}}"
+        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w+9}}| {'Error (tools)':<{error_w}}}"
         print("\n===== LLM Initialization Summary =====")
         print(header)
         print("-" * len(header))
