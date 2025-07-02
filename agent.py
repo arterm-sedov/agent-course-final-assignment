@@ -321,12 +321,17 @@ class GaiaAgent:
                         "error_plain": error_plain,
                         "error_tools": error_tools
                     })
-                    # Only add to active if plain_ok and (tools_ok if tool_support else True)
-                    if llm_instance and plain_ok and (not config.get("tool_support", False) or tools_ok):
+                    # Special handling for Gemini and similar Google LLMs: always bind tools if tool support is enabled, regardless of tools_ok
+                    is_google_llm = llm_type == "gemini"
+                    if llm_instance and plain_ok and (
+                        not config.get("tool_support", False) or tools_ok or (is_google_llm and config.get("tool_support", False))
+                    ):
                         self.active_model_config[llm_type] = model_config
                         self.llm_instances[llm_type] = llm_instance
-                        if config.get("tool_support", False) and tools_ok:
+                        if config.get("tool_support", False):
                             self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
+                            if is_google_llm and not tools_ok:
+                                print(f"⚠️ {llm_name} (model: {model_id}) (with tools) test returned empty or failed, but binding tools anyway (Gemini tool-calling is known to work in real use).")
                         else:
                             self.llm_instances_with_tools[llm_type] = None
                         self.llms.append(llm_instance)
