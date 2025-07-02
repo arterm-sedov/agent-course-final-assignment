@@ -1878,6 +1878,7 @@ class GaiaAgent:
     def _ping_llm(self, llm, llm_name: str) -> bool:
         """
         Test an LLM with a simple "Hello" message to verify it's working.
+        Includes the system message for realistic testing.
         
         Args:
             llm: The LLM instance to test
@@ -1891,7 +1892,7 @@ class GaiaAgent:
             return False
             
         try:
-            test_message = [HumanMessage(content="Hello, report about yourself briefly. Max 150 words (250 tokens)")]
+            test_message = [self.sys_msg, HumanMessage(content="What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)")]
             print(f"🧪 Testing {llm_name} with 'Hello' message...")
             
             start_time = time.time()
