@@ -264,6 +264,9 @@ class GaiaAgent:
         # Prepare storage for LLM instances
         self.llm_instances = {}
         self.llm_instances_with_tools = {}
+        # Only gather tools if at least one LLM supports tools
+        any_tool_support = any(self.LLM_CONFIG[llm_type].get("tool_support", False) for llm_type in llm_types_to_init)
+        self.tools = self._gather_tools() if any_tool_support else []
         for idx, llm_type in enumerate(llm_types_to_init):
             config = self.LLM_CONFIG[llm_type]
             llm_name = config["name"]
@@ -287,12 +290,23 @@ class GaiaAgent:
                         llm_instance = get_llm_instance(llm_type, config, model_config)
                         if llm_instance is not None:
                             print(f"✅ LLM ({llm_name}) initialized successfully with model {model_config.get('model', model_config.get('repo_id', ''))}")
-                            if self._ping_llm(llm_instance, llm_name):
-                                model_config_used = model_config
-                                break
+                            plain_ok = self._ping_llm(llm_instance, llm_name)
+                            if config.get("tool_support", False) and self.tools:
+                                llm_with_tools = llm_instance.bind_tools(self.tools)
+                                tools_ok = self._ping_llm(llm_with_tools, llm_name + " (with tools)")
+                                if plain_ok and tools_ok:
+                                    model_config_used = model_config
+                                    break
+                                else:
+                                    print(f"⚠️ {llm_name} test failed (plain_ok={plain_ok}, tools_ok={tools_ok}), trying next model...")
+                                    llm_instance = None
                             else:
-                                print(f"⚠️ {llm_name} test failed, trying next model...")
-                                llm_instance = None
+                                if plain_ok:
+                                    model_config_used = model_config
+                                    break
+                                else:
+                                    print(f"⚠️ {llm_name} test failed (plain), trying next model...")
+                                    llm_instance = None
                         else:
                             print(f"⚠️ {llm_name} instantiation returned None for model {model_config.get('model', model_config.get('repo_id', ''))}")
                     except Exception as e:
@@ -305,8 +319,13 @@ class GaiaAgent:
                 self.active_model_config[llm_type] = model_config_used
                 self.llm_instances[llm_type] = llm_instance
                 if config.get("tool_support", False):
-                    self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self._gather_tools())
+                    # Only bind tools if tool support is enabled and tools exist
+                    if self.tools:
+                        self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
+                    else:
+                        self.llm_instances_with_tools[llm_type] = None
                 else:
+                    # For models without tool support, never bind tools or reference them
                     self.llm_instances_with_tools[llm_type] = None
             else:
                 self.llm_instances[llm_type] = None
@@ -1832,8 +1851,9 @@ class GaiaAgent:
 
     def _init_huggingface_llm(self, config, model_config):
         from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-        # Filter out token_limit as it's not a valid parameter for HuggingFaceEndpoint
-        filtered_config = {k: v for k, v in model_config.items() if k != 'token_limit'}
+        # Only allow fields supported by HuggingFaceEndpoint
+        allowed_fields = {'repo_id', 'task', 'max_new_tokens', 'do_sample', 'temperature'}
+        filtered_config = {k: v for k, v in model_config.items() if k in allowed_fields}
         endpoint = HuggingFaceEndpoint(**filtered_config)
         return ChatHuggingFace(
             llm=endpoint,
