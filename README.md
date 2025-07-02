@@ -16,14 +16,11 @@ Check out the configuration reference at https://huggingface.co/docs/hub/spaces-
 
 # arterm-sedov GAIA Agent
 
-A comprehensive agent for the GAIA Unit 4 benchmark, combining tools from multiple reference implementations.
+A robust, multi-LLM agent for the GAIA Unit 4 benchmark, blending advanced tool use, model fallback, and vector search for real-world reliability.
 
 ## Requirements
 
-The project uses two requirements files to handle platform differences:
-
-- **`requirements.txt`**: For Hugging Face Spaces and Linux/macOS (no TensorFlow needed)
-- **`requirements.win.txt`**: For Windows local development (includes TensorFlow)
+- **`requirements.txt`**: For Hugging Face Spaces and Linux/macOS
 
 ## Installation
 
@@ -31,23 +28,13 @@ The project uses two requirements files to handle platform differences:
 ```bash
 python setup_venv.py
 ```
-The setup script automatically selects the appropriate requirements file based on your platform.
+The script auto-selects the right requirements file for your OS.
 
 ### Manual Setup
 ```bash
-# Create virtual environment
-python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Linux/macOS)
+python3 -m venv venv
 source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt      # For Hugging Face/Linux/macOS
-# OR
-pip install -r requirements.win.txt  # For Windows local development
+pip install -r requirements.txt
 ```
 
 ## Environment Variables
@@ -57,6 +44,10 @@ Create a `.env` file with:
 GEMINI_KEY=your_gemini_api_key
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_key
+# Optional for OpenRouter, Groq, HuggingFace
+OPENROUTER_API_KEY=your_openrouter_key
+GROQ_API_KEY=your_groq_key
+HUGGINGFACEHUB_API_TOKEN=your_hf_token
 ```
 
 ## Usage
@@ -65,29 +56,38 @@ SUPABASE_KEY=your_supabase_key
 python app.py
 ```
 
-## Features
+## Agent Behavior & Tooling
 
-- **Multi-LLM Support**: Google Gemini, Groq, HuggingFace
-- **Comprehensive Tools**: Math, code, file, image, web, chess
-- **Supabase Integration**: Vector search for similar Q/A
-- **Robust Fallbacks**: Multiple LLM providers and embedding models
-- **Cross-Platform**: Optimized for both Hugging Face Spaces and local development
+- **Multi-LLM Orchestration**: The agent dynamically selects from Google Gemini, Groq, OpenRouter, and HuggingFace models. Each model is tested for both plain and tool-calling support at startup.
+- **Model-Level Tool Support**: The agent binds tools to each model if supported. Google Gemini is always bound with tools for maximum capability, even if the tool test returns empty (tool-calling works in practice; a warning is logged).
+- **Automatic Fallbacks**: If a model fails or does not support a required feature, the agent automatically falls back to the next available model, ensuring robust and uninterrupted operation.
+- **Comprehensive Tool Suite**: The agent can perform math, code execution, file and image analysis, web and vector search, chess analysis, and more. Tools are modular and extensible. Some tools are themselves AI callers—such as web search, Wikipedia, arXiv, and code execution—enabling the agent to chain LLMs and tools for advanced, multi-step reasoning.
+- **Contextual Vector Search**: The agent uses Supabase vector search acting as a baseline to decide if an LLM call succeeded and calculates success score for each model's answer for a question. Reference answers are not submitted, they are used for internal evaluation of LLMs.
+- **Structured Initialization Summary**: After startup, a clear table shows which models/providers are available, with/without tools, and any errors.
+- **Transparent Reasoning**: The agent logs its reasoning, tool usage, and fallback decisions for full traceability.
 
 ## Architecture
 
-- `agent.py`: Main agent logic with LLM integration
-- `tools.py`: Comprehensive tool collection
-- `app.py`: Gradio interface for Hugging Face Spaces
-- `setup_venv.py`: Cross-platform setup script
+- `agent.py`: Main agent logic, LLM/model orchestration, tool binding, and summary reporting
+- `tools.py`: Modular tool collection
+- `app.py`: Gradio interface
+- `setup_venv.py`: Cross-platform setup
 
 ## Platform-Specific Dependencies
 
-### Hugging Face Spaces / Linux / macOS
-- All core dependencies included
-- TensorFlow is pre-installed on Hugging Face Spaces
-- No additional setup needed
+- All core dependencies included in `requirements.txt`
+- TensorFlow pre-installed on Hugging Face Spaces
 
-### Windows Local Development
-- Same core dependencies as other platforms
-- Includes `tensorflow-cpu` for local sentence-transformers support
-- May require Visual Studio build tools for TensorFlow installation
+## LLM Initialization & Tool Support
+
+- Each LLM/model is tested for plain and tool-calling support
+- Gemini (Google) is always bound with tools if enabled, even if tool test returns empty (tool-calling works in real use; warning is logged)
+- OpenRouter, Groq, and HuggingFace are supported with model-level tool-calling detection
+- After initialization, a summary table is printed showing provider, model, plain/tools status, and errors
+
+## Support & Next Steps
+
+- See `SETUP_INSTRUCTIONS.md` for troubleshooting and advanced config
+- After setup, test the agent, run evaluation, and submit to GAIA benchmark
+
+The agent is ready for the GAIA Unit 4 benchmark—battle-tested, transparent, and extensible. 🚀
