@@ -990,6 +990,9 @@ class GaiaAgent:
                 )
         # Set the current LLM type for rate limiting
         self.current_llm_type = llm_type
+        # ENFORCE: Never use tools for providers that do not support them
+        if not self._provider_supports_tools(llm_type):
+            use_tools = False
         llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
             raise Exception(f"{llm_name} LLM not available")
@@ -1208,23 +1211,25 @@ class GaiaAgent:
         # Use the arrays for cycling
         available_llms = []
         for idx, llm_type in enumerate(self.llm_provider_names):
-            llm, llm_name, _ = self._select_llm(llm_type, use_tools)
+            # ENFORCE: Never use tools for providers that do not support them
+            llm_use_tools = use_tools and self._provider_supports_tools(llm_type)
+            llm, llm_name, _ = self._select_llm(llm_type, llm_use_tools)
             if llm:
-                available_llms.append((llm_type, llm_name))
+                available_llms.append((llm_type, llm_name, llm_use_tools))
             else:
                 print(f"⚠️ {llm_name} not available, skipping...")
         if not available_llms:
             raise Exception("No LLMs are available. Please check your API keys and configuration.")
-        print(f"🔄 Available LLMs: {[name for _, name in available_llms]}")
+        print(f"🔄 Available LLMs: {[name for _, name, _ in available_llms]}")
         original_question = ""
         for msg in messages:
             if hasattr(msg, 'type') and msg.type == 'human':
                 original_question = msg.content
                 break
         llm_results = []
-        for llm_type, llm_name in available_llms:
+        for llm_type, llm_name, llm_use_tools in available_llms:
             try:
-                response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+                response = self._make_llm_request(messages, use_tools=llm_use_tools, llm_type=llm_type)
                 answer = self._extract_final_answer(response)
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
@@ -1255,10 +1260,10 @@ class GaiaAgent:
                     print("🔄 HuggingFace router error detected, retrying once...")
                     try:
                         time.sleep(2)
-                        response = self._make_llm_request(messages, use_tools=use_tools, llm_type=llm_type)
+                        response = self._make_llm_request(messages, use_tools=llm_use_tools, llm_type=llm_type)
                         answer = self._extract_final_answer(response)
                         if not answer:
-                            answer, response = self._retry_with_final_answer_reminder(messages, use_tools, llm_type)
+                            answer, response = self._retry_with_final_answer_reminder(messages, llm_use_tools, llm_type)
                         if answer and not answer == str(response).strip():
                             print(f"✅ HuggingFace retry succeeded: {answer}")
                             self._update_llm_tracking(llm_type, "threshold_pass")
@@ -2261,3 +2266,10 @@ class GaiaAgent:
                 return self.LLM_CONFIG["default"]["token_limit"]
         except Exception:
             return self.LLM_CONFIG["default"]["token_limit"]
+
+    def _provider_supports_tools(self, llm_type: str) -> bool:
+        """
+        Returns True if the provider supports tool-calling, based on LLM_CONFIG.
+        """
+        config = self.LLM_CONFIG.get(llm_type, {})
+        return config.get("tool_support", False)
