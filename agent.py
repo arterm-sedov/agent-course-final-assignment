@@ -2320,11 +2320,18 @@ class GaiaAgent:
     def _print_llm_init_summary(self):
         """
         Print a structured summary table of all LLMs and models initialized, with plain/tools status and errors.
+        Dynamically adjust column widths for provider and model names.
         """
         if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
             return
+        # Calculate max widths
+        provider_w = max(14, max(len(r['provider']) for r in self.llm_init_results) + 2)
+        model_w = max(40, max(len(r['model']) for r in self.llm_init_results) + 2)
+        plain_w = 5
+        tools_w = 5
+        error_w = 20
+        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w}}| {'Error (tools)':<{error_w}}}"
         print("\n===== LLM Initialization Summary =====")
-        header = f"{'Provider':<14} | {'Model':<40} | {'Plain':<5} | {'Tools':<5} | {'Error (tools)':<20}"
         print(header)
         print("-" * len(header))
         for r in self.llm_init_results:
@@ -2335,10 +2342,9 @@ class GaiaAgent:
                 tools = '✅' if r['tools_ok'] else '❌'
             error_tools = ''
             if r['tools_ok'] is False and r['error_tools']:
-                # Try to extract error code if present
                 if '400' in r['error_tools']:
                     error_tools = '400'
                 else:
                     error_tools = r['error_tools'][:18]
-            print(f"{r['provider']:<14} | {r['model']:<40} | {plain:<5} | {tools:<5} | {error_tools:<20}")
-        print("======================================\n")
+            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w}}| {error_tools:<{error_w}}}")
+        print("=" * len(header) + "\n")
