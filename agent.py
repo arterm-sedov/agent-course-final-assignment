@@ -164,7 +164,7 @@ class GaiaAgent:
             "models": [
                 {
                     "model": "mistralai/mistral-small-3.2-24b-instruct:free",
-                    "token_limit": 1000000,
+                    "token_limit": 90000,
                     "max_tokens": 2048,
                     "temperature": 0
                 },
