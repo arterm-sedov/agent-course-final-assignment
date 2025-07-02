@@ -290,10 +290,10 @@ class GaiaAgent:
                         llm_instance = get_llm_instance(llm_type, config, model_config)
                         if llm_instance is not None:
                             print(f"✅ LLM ({llm_name}) initialized successfully with model {model_config.get('model', model_config.get('repo_id', ''))}")
-                            plain_ok = self._ping_llm(llm_instance, llm_name)
+                            plain_ok = self._ping_llm(llm_name, llm_type, use_tools=False)
                             if config.get("tool_support", False) and self.tools:
                                 llm_with_tools = llm_instance.bind_tools(self.tools)
-                                tools_ok = self._ping_llm(llm_with_tools, llm_name + " (with tools)")
+                                tools_ok = self._ping_llm(llm_name + " (with tools)", llm_type, use_tools=True)
                                 if plain_ok and tools_ok:
                                     model_config_used = model_config
                                     break
@@ -1875,30 +1875,26 @@ class GaiaAgent:
             max_tokens=model_config["max_tokens"]
         )
 
-    def _ping_llm(self, llm, llm_name: str) -> bool:
+    def _ping_llm(self, llm_name: str, llm_type: str, use_tools: bool = False) -> bool:
         """
-        Test an LLM with a simple "Hello" message to verify it's working.
+        Test an LLM with a simple "Hello" message to verify it's working, using the unified LLM request method.
         Includes the system message for realistic testing.
-        
         Args:
-            llm: The LLM instance to test
             llm_name: Name of the LLM for logging purposes
-            
+            llm_type: The LLM type string (e.g., 'gemini', 'groq', etc.)
+            use_tools: Whether to use tools (default: False)
         Returns:
             bool: True if test passes, False otherwise
         """
-        if llm is None:
-            print(f"❌ {llm_name} is None - cannot test")
+        if llm_type is None:
+            print(f"❌ {llm_name} llm_type not provided - cannot test")
             return False
-            
         try:
             test_message = [self.sys_msg, HumanMessage(content="What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)")]
             print(f"🧪 Testing {llm_name} with 'Hello' message...")
-            
             start_time = time.time()
-            test_response = llm.invoke(test_message)
+            test_response = self._make_llm_request(test_message, use_tools=use_tools, llm_type=llm_type)
             end_time = time.time()
-            
             if test_response and hasattr(test_response, 'content') and test_response.content:
                 print(f"✅ {llm_name} test successful!")
                 print(f"   Response time: {end_time - start_time:.2f}s")
@@ -1910,10 +1906,9 @@ class GaiaAgent:
             else:
                 print(f"❌ {llm_name} returned empty response")
                 return False
-                
         except Exception as e:
             print(f"❌ {llm_name} test failed: {e}")
-            return False 
+            return False
 
     def _is_duplicate_tool_call(self, tool_name: str, tool_args: dict, called_tools: list) -> bool:
         """
