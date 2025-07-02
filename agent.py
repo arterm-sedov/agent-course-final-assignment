@@ -1456,41 +1456,49 @@ class GaiaAgent:
 
     def get_llm_stats(self) -> dict:
         """
-        Get comprehensive statistics about LLM success and failure rates.
+        Get comprehensive statistics about LLM success and failure rates, per provider and model.
         Returns:
-            dict: Dictionary with LLM names, success/failure counts, and rates
+            dict: Dictionary with LLM (provider+model) names, success/failure counts, and rates
         """
         stats = {
             "total_questions": self.total_questions,
             "llm_stats": {},
             "summary": {}
         }
-        
+        # Build a mapping of llm_type to model_id actually used
+        used_models = {}
+        for llm_type in self.llm_tracking.keys():
+            model_id = None
+            if llm_type in self.active_model_config:
+                model_id = self.active_model_config[llm_type].get("model", self.active_model_config[llm_type].get("repo_id", ""))
+            used_models[llm_type] = model_id
         llm_types = list(self.llm_tracking.keys())
-        total_success = sum(self.llm_tracking[k]["successes"] for k in llm_types)
-        total_failures = sum(self.llm_tracking[k]["failures"] for k in llm_types)
-        all_failed = self.total_questions - total_success
-        
-        # Calculate total attempts per LLM
+        total_success = 0
+        total_failures = 0
+        total_attempts = 0
+        # Calculate per-model stats
         for llm_type in llm_types:
             llm_name = self.LLM_CONFIG[llm_type]["name"]
+            model_id = used_models.get(llm_type, "")
+            display_name = f"{llm_name} ({model_id})" if model_id else llm_name
             tracking = self.llm_tracking[llm_type]
             successes = tracking["successes"]
             failures = tracking["failures"]
             threshold_count = tracking["threshold_passes"]
             finalist_count = tracking["finalist_wins"]
-            total_attempts = tracking["total_attempts"]
-            
+            attempts = tracking["total_attempts"]
+            total_success += successes
+            total_failures += failures
+            total_attempts += attempts
             # Calculate rates
-            success_rate = (successes / self.total_questions * 100) if self.total_questions > 0 else 0
-            failure_rate = (failures / self.total_questions * 100) if self.total_questions > 0 else 0
-            threshold_rate = (threshold_count / self.total_questions * 100) if self.total_questions > 0 else 0
-            finalist_rate = (finalist_count / self.total_questions * 100) if self.total_questions > 0 else 0
-            
-            stats["llm_stats"][llm_name] = {
+            success_rate = (successes / attempts * 100) if attempts > 0 else 0
+            failure_rate = (failures / attempts * 100) if attempts > 0 else 0
+            threshold_rate = (threshold_count / attempts * 100) if attempts > 0 else 0
+            finalist_rate = (finalist_count / attempts * 100) if attempts > 0 else 0
+            stats["llm_stats"][display_name] = {
                 "successes": successes,
                 "failures": failures,
-                "total_attempts": total_attempts,
+                "attempts": attempts,
                 "success_rate": f"{success_rate:.1f}%",
                 "failure_rate": f"{failure_rate:.1f}%",
                 "threshold_passes": threshold_count,
@@ -1498,24 +1506,55 @@ class GaiaAgent:
                 "finalist_wins": finalist_count,
                 "finalist_rate": f"{finalist_rate:.1f}%"
             }
-        
         # Overall summary
-        overall_success_rate = (total_success / self.total_questions * 100) if self.total_questions > 0 else 0
-        overall_failure_rate = (total_failures / self.total_questions * 100) if self.total_questions > 0 else 0
-        all_failed_rate = (all_failed / self.total_questions * 100) if self.total_questions > 0 else 0
-        
+        overall_success_rate = (total_success / total_attempts * 100) if total_attempts > 0 else 0
+        overall_failure_rate = (total_failures / total_attempts * 100) if total_attempts > 0 else 0
         stats["summary"] = {
             "total_questions": self.total_questions,
             "total_successes": total_success,
             "total_failures": total_failures,
-            "all_llms_failed": all_failed,
+            "total_attempts": total_attempts,
             "overall_success_rate": f"{overall_success_rate:.1f}%",
-            "overall_failure_rate": f"{overall_failure_rate:.1f}%",
-            "all_failed_rate": f"{all_failed_rate:.1f}%"
+            "overall_failure_rate": f"{overall_failure_rate:.1f}%"
         }
-        
         return stats
-    
+
+    def print_llm_stats_table(self):
+        """
+        Print a clean table of LLM stats (provider+model), with totals at the bottom.
+        """
+        stats = self.get_llm_stats()
+        rows = []
+        for name, data in stats["llm_stats"].items():
+            rows.append([
+                name,
+                data["successes"],
+                data["failures"],
+                data["attempts"],
+                data["success_rate"],
+                data["failure_rate"],
+                data["threshold_passes"],
+                data["finalist_wins"]
+            ])
+        # Table header
+        header = [
+            "Provider (Model)", "Successes", "Failures", "Attempts", "Success Rate", "Failure Rate", "Threshold Passes", "Finalist Wins"
+        ]
+        # Compute column widths
+        col_widths = [max(len(str(row[i])) for row in ([header] + rows)) for i in range(len(header))]
+        def fmt_row(row):
+            return " | ".join(str(val).ljust(col_widths[i]) for i, val in enumerate(row))
+        print("\n===== LLM Model Statistics =====")
+        print(fmt_row(header))
+        print("-" * (sum(col_widths) + 3 * (len(header) - 1)))
+        for row in rows:
+            print(fmt_row(row))
+        # Totals
+        s = stats["summary"]
+        print("-" * (sum(col_widths) + 3 * (len(header) - 1)))
+        print(f"TOTALS: Successes: {s['total_successes']} | Failures: {s['total_failures']} | Attempts: {s['total_attempts']} | Success Rate: {s['overall_success_rate']} | Failure Rate: {s['overall_failure_rate']}")
+        print("=" * (sum(col_widths) + 3 * (len(header) - 1)))
+
     def _update_llm_tracking(self, llm_type: str, event_type: str, increment: int = 1):
         """
         Helper method to update LLM tracking statistics.
@@ -1580,35 +1619,12 @@ class GaiaAgent:
         try:
             answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
             print(f"🎯 Final answer from {llm_used}")
-            
             # Display comprehensive stats
-            stats = self.get_llm_stats()
-            print(f"\n📊 LLM Performance Statistics (Total Questions: {stats['summary']['total_questions']}):")
-            print(f"🎯 Overall: {stats['summary']['total_successes']} successes, {stats['summary']['total_failures']} failures ({stats['summary']['overall_success_rate']} success rate)")
-            print(f"❌ All LLMs failed: {stats['summary']['all_llms_failed']} times ({stats['summary']['all_failed_rate']})")
-            print("\n📈 Per-LLM Breakdown:")
-            for llm_name, data in stats['llm_stats'].items():
-                print(f"   {llm_name}: {data['successes']}✅/{data['failures']}❌ ({data['success_rate']} success, {data['failure_rate']} failure)")
-                if data['threshold_passes'] > 0:
-                    print(f"      └─ Threshold passes: {data['threshold_passes']} ({data['threshold_rate']})")
-                if data['finalist_wins'] > 0:
-                    print(f"      └─ Finalist wins: {data['finalist_wins']} ({data['finalist_rate']})")
-            
+            self.print_llm_stats_table()
             return answer
         except Exception as e:
             print(f"❌ All LLMs failed: {e}")
-            # Display comprehensive stats even when all LLMs fail
-            stats = self.get_llm_stats()
-            print(f"\n📊 LLM Performance Statistics (Total Questions: {stats['summary']['total_questions']}):")
-            print(f"🎯 Overall: {stats['summary']['total_successes']} successes, {stats['summary']['total_failures']} failures ({stats['summary']['overall_success_rate']} success rate)")
-            print(f"❌ All LLMs failed: {stats['summary']['all_llms_failed']} times ({stats['summary']['all_failed_rate']})")
-            print("\n📈 Per-LLM Breakdown:")
-            for llm_name, data in stats['llm_stats'].items():
-                print(f"   {llm_name}: {data['successes']}✅/{data['failures']}❌ ({data['success_rate']} success, {data['failure_rate']} failure)")
-                if data['threshold_passes'] > 0:
-                    print(f"      └─ Threshold passes: {data['threshold_passes']} ({data['threshold_rate']})")
-                if data['finalist_wins'] > 0:
-                    print(f"      └─ Finalist wins: {data['finalist_wins']} ({data['finalist_rate']})")
+            self.print_llm_stats_table()
             raise Exception(f"All LLMs failed: {e}")
 
     def _extract_text_from_response(self, response: Any) -> str:
@@ -2332,13 +2348,13 @@ class GaiaAgent:
         """
         if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
             return
-        # Calculate max widths
+        # Calculate max widths dynamically for all columns
         provider_w = max(14, max(len(r['provider']) for r in self.llm_init_results) + 2)
         model_w = max(40, max(len(r['model']) for r in self.llm_init_results) + 2)
-        plain_w = 5
-        tools_w = 5
-        error_w = 20
-        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w+9}}| {'Error (tools)':<{error_w}}}"
+        plain_w = max(5, len('Plain'))
+        tools_w = max(5, len('Tools (forced)'))
+        error_w = max(20, len('Error (tools)'))
+        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w}}| {'Error (tools)':<{error_w}}}"
         print("\n===== LLM Initialization Summary =====")
         print(header)
         print("-" * len(header))
@@ -2363,5 +2379,5 @@ class GaiaAgent:
                     error_tools = '400'
                 else:
                     error_tools = r['error_tools'][:18]
-            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w+9}}| {error_tools:<{error_w}}")
+            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w}}| {error_tools:<{error_w}}")
         print("=" * len(header) + "\n")
