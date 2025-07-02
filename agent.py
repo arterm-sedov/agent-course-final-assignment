@@ -294,10 +294,11 @@ class GaiaAgent:
                         llm_instance = get_llm_instance(llm_type, config, model_config)
                         if llm_instance is not None:
                             print(f"✅ LLM ({llm_name}) initialized successfully with model {model_config.get('model', model_config.get('repo_id', ''))}")
-                            plain_ok = self._ping_llm(llm_name, llm_type, use_tools=False)
+                            # Use direct instance for pinging
+                            plain_ok = self._ping_llm(llm_name, llm_type, use_tools=False, llm_instance=llm_instance)
                             if config.get("tool_support", False) and self.tools:
                                 llm_with_tools = llm_instance.bind_tools(self.tools)
-                                tools_ok = self._ping_llm(llm_name + " (with tools)", llm_type, use_tools=True)
+                                tools_ok = self._ping_llm(llm_name + " (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
                                 if plain_ok and tools_ok:
                                     model_config_used = model_config
                                     break
@@ -1872,7 +1873,7 @@ class GaiaAgent:
             max_tokens=model_config["max_tokens"]
         )
 
-    def _ping_llm(self, llm_name: str, llm_type: str, use_tools: bool = False) -> bool:
+    def _ping_llm(self, llm_name: str, llm_type: str, use_tools: bool = False, llm_instance=None) -> bool:
         """
         Test an LLM with a simple "Hello" message to verify it's working, using the unified LLM request method.
         Includes the system message for realistic testing.
@@ -1880,17 +1881,27 @@ class GaiaAgent:
             llm_name: Name of the LLM for logging purposes
             llm_type: The LLM type string (e.g., 'gemini', 'groq', etc.)
             use_tools: Whether to use tools (default: False)
+            llm_instance: If provided, use this LLM instance directly for testing
         Returns:
             bool: True if test passes, False otherwise
         """
-        if llm_type is None:
-            print(f"❌ {llm_name} llm_type not provided - cannot test")
-            return False
+        # Use the provided llm_instance if given, otherwise use the lookup logic
+        if llm_instance is not None:
+            llm = llm_instance
+        else:
+            if llm_type is None:
+                print(f"❌ {llm_name} llm_type not provided - cannot test")
+                return False
+            try:
+                llm, _, _ = self._select_llm(llm_type, use_tools)
+            except Exception as e:
+                print(f"❌ {llm_name} test failed: {e}")
+                return False
         try:
             test_message = [self.sys_msg, HumanMessage(content="What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)")]
             print(f"🧪 Testing {llm_name} with 'Hello' message...")
             start_time = time.time()
-            test_response = self._make_llm_request(test_message, use_tools=use_tools, llm_type=llm_type)
+            test_response = llm.invoke(test_message)
             end_time = time.time()
             if test_response and hasattr(test_response, 'content') and test_response.content:
                 print(f"✅ {llm_name} test successful!")
