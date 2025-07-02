@@ -163,6 +163,12 @@ class GaiaAgent:
             "tool_support": True,
             "models": [
                 {
+                    "model": "mistralai/mistral-small-3.2-24b-instruct:free",
+                    "token_limit": 1000000,
+                    "max_tokens": 2048,
+                    "temperature": 0
+                },
+                {
                     "model": "deepseek/deepseek-chat-v3-0324:free",
                     "token_limit": 1000000,
                     "max_tokens": 2048,
@@ -170,12 +176,6 @@ class GaiaAgent:
                 },
                 {
                     "model": "openrouter/cypher-alpha:free",
-                    "token_limit": 1000000,
-                    "max_tokens": 2048,
-                    "temperature": 0
-                },
-                {
-                    "model": "mistralai/mistral-small-3.2-24b-instruct:free",
                     "token_limit": 1000000,
                     "max_tokens": 2048,
                     "temperature": 0
