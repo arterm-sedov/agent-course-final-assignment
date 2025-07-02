@@ -89,6 +89,7 @@ class GaiaAgent:
             "token_limit": 2500,
             "max_history": 15,
             "tool_support": False,
+            "force_tools": False,
             "models": []
         },
         "gemini": {
@@ -97,6 +98,7 @@ class GaiaAgent:
             "api_key_env": "GEMINI_KEY",
             "max_history": 25,
             "tool_support": True,
+            "force_tools": True,
             "models": [
                 {
                     "model": "gemini-2.5-pro",
@@ -112,6 +114,7 @@ class GaiaAgent:
             "api_key_env": "GROQ_API_KEY",
             "max_history": 15,
             "tool_support": True,
+            "force_tools": False,
             "models": [
                 {
                     "model": "qwen-qwq-32b",
@@ -127,6 +130,7 @@ class GaiaAgent:
             "api_key_env": "HUGGINGFACEHUB_API_TOKEN",
             "max_history": 20,
             "tool_support": False,
+            "force_tools": False,
             "models": [
                 {
                     "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -161,6 +165,7 @@ class GaiaAgent:
             "api_base_env": "OPENROUTER_BASE_URL",
             "max_history": 20,
             "tool_support": True,
+            "force_tools": False,
             "models": [
                 {
                     "model": "mistralai/mistral-small-3.2-24b-instruct:free",
@@ -172,7 +177,8 @@ class GaiaAgent:
                     "model": "deepseek/deepseek-chat-v3-0324:free",
                     "token_limit": 16000,
                     "max_tokens": 2048,
-                    "temperature": 0
+                    "temperature": 0,
+                    "force_tools": True
                 },
                 {
                     "model": "openrouter/cypher-alpha:free",
@@ -321,17 +327,18 @@ class GaiaAgent:
                         "error_plain": error_plain,
                         "error_tools": error_tools
                     })
-                    # Special handling for Gemini and similar Google LLMs: always bind tools if tool support is enabled, regardless of tools_ok
-                    is_google_llm = llm_type == "gemini"
+                    # Special handling for models with force_tools: always bind tools if tool support is enabled, regardless of tools_ok
+                    # Check force_tools at both provider and model level
+                    force_tools = config.get("force_tools", False) or model_config.get("force_tools", False)
                     if llm_instance and plain_ok and (
-                        not config.get("tool_support", False) or tools_ok or (is_google_llm and config.get("tool_support", False))
+                        not config.get("tool_support", False) or tools_ok or (force_tools and config.get("tool_support", False))
                     ):
                         self.active_model_config[llm_type] = model_config
                         self.llm_instances[llm_type] = llm_instance
                         if config.get("tool_support", False):
                             self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
-                            if is_google_llm and not tools_ok:
-                                print(f"⚠️ {llm_name} (model: {model_id}) (with tools) test returned empty or failed, but binding tools anyway (Gemini tool-calling is known to work in real use).")
+                            if force_tools and not tools_ok:
+                                print(f"⚠️ {llm_name} (model: {model_id}) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).")
                         else:
                             self.llm_instances_with_tools[llm_type] = None
                         self.llms.append(llm_instance)
@@ -2330,21 +2337,30 @@ class GaiaAgent:
         plain_w = 5
         tools_w = 5
         error_w = 20
-        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w}}| {'Error (tools)':<{error_w}}}"
+        header = f"{{'Provider':<{provider_w}}}| {{'Model':<{model_w}}}| {{'Plain':<{plain_w}}}| {{'Tools':<{tools_w}}}| {{'Error (tools)':<{error_w}}}"
         print("\n===== LLM Initialization Summary =====")
         print(header)
         print("-" * len(header))
         for r in self.llm_init_results:
             plain = '✅' if r['plain_ok'] else '❌'
+            # Determine if force_tools is set for this model/provider
+            config = self.LLM_CONFIG.get(r['llm_type'], {})
+            model_force_tools = False
+            for m in config.get('models', []):
+                if m.get('model', m.get('repo_id', '')) == r['model']:
+                    model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
+                    break
             if r['tools_ok'] is None:
                 tools = 'N/A'
             else:
                 tools = '✅' if r['tools_ok'] else '❌'
+            if model_force_tools:
+                tools += ' (forced)'
             error_tools = ''
             if r['tools_ok'] is False and r['error_tools']:
                 if '400' in r['error_tools']:
                     error_tools = '400'
                 else:
                     error_tools = r['error_tools'][:18]
-            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w}}| {error_tools:<{error_w}}}")
+            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w+9}}| {error_tools:<{error_w}}")
         print("=" * len(header) + "\n")
