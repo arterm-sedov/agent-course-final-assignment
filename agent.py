@@ -2354,7 +2354,13 @@ class GaiaAgent:
         plain_w = max(5, len('Plain'))
         tools_w = max(5, len('Tools (forced)'))
         error_w = max(20, len('Error (tools)'))
-        header = f"{'Provider':<{provider_w}}| {'Model':<{model_w}}| {'Plain':<{plain_w}}| {'Tools':<{tools_w}}| {'Error (tools)':<{error_w}}}"
+        header = (
+            f"{'Provider':<{provider_w}}| "
+            f"{'Model':<{model_w}}| "
+            f"{'Plain':<{plain_w}}| "
+            f"{'Tools':<{tools_w}}| "
+            f"{'Error (tools)':<{error_w}}"
+        )
         print("\n===== LLM Initialization Summary =====")
         print(header)
         print("-" * len(header))
