@@ -191,17 +191,15 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 def get_logs_table():
     logs_dir = "logs"
     files = []
+    file_paths = []
     if os.path.exists(logs_dir):
         for fname in os.listdir(logs_dir):
             fpath = os.path.join(logs_dir, fname)
             if os.path.isfile(fpath):
                 ext = os.path.splitext(fname)[1].lstrip('.')
-                files.append({
-                    "File Name": fname,
-                    "File Type": ext,
-                    "Download": fpath
-                })
-    return files
+                files.append([fname, ext])
+                file_paths.append(fpath)
+    return files, file_paths
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
@@ -224,30 +222,34 @@ with gr.Blocks() as demo:
     with gr.Tabs():
         with gr.TabItem("Evaluation"):
             gr.LoginButton()
-
             run_button = gr.Button("Run Evaluation & Submit All Answers")
-
             status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
             results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
-
-            # On app load, show the init log (if available), others empty
+            init_log_file = gr.File(label="Download LLM Initialization Log")
+            results_log_file = gr.File(label="Download Full Results Log")
+            results_csv_file = gr.File(label="Download Results Table (CSV)")
+            score_file = gr.File(label="Download Final Score/Status")
             demo.load(
                 fn=get_init_log,
-                inputs=[]
+                inputs=[],
+                outputs=[init_log_file],
             )
-
             run_button.click(
                 fn=run_and_submit_all,
-                outputs=[status_output, results_table]
+                outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
             )
         with gr.TabItem("LOGS"):
             gr.Markdown("## Logs Table")
-            logs_table = gr.DataFrame(
-                value=get_logs_table(),
-                headers=["File Name", "File Type", "Download"],
+            logs_data, file_paths = get_logs_table()
+            gr.DataFrame(
+                value=logs_data,
+                headers=["File Name", "File Type"],
                 label="Logs Table",
                 interactive=False
             )
+            gr.Markdown("### Download Files")
+            for fpath in file_paths:
+                gr.File(value=fpath, label=os.path.basename(fpath))
 
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
