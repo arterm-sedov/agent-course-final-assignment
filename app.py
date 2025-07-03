@@ -51,18 +51,22 @@ def get_latest_logs():
     log_dir = "logs"
     if not os.path.exists(log_dir):
         return [None, None, None, None]
-    # Find latest log, results.csv, and score.txt
-    log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
-    results_csv_files = sorted(glob.glob(os.path.join(log_dir, "*.results.csv")), reverse=True)
-    score_files = sorted(glob.glob(os.path.join(log_dir, "*.score.txt")), reverse=True)
-    # Use the most recent file of each type
-    latest_log = log_files[0] if log_files else None
-    latest_results_csv = results_csv_files[0] if results_csv_files else None
-    latest_score = score_files[0] if score_files else None
     # For init log, use the agent's init_log_path if available
     init_log_path = getattr(agent, "init_log_path", None)
     if not init_log_path or not os.path.exists(init_log_path):
         init_log_path = None
+    # Find latest log, results.csv, and score.txt
+    log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
+    # Exclude init_log_path from results log if possible
+    latest_log = None
+    for lf in log_files:
+        if lf != init_log_path:
+            latest_log = lf
+            break
+    results_csv_files = sorted(glob.glob(os.path.join(log_dir, "*.results.csv")), reverse=True)
+    score_files = sorted(glob.glob(os.path.join(log_dir, "*.score.txt")), reverse=True)
+    latest_results_csv = results_csv_files[0] if results_csv_files else None
+    latest_score = score_files[0] if score_files else None
     return [init_log_path, latest_log, latest_results_csv, latest_score]
 
 def run_and_submit_all(profile: gr.OAuthProfile | None):

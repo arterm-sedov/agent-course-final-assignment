@@ -1607,9 +1607,6 @@ class GaiaAgent:
         return "\n".join(lines) if as_str else lines
 
     def _format_llm_stats_table(self, as_str=True):
-        """
-        Return the LLM stats table as a string (for printing or saving).
-        """
         stats = self.get_llm_stats()
         rows = []
         for name, data in stats["llm_stats"].items():
@@ -1633,8 +1630,16 @@ class GaiaAgent:
         lines = ["===== LLM Model Statistics =====", fmt_row(header), "-" * (sum(col_widths) + 3 * (len(header) - 1))]
         for row in rows:
             lines.append(fmt_row(row))
-        s = stats["summary"]
+        # Add true totals row for numeric columns
+        totals = ["TOTALS"]
+        for i, col in enumerate(header[1:], 1):
+            if "Rate" in col:
+                totals.append("")
+            else:
+                totals.append(sum(row[i] for row in rows if isinstance(row[i], (int, float))))
+        lines.append(fmt_row(totals))
         lines.append("-" * (sum(col_widths) + 3 * (len(header) - 1)))
+        s = stats["summary"]
         lines.append(f"TOTALS: Successes: {s['total_successes']} | Failures: {s['total_failures']} | Attempts: {s['total_attempts']} | Success Rate: {s['overall_success_rate']} | Failure Rate: {s['overall_failure_rate']}")
         lines.append("=" * (sum(col_widths) + 3 * (len(header) - 1)))
         return "\n".join(lines) if as_str else lines

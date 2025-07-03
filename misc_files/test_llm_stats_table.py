@@ -71,6 +71,13 @@ if __name__ == "__main__":
     print("\n--- String output of stats table ---\n")
     print(stats_str)
     assert "TOTALS:" in stats_str
+    # Check for the new totals row in the table (should start with 'TOTALS')
+    lines = stats_str.splitlines()
+    totals_row = next((line for line in lines if line.strip().startswith("TOTALS ")), None)
+    assert totals_row is not None, "Totals row not found in stats table!"
+    # Optionally, check that numeric totals match expected sums
+    # (Successes: 3+2+4+1=10, Failures: 2+3+1+4=10, Attempts: 5+5+5+5=20, etc.)
+    assert "10" in totals_row, "Expected total value not found in totals row!"
     # Mock and check init summary
     agent.llm_init_results = [
         {"provider": "HuggingFace", "llm_type": "huggingface", "model": "Qwen/Qwen2.5-Coder-32B-Instruct", "plain_ok": True, "tools_ok": True, "error_plain": None, "error_tools": None},
