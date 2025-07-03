@@ -233,13 +233,12 @@ with gr.Blocks() as demo:
             # On app load, show the init log (if available), others empty
             demo.load(
                 fn=get_init_log,
-                inputs=[],
-                outputs=[init_log_file],
+                inputs=[]
             )
 
             run_button.click(
                 fn=run_and_submit_all,
-                outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
+                outputs=[status_output, results_table]
             )
         with gr.TabItem("LOGS"):
             gr.Markdown("## Logs Table")
