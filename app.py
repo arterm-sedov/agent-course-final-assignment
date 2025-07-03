@@ -233,16 +233,22 @@ def extract_timestamp_from_filename(filename):
         dt = datetime.datetime.strptime(f"{y}{mo}{d}{h}{mi}{s}", "%Y%m%d%H%M%S")
         return f"{y}-{mo}-{d} {h}:{mi}:{s}", dt
     # 2. Prefix (optional), date, optional time: (INIT|LOG)?_?YYYYMMDD(_HHMMSS)? or just YYYYMMDD(_HHMMSS)?
-    m = re.match(r'(\w+)?_?(\d{8})(?:_(\d{6}))?$', name)
+    m = re.match(r'^(\w+)?_?(\d{8})(?:_(\d{6}))?$', name)
     if m:
         prefix, date, time = m.groups()
-        if time:
-            dt = datetime.datetime.strptime(f"{date}{time}", "%Y%m%d%H%M%S")
-            ts = '_'.join(filter(None, [prefix, date, time]))
-        else:
-            dt = datetime.datetime.strptime(date, "%Y%m%d")
-            ts = '_'.join(filter(None, [prefix, date]))
-        return ts, dt
+        # Ensure we only use the first 8 digits for the date
+        date_clean = date[:8] if date else ""
+        try:
+            if time:
+                dt = datetime.datetime.strptime(f"{date_clean}{time}", "%Y%m%d%H%M%S")
+                ts = '_'.join(filter(None, [prefix, date_clean, time]))
+            else:
+                dt = datetime.datetime.strptime(date_clean, "%Y%m%d")
+                ts = '_'.join(filter(None, [prefix, date_clean]))
+            return ts, dt
+        except ValueError:
+            # If parsing fails, skip this pattern
+            pass
     # 3. 14-digit datetime: YYYYMMDDHHMMSS
     m = re.match(r'(\d{14})$', name)
     if m:
