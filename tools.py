@@ -1605,81 +1605,121 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
         "result": _get_gemini_response(move_message, "Chess move conversion", "gemini-2.5-pro")
     })
 
-def _get_best_chess_move_internal(fen: str) -> str:
+# --- Lichess Cloud Evaluation API Helper ---
+def _get_lichess_cloud_eval_candidates(fen: str, depth: int = 15) -> list:
     """
-    Internal function to get the best chess move for a given FEN position.
-    Tries multiple sources (Lichess, Stockfish Online, python-chess, heuristics) and returns all candidates with explanations for LLM selection.
+    Query the Lichess Cloud Evaluation API for candidate moves.
+    Returns a list of dicts, each with move, full_line, cp, mate, depth, multipv, and explanation.
     """
-    move_candidates = []
-    # 1. Lichess API
+    candidates = []
+    chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
+    url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth={depth}"
+    headers = {}
+    lichess_key = os.environ.get("LICHESS_KEY")
+    if lichess_key:
+        headers["Authorization"] = f"Bearer {lichess_key}"
     try:
-        chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
-        url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth=15"
-        lichess_key = os.environ.get("LICHESS_KEY")
-        headers = {}
-        if lichess_key:
-            headers["Authorization"] = f"Bearer {lichess_key}"
         response = requests.get(url, timeout=15, headers=headers)
         if response.status_code == 200:
-            data = json.loads(response.text)
-            # Lichess API returns pvs array with moves, not a bestmove field
+            data = response.json()
             if 'pvs' in data and len(data['pvs']) > 0:
-                # Extract the first move from the moves string
-                moves_string = data['pvs'][0].get('moves', '')
-                if moves_string:
-                    # Split by space and take the first move
-                    first_move = moves_string.split()[0]
-                    move_candidates.append({
-                        "source": "lichess_api",
-                        "move": first_move,
-                        "explanation": "Move suggested by Lichess Cloud Evaluation API."
-                    })
-                else:
-                    move_candidates.append({
-                        "source": "lichess_api",
-                        "move": None,
-                        "explanation": "Lichess API returned no moves in response."
-                    })
+                for pv in data['pvs']:
+                    moves_string = pv.get('moves', '')
+                    if moves_string:
+                        first_move = moves_string.split()[0]
+                        candidates.append({
+                            "source": "lichess_api",
+                            "move": first_move,
+                            "full_line": moves_string,
+                            "cp": pv.get("cp"),
+                            "mate": pv.get("mate"),
+                            "depth": pv.get("depth"),
+                            "multipv": pv.get("multipv"),
+                            "explanation": "Move suggested by Lichess Cloud Evaluation API (principal variation)."
+                        })
+                    else:
+                        candidates.append({
+                            "source": "lichess_api",
+                            "move": None,
+                            "explanation": "Lichess API returned a PV with no moves."
+                        })
             else:
-                move_candidates.append({
+                candidates.append({
                     "source": "lichess_api",
                     "move": None,
                     "explanation": "Lichess API returned no pvs data in response."
                 })
         else:
-            move_candidates.append({
+            candidates.append({
                 "source": "lichess_api",
                 "move": None,
                 "explanation": f"Lichess API error: HTTP {response.status_code}"
             })
     except Exception as e:
-        move_candidates.append({
+        candidates.append({
             "source": "lichess_api",
             "move": None,
             "explanation": f"Lichess API exception: {str(e)}"
         })
+    return candidates
 
-    # 2. Stockfish Online API
+# --- Stockfish Online API Helper ---
+def _get_stockfish_online_candidate(fen: str, depth: int = 15, _retry: int = 0) -> dict:
+    """
+    Query the Stockfish Online API for the best move for a given FEN.
+    Returns a dict with move, full_line, evaluation (cp), mate, and explanation.
+    Retries once on timeout (443) errors, waits 30 seconds before retrying, then fails gracefully.
+    """
+    api_url = "https://stockfish.online/api/s/v2.php"
+    params = {'fen': fen, 'depth': depth}
     try:
-        stockfish_result = _try_stockfish_online_api_v2(fen)
-        move = None
-        if isinstance(stockfish_result, str) and not stockfish_result.startswith("Error"):
-            move = stockfish_result
-        elif isinstance(stockfish_result, dict) and 'move' in stockfish_result:
-            move = stockfish_result['move']
-        move_candidates.append({
-            "source": "stockfish_online_api",
-            "move": move,
-            "explanation": "Move suggested by Stockfish Online API v2." if move else f"Stockfish Online API error: {stockfish_result}"
-        })
+        response = requests.get(api_url, params=params, timeout=15)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('success'):
+                bestmove = data.get('bestmove', '')
+                move = None
+                if bestmove:
+                    move_parts = bestmove.split()
+                    if len(move_parts) >= 2 and move_parts[0] == 'bestmove':
+                        move = move_parts[1]
+                # Extract useful fields
+                return {
+                    "source": "stockfish_online_api",
+                    "move": move,
+                    "full_line": data.get("continuation"),
+                    "cp": data.get("evaluation"),
+                    "mate": data.get("mate"),
+                    "explanation": "Move suggested by Stockfish Online API v2." if move else f"Stockfish Online API error: {data}"
+                }
+            else:
+                return {
+                    "source": "stockfish_online_api",
+                    "move": None,
+                    "explanation": f"Stockfish API failed: {data.get('data', 'Unknown error')}"
+                }
+        else:
+            return {
+                "source": "stockfish_online_api",
+                "move": None,
+                "explanation": f"Stockfish API HTTP error: {response.status_code}"
+            }
     except Exception as e:
-        move_candidates.append({
+        # Simple retry on timeout/443 error, then fail gracefully
+        if _retry < 1 and ("443" in str(e) or "timed out" in str(e).lower() or "timeout" in str(e).lower()):
+            time.sleep(30)
+            return _get_stockfish_online_candidate(fen, depth, _retry=_retry+1)
+        return {
             "source": "stockfish_online_api",
             "move": None,
-            "explanation": f"Stockfish Online API exception: {str(e)}"
-        })
+            "explanation": f"Stockfish API exception: {str(e)}"
+        }
 
-    # 3. python-chess local engine
+def _get_python_chess_stockfish_candidate(fen: str, depth: int = 15) -> dict:
+    """
+    Try to get a move using local python-chess Stockfish engine. If not available, fallback to Stockfish Online API.
+    Returns a dict with move and explanation.
+    """
     try:
         if 'CHESS_AVAILABLE' in globals() and CHESS_AVAILABLE:
             import chess
@@ -1691,30 +1731,56 @@ def _get_best_chess_move_internal(fen: str) -> str:
                 engine.quit()
                 if result.move:
                     move = chess.square_name(result.move.from_square) + chess.square_name(result.move.to_square)
-                    move_candidates.append({
+                    return {
                         "source": "python_chess_stockfish",
                         "move": move,
                         "explanation": "Move suggested by local Stockfish engine via python-chess."
-                    })
+                    }
                 else:
-                    move_candidates.append({
+                    return {
                         "source": "python_chess_stockfish",
                         "move": None,
                         "explanation": "python-chess Stockfish engine returned no move."
-                    })
+                    }
+            except FileNotFoundError as e:
+                # Fallback to Stockfish Online API if local binary is missing
+                online = _get_stockfish_online_candidate(fen, depth)
+                online["source"] = "python_chess_stockfish (online fallback)"
+                online["explanation"] = "Local Stockfish not found, used Stockfish Online API as fallback. " + online.get("explanation", "")
+                return online
             except Exception as e:
-                move_candidates.append({
+                return {
                     "source": "python_chess_stockfish",
                     "move": None,
                     "explanation": f"python-chess Stockfish engine exception: {str(e)}"
-                })
+                }
+        else:
+            return {
+                "source": "python_chess_stockfish",
+                "move": None,
+                "explanation": "python-chess or Stockfish engine not available."
+            }
     except Exception as e:
-        move_candidates.append({
+        return {
             "source": "python_chess_stockfish",
             "move": None,
             "explanation": f"python-chess Stockfish engine import/availability exception: {str(e)}"
-        })
+        }
 
+# --- Main Internal Move Candidate Function ---
+def _get_best_chess_move_internal(fen: str) -> dict:
+    """
+    Internal function to get the best chess move for a given FEN position.
+    Tries multiple sources (Lichess, Stockfish Online, python-chess, heuristics) and returns all candidates with explanations for LLM selection.
+    Returns a Python dict, not a JSON string.
+    """
+    move_candidates = []
+    # 1. Lichess API (all PVs)
+    move_candidates.extend(_get_lichess_cloud_eval_candidates(fen))
+    # 2. Stockfish Online API (single best move)
+    move_candidates.append(_get_stockfish_online_candidate(fen))
+    # 3. python-chess local engine, with online fallback
+    move_candidates.append(_get_python_chess_stockfish_candidate(fen))
     # 4. _get_best_move_simple_heuristic
     try:
         heuristic_move = _get_best_move_simple_heuristic(fen)
@@ -1732,7 +1798,6 @@ def _get_best_chess_move_internal(fen: str) -> str:
             "move": None,
             "explanation": f"Simple heuristic exception: {str(e)}"
         })
-
     # 5. _evaluate_moves_simple
     try:
         if 'CHESS_AVAILABLE' in globals() and CHESS_AVAILABLE:
@@ -1754,12 +1819,10 @@ def _get_best_chess_move_internal(fen: str) -> str:
             "move": None,
             "explanation": f"Simple evaluation exception: {str(e)}"
         })
-
-    return json.dumps({
-        "type": "tool_response",
-        "tool_name": "get_best_chess_move",
-        "move_candidates": move_candidates
-    })
+    return {
+        "fen": fen,
+        "candidates": move_candidates
+    }
 
 def _get_best_move_fallback(fen: str) -> str:
     """
