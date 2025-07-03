@@ -188,18 +188,23 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             f.write(status_message)
         return status_message, results_df, init_log_path, log_path, csv_path, score_path
 
-def get_logs_table():
+def get_logs_html():
     logs_dir = "logs"
-    files = []
-    file_paths = []
+    rows = []
     if os.path.exists(logs_dir):
-        for fname in os.listdir(logs_dir):
+        for fname in sorted(os.listdir(logs_dir)):
             fpath = os.path.join(logs_dir, fname)
             if os.path.isfile(fpath):
                 ext = os.path.splitext(fname)[1].lstrip('.')
-                files.append([fname, ext])
-                file_paths.append(fpath)
-    return files, file_paths
+                # Gradio serves files from the workspace root, so use relative path
+                download_link = f'<a href="file/{fpath}" download="{fname}">Download</a>'
+                rows.append(f"<tr><td>{fname}</td><td>{ext}</td><td>{download_link}</td></tr>")
+    table_html = (
+        "<table border='1' style='width:100%;border-collapse:collapse;'>"
+        "<thead><tr><th>File Name</th><th>File Type</th><th>Download</th></tr></thead>"
+        "<tbody>" + "".join(rows) + "</tbody></table>"
+    )
+    return table_html
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
@@ -240,16 +245,7 @@ with gr.Blocks() as demo:
             )
         with gr.TabItem("LOGS"):
             gr.Markdown("## Logs Table")
-            logs_data, file_paths = get_logs_table()
-            gr.DataFrame(
-                value=logs_data,
-                headers=["File Name", "File Type"],
-                label="Logs Table",
-                interactive=False
-            )
-            gr.Markdown("### Download Files")
-            for fpath in file_paths:
-                gr.File(value=fpath, label=os.path.basename(fpath))
+            gr.HTML(get_logs_html())
 
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
