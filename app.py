@@ -207,28 +207,40 @@ with gr.Blocks() as demo:
         """
     )
 
-    gr.LoginButton()
+    with gr.Tabs():
+        with gr.TabItem("Evaluation"):
+            gr.LoginButton()
 
-    run_button = gr.Button("Run Evaluation & Submit All Answers")
+            run_button = gr.Button("Run Evaluation & Submit All Answers")
 
-    status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
-    results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
-    init_log_file = gr.File(label="Download LLM Initialization Log")
-    results_log_file = gr.File(label="Download Full Results Log")
-    results_csv_file = gr.File(label="Download Results Table (CSV)")
-    score_file = gr.File(label="Download Final Score/Status")
+            status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
+            results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
+            init_log_file = gr.File(label="Download LLM Initialization Log")
+            results_log_file = gr.File(label="Download Full Results Log")
+            results_csv_file = gr.File(label="Download Results Table (CSV)")
+            score_file = gr.File(label="Download Final Score/Status")
 
-    # On app load, show the init log (if available), others empty
-    demo.load(
-        fn=get_init_log,
-        inputs=[],
-        outputs=[init_log_file],
-    )
+            # On app load, show the init log (if available), others empty
+            demo.load(
+                fn=get_init_log,
+                inputs=[],
+                outputs=[init_log_file],
+            )
 
-    run_button.click(
-        fn=run_and_submit_all,
-        outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
-    )
+            run_button.click(
+                fn=run_and_submit_all,
+                outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
+            )
+        with gr.TabItem("LOGS"):
+            gr.Markdown("## Logs Table (Mock)")
+            gr.DataFrame(
+                value=[["2024-07-01 12:00", "INFO", "App started"],
+                       ["2024-07-01 12:01", "WARNING", "Low disk space"],
+                       ["2024-07-01 12:02", "ERROR", "Failed to connect"]],
+                headers=["Timestamp", "Level", "Message"],
+                label="Mock Logs Table",
+                interactive=False
+            )
 
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
