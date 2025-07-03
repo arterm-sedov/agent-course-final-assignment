@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+Be super smart, create super lean and dry code.
+Use abstractions.
+Do not duplicate code, encapsulate any reused code in methods/functions.
+Never break existing code.
+Do not delete logging, but update it.
+Do not delete comments, rather update them.
+Produce flawless code.
+Reanalyze your changes twice for any issues you might have introduced.
