@@ -1892,14 +1892,20 @@ class GaiaAgent:
 
     def _init_huggingface_llm(self, config, model_config):
         from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-        # Only allow fields supported by HuggingFaceEndpoint
         allowed_fields = {'repo_id', 'task', 'max_new_tokens', 'do_sample', 'temperature'}
         filtered_config = {k: v for k, v in model_config.items() if k in allowed_fields}
-        endpoint = HuggingFaceEndpoint(**filtered_config)
-        return ChatHuggingFace(
-            llm=endpoint,
-            verbose=True,
-        )
+        try:
+            endpoint = HuggingFaceEndpoint(**filtered_config)
+            return ChatHuggingFace(
+                llm=endpoint,
+                verbose=True,
+            )
+        except Exception as e:
+            if "402" in str(e) or "payment required" in str(e).lower():
+                print(f"\u26a0\ufe0f HuggingFace Payment Required (402) error: {e}")
+                print("💡 You have exceeded your HuggingFace credits. Skipping HuggingFace LLM initialization.")
+                return None
+            raise
 
     def _init_openrouter_llm(self, config, model_config):
         from langchain_openai import ChatOpenAI
@@ -2312,7 +2318,7 @@ class GaiaAgent:
         ]
         
         # Direct substring checks for efficiency
-        if any(term in error_str for term in ["413", "token", "limit", "tokens per minute", "truncated", "tpm", "router.huggingface.co"]):
+        if any(term in error_str for term in ["413", "token", "limit", "tokens per minute", "truncated", "tpm", "router.huggingface.co", "402", "payment required"]):
             return True
         
         # Check if error matches any pattern using vector similarity
