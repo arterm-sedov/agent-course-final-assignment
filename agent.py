@@ -28,6 +28,8 @@ import numpy as np
 import tempfile
 import base64
 import tiktoken
+import io
+import sys
 from typing import List, Dict, Any, Optional
 from tools import *
 # Import tools module to get its functions
@@ -368,9 +370,16 @@ class GaiaAgent:
                     self.llm_instances_with_tools[llm_type] = None
         # Legacy assignments for backward compatibility
         self.tools = self._gather_tools()
-        # Print summary table after all initializations
-        self._print_llm_init_summary()
-
+        # --- Capture stdout for debug output ---
+        debug_buffer = io.StringIO()
+        old_stdout = sys.stdout
+        sys.stdout = debug_buffer
+        try:
+            # Print summary table after all initializations
+            self._print_llm_init_summary()
+        finally:
+            sys.stdout = old_stdout
+        debug_output = debug_buffer.getvalue()
         # --- Save LLM initialization summary to log file ---
         try:
             os.makedirs("logs", exist_ok=True)
@@ -378,8 +387,10 @@ class GaiaAgent:
             init_log_path = f"logs/INIT_{timestamp}.log"
             self.init_log_path = init_log_path
             with open(init_log_path, "w", encoding="utf-8") as f:
+                f.write(debug_output)
                 summary = self._format_llm_init_summary(as_str=True)
-                f.write(summary + "\n")
+                if summary not in debug_output:
+                    f.write(summary + "\n")
             print(f"✅ LLM initialization summary saved to: {init_log_path}")
         except Exception as e:
             print(f"⚠️ Failed to save LLM initialization summary log: {e}")
