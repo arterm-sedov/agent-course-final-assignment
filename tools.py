@@ -2035,24 +2035,89 @@ def _get_best_move_simple_heuristic(fen: str) -> str:
 # ========== FEN HELPER FUNCTIONS ==========
 
 @tool
-def get_best_chess_move(fen: str) -> str:
+def get_best_chess_move(fen: str, original_input: str = None) -> str:
     """
-    Get the best chess move candidates in coordinate notation based on a FEN representation
-    using multiple chess evaluation sources.
+    Get the best chess move candidates in coordinate notation based on a FEN representation using multiple chess evaluation sources.
+    The result is a structured object containing:
+      - The FEN string used for evaluation
+      - The original input (if provided)
+      - A list of candidate moves, each with its source and explanation
+    The LLM should analyze the candidates and explanations to decide which move is best for the context.
     The FEN (Forsyth-Edwards Notation) describes the current chess position.
     Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
-    This tool tries several sources (Lichess cloud eval, Stockfish Online API, local python-chess Stockfish, simple heuristics)
-    to find the best move for a given position.
-    Instead of returning a single move, it returns a JSON structure with all candidate moves and explanations.
-    The LLM must analyze the candidates and decide which move is best for the context.
+    This tool tries several candidate sources (Lichess cloud eval, Stockfish Online API, local python-chess Stockfish, simple heuristics)
 
     Args:
         fen (str): The chess position in FEN (Forsyth-Edwards Notation) format.
+        original_input (str, optional): The original chess problem or input details.
 
     Returns:
-        str: A JSON string with all move candidates and their explanations.
+        str: JSON string with all move candidates and their explanations, for LLM reasoning.
     """
-    return _get_best_chess_move_internal(fen)
+    result = _get_best_chess_move_internal(fen)
+    # Attach original_input if provided
+    if isinstance(result, dict):
+        result["original_input"] = original_input
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "get_best_chess_move",
+        "fen": result.get("fen"),
+        "original_input": result.get("original_input"),
+        "candidates": result.get("candidates", [])
+    })
+
+@tool
+def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
+    """
+    Solve a chess position by analyzing the board image and finding the best move.
+    This tool returns a structured object containing:
+      - The extracted FEN (with explanation)
+      - The original input details (image path, player turn, question)
+      - A list of candidate moves (with explanations)
+    The LLM should analyze the candidates and explanations to decide which move is best for the context.
+
+    Args:
+        image_path (str): The path to the chess board image file or base64-encoded image data.
+        player_turn (str): The player with the next turn ("black" or "white").
+        question (str): Optional question about the position (e.g., "guarantees a win").
+
+    Returns:
+        str: JSON string with all details and move candidates for LLM reasoning.
+    """
+    # Step 1: Get FEN from image
+    fen_explanation = ""
+    fen = None
+    try:
+        fen_result = _get_chess_board_fen_internal(image_path)
+        if isinstance(fen_result, str) and fen_result.startswith("Error"):
+            fen_explanation = fen_result
+            fen = None
+        else:
+            fen = fen_result
+            fen_explanation = "FEN extracted successfully from image."
+    except Exception as e:
+        fen_explanation = f"Error extracting FEN: {str(e)}"
+        fen = None
+    # Step 2: Get best move candidates (if FEN available)
+    candidates = []
+    if fen:
+        best_move_result = _get_best_chess_move_internal(fen)
+        if isinstance(best_move_result, dict):
+            candidates = best_move_result.get('candidates', [])
+        else:
+            candidates = []
+    return json.dumps({
+        'type': 'tool_response',
+        'tool_name': 'solve_chess_position',
+        'fen': fen,
+        'fen_explanation': fen_explanation,
+        'original_input': {
+            'image_path': image_path,
+            'player_turn': player_turn,
+            'question': question
+        },
+        'candidates': candidates
+    })
 
 # ========== FEN PROCESSING HELPERS ==========
 def _add_fen_game_state(board_placement,
@@ -2214,82 +2279,5 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
         "tool_name": "get_chess_board_fen",
         "result": _fen_normalize(fen, default_side='b' if player_turn.lower().startswith('b') else 'w')
     })
-
-@tool
-def solve_chess_position(image_path: str, player_turn: str, question: str = "") -> str:
-    """
-    Solve a chess position by analyzing the board image and finding the best move.
-    This comprehensive tool:
-    1. Converts the chess board image to FEN notation
-    2. Gets the best move from a chess evaluation API
-    3. Converts the coordinate notation to algebraic notation
-    4. Returns the solution with analysis
-    Args:
-        image_path (str): The path to the chess board image file or base64-encoded image data.
-        player_turn (str): The player with the next turn ("black" or "white").
-        question (str): Optional question about the position (e.g., "guarantees a win").
-    Returns:
-        str: The best move in algebraic notation with analysis, or error message.
-    Note:
-        Requires image-to-FEN function, chess evaluation API, and Google Gemini to be available.
-    """
-    try:
-        # Step 1: Get FEN from image - the internal function handles both file paths and base64 data
-        fen = _get_chess_board_fen_internal(image_path)
-        if isinstance(fen, str) and fen.startswith("Error"):
-            return json.dumps({
-                "type": "tool_response",
-                "tool_name": "solve_chess_position",
-                "error": f"Error getting FEN: {fen}"
-            })
-        # Step 2: Get best move in coordinate notation (using internal function)
-        best_move_coord = _get_best_chess_move_internal(fen)
-        if best_move_coord.startswith("Error"):
-            return json.dumps({
-                "type": "tool_response",
-                "tool_name": "solve_chess_position",
-                "error": f"Error getting best move: {best_move_coord}"
-            })
-        # Step 3: Convert to algebraic notation (using internal function)
-        # Create a simple piece placement description for the LLM
-        piece_placement = f"FEN: {fen}"
-        algebraic_move = _convert_chess_move_internal(piece_placement, best_move_coord)
-        if algebraic_move.startswith("Error"):
-            return json.dumps({
-                "type": "tool_response",
-                "tool_name": "solve_chess_position",
-                "error": f"Error converting move: {algebraic_move}"
-            })
-        # Step 4: Format the response
-        result = f"Chess Position Analysis:\n"
-        result += f"FEN: {fen}\n"
-        result += f"Player to move: {player_turn}\n"
-        result += f"Best move (coordinate): {best_move_coord}\n"
-        result += f"Best move (algebraic): {algebraic_move}\n"
-        if question:
-            result += f"\nQuestion: {question}\n"
-            result += f"Answer: {algebraic_move}"
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "solve_chess_position",
-            "result": result
-        })
-    except AttributeError as e:
-        # Handle AttributeError specifically (like parent_run_id issues)
-        error_msg = f"Tool execution error (AttributeError): {str(e)}"
-        print(f"[Chess Tool] {error_msg}")
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "solve_chess_position",
-            "error": error_msg
-        })
-    except Exception as e:
-        error_msg = f"Error solving chess position: {str(e)}"
-        print(f"[Chess Tool] {error_msg}")
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "solve_chess_position",
-            "error": error_msg
-        })
 
 # ========== END OF TOOLS.PY ========== 
