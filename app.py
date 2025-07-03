@@ -333,8 +333,10 @@ with gr.Blocks() as demo:
             run_button = gr.Button("Run Evaluation & Submit All Answers")
             status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
             results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
+            # Note: get_init_log() returns a value but demo.load() doesn't expect outputs
+            # This is just for initialization, so we ignore the return value
             demo.load(
-                fn=get_init_log,
+                fn=lambda: None,  # Use a no-op function instead
                 inputs=[]
             )
             run_button.click(
