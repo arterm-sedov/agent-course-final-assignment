@@ -215,10 +215,6 @@ with gr.Blocks() as demo:
 
             status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
             results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
-            init_log_file = gr.File(label="Download LLM Initialization Log")
-            results_log_file = gr.File(label="Download Full Results Log")
-            results_csv_file = gr.File(label="Download Results Table (CSV)")
-            score_file = gr.File(label="Download Final Score/Status")
 
             # On app load, show the init log (if available), others empty
             demo.load(
@@ -241,6 +237,10 @@ with gr.Blocks() as demo:
                 label="Mock Logs Table",
                 interactive=False
             )
+            init_log_file = gr.File(label="Download LLM Initialization Log")
+            results_log_file = gr.File(label="Download Full Results Log")
+            results_csv_file = gr.File(label="Download Results Table (CSV)")
+            score_file = gr.File(label="Download Final Score/Status")
 
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
