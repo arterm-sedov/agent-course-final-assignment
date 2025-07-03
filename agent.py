@@ -240,6 +240,7 @@ class GaiaAgent:
                 "failures": 0,
                 "threshold_passes": 0,
                 "finalist_wins": 0,
+                "low_score_submissions": 0,  # Submissions below reference threshold
                 "total_attempts": 0
             }
         self.total_questions = 0
@@ -1287,6 +1288,7 @@ class GaiaAgent:
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
                 else:
                     print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
+                    self._update_llm_tracking(llm_type, "low_score")
                 llm_results.append((similarity, answer, llm_name, llm_type))
                 # Count every LLM that passes the threshold
                 if similarity >= self.similarity_threshold:
@@ -1486,6 +1488,7 @@ class GaiaAgent:
             failures = tracking["failures"]
             threshold_count = tracking["threshold_passes"]
             finalist_count = tracking["finalist_wins"]
+            low_score_count = tracking.get("low_score_submissions", 0)
             attempts = tracking["total_attempts"]
             total_success += successes
             total_failures += failures
@@ -1495,6 +1498,7 @@ class GaiaAgent:
             failure_rate = (failures / attempts * 100) if attempts > 0 else 0
             threshold_rate = (threshold_count / attempts * 100) if attempts > 0 else 0
             finalist_rate = (finalist_count / attempts * 100) if attempts > 0 else 0
+            low_score_rate = (low_score_count / attempts * 100) if attempts > 0 else 0
             stats["llm_stats"][display_name] = {
                 "successes": successes,
                 "failures": failures,
@@ -1504,7 +1508,9 @@ class GaiaAgent:
                 "threshold_passes": threshold_count,
                 "threshold_rate": f"{threshold_rate:.1f}%",
                 "finalist_wins": finalist_count,
-                "finalist_rate": f"{finalist_rate:.1f}%"
+                "finalist_rate": f"{finalist_rate:.1f}%",
+                "low_score_submissions": low_score_count,
+                "low_score_rate": f"{low_score_rate:.1f}%"
             }
         # Overall summary
         overall_success_rate = (total_success / total_attempts * 100) if total_attempts > 0 else 0
@@ -1530,6 +1536,7 @@ class GaiaAgent:
                 name,
                 data["successes"],
                 data["failures"],
+                data["low_score_submissions"],
                 data["attempts"],
                 data["success_rate"],
                 data["failure_rate"],
@@ -1538,7 +1545,7 @@ class GaiaAgent:
             ])
         # Table header
         header = [
-            "Provider (Model)", "Successes", "Failures", "Attempts", "Success Rate", "Failure Rate", "Threshold Passes", "Finalist Wins"
+            "Provider (Model)", "Successes", "Failures", "Low Score Submissions", "Attempts", "Success Rate", "Failure Rate", "Threshold Passes", "Finalist Wins"
         ]
         # Compute column widths
         col_widths = [max(len(str(row[i])) for row in ([header] + rows)) for i in range(len(header))]
@@ -1561,12 +1568,11 @@ class GaiaAgent:
         
         Args:
             llm_type (str): The LLM type (e.g., 'gemini', 'groq')
-            event_type (str): The type of event ('success', 'failure', 'threshold_pass', 'finalist_win')
+            event_type (str): The type of event ('success', 'failure', 'threshold_pass', 'finalist_win', 'low_score')
             increment (int): Amount to increment (default: 1)
         """
         if llm_type not in self.llm_tracking:
             return
-            
         if event_type == "success":
             self.llm_tracking[llm_type]["successes"] += increment
             self.llm_tracking[llm_type]["total_attempts"] += increment
@@ -1577,6 +1583,9 @@ class GaiaAgent:
             self.llm_tracking[llm_type]["threshold_passes"] += increment
         elif event_type == "finalist_win":
             self.llm_tracking[llm_type]["finalist_wins"] += increment
+        elif event_type == "low_score":
+            self.llm_tracking[llm_type]["low_score_submissions"] += increment
+            self.llm_tracking[llm_type]["total_attempts"] += increment
 
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
         """

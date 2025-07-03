@@ -13,6 +13,7 @@ class MockGaiaAgent(GaiaAgent):
                 'failures': 2,
                 'threshold_passes': 2,
                 'finalist_wins': 1,
+                'low_score_submissions': 1,
                 'total_attempts': 5
             },
             'groq': {
@@ -20,6 +21,7 @@ class MockGaiaAgent(GaiaAgent):
                 'failures': 3,
                 'threshold_passes': 1,
                 'finalist_wins': 1,
+                'low_score_submissions': 2,
                 'total_attempts': 5
             },
             'openrouter': {
@@ -27,6 +29,7 @@ class MockGaiaAgent(GaiaAgent):
                 'failures': 1,
                 'threshold_passes': 3,
                 'finalist_wins': 2,
+                'low_score_submissions': 0,
                 'total_attempts': 5
             },
             'gemini': {
@@ -34,6 +37,7 @@ class MockGaiaAgent(GaiaAgent):
                 'failures': 4,
                 'threshold_passes': 1,
                 'finalist_wins': 0,
+                'low_score_submissions': 3,
                 'total_attempts': 5
             },
         }
