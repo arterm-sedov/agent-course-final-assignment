@@ -226,13 +226,19 @@ def extract_timestamp_from_filename(filename):
     """
     import re
     name = os.path.splitext(filename)[0]
-    # 1. Leaderboard: 2025-07-02 090007
+    # 1. 14-digit datetime: YYYYMMDDHHMMSS (must be exact 14 digits)
+    m = re.match(r'^(\d{14})$', name)
+    if m:
+        timestamp_str = m.group(1)
+        dt = datetime.datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+        return timestamp_str, dt
+    # 2. Leaderboard: 2025-07-02 090007
     m = re.search(r'(\d{4})-(\d{2})-(\d{2})[ _]+(\d{2})(\d{2})(\d{2})', name)
     if m:
         y, mo, d, h, mi, s = m.groups()
         dt = datetime.datetime.strptime(f"{y}{mo}{d}{h}{mi}{s}", "%Y%m%d%H%M%S")
         return f"{y}-{mo}-{d} {h}:{mi}:{s}", dt
-    # 2. Prefix (optional), date, optional time: (INIT|LOG)?_?YYYYMMDD(_HHMMSS)? or just YYYYMMDD(_HHMMSS)?
+    # 3. Prefix (optional), date, optional time: (INIT|LOG)?_?YYYYMMDD(_HHMMSS)? or just YYYYMMDD(_HHMMSS)?
     m = re.match(r'^(\w+)?_?(\d{8})(?:_(\d{6}))?$', name)
     if m:
         prefix, date, time = m.groups()
@@ -249,11 +255,6 @@ def extract_timestamp_from_filename(filename):
         except ValueError:
             # If parsing fails, skip this pattern
             pass
-    # 3. 14-digit datetime: YYYYMMDDHHMMSS
-    m = re.match(r'(\d{14})$', name)
-    if m:
-        dt = datetime.datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
-        return m.group(1), dt
     return None, None
 
 # --- Build Gradio Interface using Blocks ---
