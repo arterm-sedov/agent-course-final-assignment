@@ -46,6 +46,19 @@ from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
 
+class Tee:
+    """
+    Tee class to duplicate writes to multiple streams (e.g., sys.stdout and a buffer).
+    """
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
 class GaiaAgent:
     """
     Main agent for the GAIA Unit 4 benchmark.
@@ -214,167 +227,167 @@ class GaiaAgent:
         Raises:
             ValueError: If an invalid provider is specified.
         """
-        # Store the config of the successfully initialized model per provider
-        self.active_model_config = {} 
-        self.system_prompt = self._load_system_prompt()
-        self.sys_msg = SystemMessage(content=self.system_prompt)
-        self.original_question = None
-        # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
-        self.similarity_threshold = 0.95
-        # Tool calls deduplication threshold
-        self.tool_calls_similarity_threshold = 0.90
-        # Global token limit for summaries
-        # self.max_summary_tokens = 255
-        self.last_request_time = 0
-        # Track the current LLM type for rate limiting
-        self.current_llm_type = None
-        self.token_limits = {}
-        for provider_key, config in self.LLM_CONFIG.items():
-            models = config.get("models", [])
-            if models:
-                self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
-            else:
-                self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
-        # Unified LLM tracking system
-        self.llm_tracking = {}
-        for llm_type in self.DEFAULT_LLM_SEQUENCE:
-            self.llm_tracking[llm_type] = {
-                "successes": 0,
-                "failures": 0,
-                "threshold_passes": 0,
-                "finalist_wins": 0,
-                "low_score_submissions": 0,  # Submissions below reference threshold
-                "total_attempts": 0
-            }
-        self.total_questions = 0
-
-        # Set up embeddings and supabase retriever
-        self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-        self.supabase_client = create_client(
-            os.environ.get("SUPABASE_URL"),
-            os.environ.get("SUPABASE_KEY")
-        )
-        self.vector_store = SupabaseVectorStore(
-            client=self.supabase_client,
-            embedding=self.embeddings,
-            table_name="agent_course_reference",
-            query_name="match_agent_course_reference_langchain",
-        )
-        self.retriever_tool = create_retriever_tool(
-            retriever=self.vector_store.as_retriever(),
-            name="Question Search",
-            description="A tool to retrieve similar questions from a vector store.",
-        )
-
-        # Arrays for all initialized LLMs and tool-bound LLMs, in order (initialize before LLM setup loop)
-        self.llms = []
-        self.llms_with_tools = []
-        self.llm_provider_names = []
-        # Track initialization results for summary
-        self.llm_init_results = []
-        # Get the LLM types that should be initialized based on the sequence
-        llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
-        llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
-        print(f"🔄 Initializing LLMs based on sequence:")
-        for i, name in enumerate(llm_names, 1):
-            print(f"   {i}. {name}")
-        # Prepare storage for LLM instances
-        self.llm_instances = {}
-        self.llm_instances_with_tools = {}
-        # Only gather tools if at least one LLM supports tools
-        any_tool_support = any(self.LLM_CONFIG[llm_type].get("tool_support", False) for llm_type in llm_types_to_init)
-        self.tools = self._gather_tools() if any_tool_support else []
-        for idx, llm_type in enumerate(llm_types_to_init):
-            config = self.LLM_CONFIG[llm_type]
-            llm_name = config["name"]
-            for model_config in config["models"]:
-                model_id = model_config.get("model", model_config.get("repo_id", ""))
-                print(f"🔄 Initializing LLM {llm_name} (model: {model_id}) ({idx+1} of {len(llm_types_to_init)})")
-                llm_instance = None
-                model_config_used = None
-                plain_ok = False
-                tools_ok = None
-                error_plain = None
-                error_tools = None
-                try:
-                    def get_llm_instance(llm_type, config, model_config):
-                        if llm_type == "gemini":
-                            return self._init_gemini_llm(config, model_config)
-                        elif llm_type == "groq":
-                            return self._init_groq_llm(config, model_config)
-                        elif llm_type == "huggingface":
-                            return self._init_huggingface_llm(config, model_config)
-                        elif llm_type == "openrouter":
-                            return self._init_openrouter_llm(config, model_config)
-                        else:
-                            return None
-                    llm_instance = get_llm_instance(llm_type, config, model_config)
-                    if llm_instance is not None:
-                        plain_ok = self._ping_llm(f"{llm_name} (model: {model_id})", llm_type, use_tools=False, llm_instance=llm_instance)
-                    else:
-                        error_plain = "instantiation returned None"
-                    if config.get("tool_support", False) and self.tools and llm_instance is not None:
-                        try:
-                            llm_with_tools = llm_instance.bind_tools(self.tools)
-                            tools_ok = self._ping_llm(f"{llm_name} (model: {model_id}) (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
-                        except Exception as e:
-                            tools_ok = False
-                            error_tools = str(e)
-                    else:
-                        tools_ok = None
-                    # Store result for summary
-                    self.llm_init_results.append({
-                        "provider": llm_name,
-                        "llm_type": llm_type,
-                        "model": model_id,
-                        "plain_ok": plain_ok,
-                        "tools_ok": tools_ok,
-                        "error_plain": error_plain,
-                        "error_tools": error_tools
-                    })
-                    # Special handling for models with force_tools: always bind tools if tool support is enabled, regardless of tools_ok
-                    # Check force_tools at both provider and model level
-                    force_tools = config.get("force_tools", False) or model_config.get("force_tools", False)
-                    if llm_instance and plain_ok and (
-                        not config.get("tool_support", False) or tools_ok or (force_tools and config.get("tool_support", False))
-                    ):
-                        self.active_model_config[llm_type] = model_config
-                        self.llm_instances[llm_type] = llm_instance
-                        if config.get("tool_support", False):
-                            self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
-                            if force_tools and not tools_ok:
-                                print(f"⚠️ {llm_name} (model: {model_id}) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).")
-                        else:
-                            self.llm_instances_with_tools[llm_type] = None
-                        self.llms.append(llm_instance)
-                        self.llms_with_tools.append(self.llm_instances_with_tools[llm_type])
-                        self.llm_provider_names.append(llm_type)
-                        print(f"✅ LLM ({llm_name}) initialized successfully with model {model_id}")
-                        break
-                    else:
-                        self.llm_instances[llm_type] = None
-                        self.llm_instances_with_tools[llm_type] = None
-                        print(f"⚠️ {llm_name} (model: {model_id}) failed initialization (plain_ok={plain_ok}, tools_ok={tools_ok})")
-                except Exception as e:
-                    print(f"⚠️ Failed to initialize {llm_name} (model: {model_id}): {e}")
-                    self.llm_init_results.append({
-                        "provider": llm_name,
-                        "llm_type": llm_type,
-                        "model": model_id,
-                        "plain_ok": False,
-                        "tools_ok": False,
-                        "error_plain": str(e),
-                        "error_tools": str(e)
-                    })
-                    self.llm_instances[llm_type] = None
-                    self.llm_instances_with_tools[llm_type] = None
-        # Legacy assignments for backward compatibility
-        self.tools = self._gather_tools()
-        # --- Capture stdout for debug output ---
+        # --- Capture stdout for debug output and tee to console ---
         debug_buffer = io.StringIO()
         old_stdout = sys.stdout
-        sys.stdout = debug_buffer
+        sys.stdout = Tee(old_stdout, debug_buffer)
         try:
+            # Store the config of the successfully initialized model per provider
+            self.active_model_config = {} 
+            self.system_prompt = self._load_system_prompt()
+            self.sys_msg = SystemMessage(content=self.system_prompt)
+            self.original_question = None
+            # Global threshold. Minimum similarity score (0.0-1.0) to consider answers similar
+            self.similarity_threshold = 0.95
+            # Tool calls deduplication threshold
+            self.tool_calls_similarity_threshold = 0.90
+            # Global token limit for summaries
+            # self.max_summary_tokens = 255
+            self.last_request_time = 0
+            # Track the current LLM type for rate limiting
+            self.current_llm_type = None
+            self.token_limits = {}
+            for provider_key, config in self.LLM_CONFIG.items():
+                models = config.get("models", [])
+                if models:
+                    self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
+                else:
+                    self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
+            # Unified LLM tracking system
+            self.llm_tracking = {}
+            for llm_type in self.DEFAULT_LLM_SEQUENCE:
+                self.llm_tracking[llm_type] = {
+                    "successes": 0,
+                    "failures": 0,
+                    "threshold_passes": 0,
+                    "finalist_wins": 0,
+                    "low_score_submissions": 0,  # Submissions below reference threshold
+                    "total_attempts": 0
+                }
+            self.total_questions = 0
+
+            # Set up embeddings and supabase retriever
+            self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+            self.supabase_client = create_client(
+                os.environ.get("SUPABASE_URL"),
+                os.environ.get("SUPABASE_KEY")
+            )
+            self.vector_store = SupabaseVectorStore(
+                client=self.supabase_client,
+                embedding=self.embeddings,
+                table_name="agent_course_reference",
+                query_name="match_agent_course_reference_langchain",
+            )
+            self.retriever_tool = create_retriever_tool(
+                retriever=self.vector_store.as_retriever(),
+                name="Question Search",
+                description="A tool to retrieve similar questions from a vector store.",
+            )
+
+            # Arrays for all initialized LLMs and tool-bound LLMs, in order (initialize before LLM setup loop)
+            self.llms = []
+            self.llms_with_tools = []
+            self.llm_provider_names = []
+            # Track initialization results for summary
+            self.llm_init_results = []
+            # Get the LLM types that should be initialized based on the sequence
+            llm_types_to_init = self.DEFAULT_LLM_SEQUENCE
+            llm_names = [self.LLM_CONFIG[llm_type]["name"] for llm_type in llm_types_to_init]
+            print(f"🔄 Initializing LLMs based on sequence:")
+            for i, name in enumerate(llm_names, 1):
+                print(f"   {i}. {name}")
+            # Prepare storage for LLM instances
+            self.llm_instances = {}
+            self.llm_instances_with_tools = {}
+            # Only gather tools if at least one LLM supports tools
+            any_tool_support = any(self.LLM_CONFIG[llm_type].get("tool_support", False) for llm_type in llm_types_to_init)
+            self.tools = self._gather_tools() if any_tool_support else []
+            for idx, llm_type in enumerate(llm_types_to_init):
+                config = self.LLM_CONFIG[llm_type]
+                llm_name = config["name"]
+                for model_config in config["models"]:
+                    model_id = model_config.get("model", model_config.get("repo_id", ""))
+                    print(f"🔄 Initializing LLM {llm_name} (model: {model_id}) ({idx+1} of {len(llm_types_to_init)})")
+                    llm_instance = None
+                    model_config_used = None
+                    plain_ok = False
+                    tools_ok = None
+                    error_plain = None
+                    error_tools = None
+                    try:
+                        def get_llm_instance(llm_type, config, model_config):
+                            if llm_type == "gemini":
+                                return self._init_gemini_llm(config, model_config)
+                            elif llm_type == "groq":
+                                return self._init_groq_llm(config, model_config)
+                            elif llm_type == "huggingface":
+                                return self._init_huggingface_llm(config, model_config)
+                            elif llm_type == "openrouter":
+                                return self._init_openrouter_llm(config, model_config)
+                            else:
+                                return None
+                        llm_instance = get_llm_instance(llm_type, config, model_config)
+                        if llm_instance is not None:
+                            plain_ok = self._ping_llm(f"{llm_name} (model: {model_id})", llm_type, use_tools=False, llm_instance=llm_instance)
+                        else:
+                            error_plain = "instantiation returned None"
+                        if config.get("tool_support", False) and self.tools and llm_instance is not None:
+                            try:
+                                llm_with_tools = llm_instance.bind_tools(self.tools)
+                                tools_ok = self._ping_llm(f"{llm_name} (model: {model_id}) (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
+                            except Exception as e:
+                                tools_ok = False
+                                error_tools = str(e)
+                        else:
+                            tools_ok = None
+                        # Store result for summary
+                        self.llm_init_results.append({
+                            "provider": llm_name,
+                            "llm_type": llm_type,
+                            "model": model_id,
+                            "plain_ok": plain_ok,
+                            "tools_ok": tools_ok,
+                            "error_plain": error_plain,
+                            "error_tools": error_tools
+                        })
+                        # Special handling for models with force_tools: always bind tools if tool support is enabled, regardless of tools_ok
+                        # Check force_tools at both provider and model level
+                        force_tools = config.get("force_tools", False) or model_config.get("force_tools", False)
+                        if llm_instance and plain_ok and (
+                            not config.get("tool_support", False) or tools_ok or (force_tools and config.get("tool_support", False))
+                        ):
+                            self.active_model_config[llm_type] = model_config
+                            self.llm_instances[llm_type] = llm_instance
+                            if config.get("tool_support", False):
+                                self.llm_instances_with_tools[llm_type] = llm_instance.bind_tools(self.tools)
+                                if force_tools and not tools_ok:
+                                    print(f"⚠️ {llm_name} (model: {model_id}) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).")
+                            else:
+                                self.llm_instances_with_tools[llm_type] = None
+                            self.llms.append(llm_instance)
+                            self.llms_with_tools.append(self.llm_instances_with_tools[llm_type])
+                            self.llm_provider_names.append(llm_type)
+                            print(f"✅ LLM ({llm_name}) initialized successfully with model {model_id}")
+                            break
+                        else:
+                            self.llm_instances[llm_type] = None
+                            self.llm_instances_with_tools[llm_type] = None
+                            print(f"⚠️ {llm_name} (model: {model_id}) failed initialization (plain_ok={plain_ok}, tools_ok={tools_ok})")
+                    except Exception as e:
+                        print(f"⚠️ Failed to initialize {llm_name} (model: {model_id}): {e}")
+                        self.llm_init_results.append({
+                            "provider": llm_name,
+                            "llm_type": llm_type,
+                            "model": model_id,
+                            "plain_ok": False,
+                            "tools_ok": False,
+                            "error_plain": str(e),
+                            "error_tools": str(e)
+                        })
+                        self.llm_instances[llm_type] = None
+                        self.llm_instances_with_tools[llm_type] = None
+            # Legacy assignments for backward compatibility
+            self.tools = self._gather_tools()
             # Print summary table after all initializations
             self._print_llm_init_summary()
         finally:
