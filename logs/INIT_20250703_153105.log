@@ -1,0 +1,270 @@
+🔄 Initializing LLMs based on sequence:
+   1. OpenRouter
+   2. Google Gemini
+   3. Groq
+   4. HuggingFace
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+🔄 Initializing LLM OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (1 of 4)
+🧪 Testing OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) with 'Hello' message...
+❌ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751587200000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+🧪 Testing OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (with tools) with 'Hello' message...
+❌ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (with tools) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751587200000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) failed initialization (plain_ok=False, tools_ok=False)
+🔄 Initializing LLM OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) (1 of 4)
+🧪 Testing OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) with 'Hello' message...
+❌ OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751587200000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+🧪 Testing OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) (with tools) with 'Hello' message...
+❌ OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) (with tools) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751587200000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) failed initialization (plain_ok=False, tools_ok=False)
+🔄 Initializing LLM OpenRouter (model: openrouter/cypher-alpha:free) (1 of 4)
+🧪 Testing OpenRouter (model: openrouter/cypher-alpha:free) with 'Hello' message...
+❌ OpenRouter (model: openrouter/cypher-alpha:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-min. ', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '20', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751549460000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+🧪 Testing OpenRouter (model: openrouter/cypher-alpha:free) (with tools) with 'Hello' message...
+❌ OpenRouter (model: openrouter/cypher-alpha:free) (with tools) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-min. ', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '20', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751549460000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: openrouter/cypher-alpha:free) failed initialization (plain_ok=False, tools_ok=False)
+🔄 Initializing LLM Google Gemini (model: gemini-2.5-pro) (2 of 4)
+🧪 Testing Google Gemini (model: gemini-2.5-pro) with 'Hello' message...
+✅ Google Gemini (model: gemini-2.5-pro) test successful!
+   Response time: 11.86s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: FINAL ANSWER: What do you get if you multiply six by nine?
+------------------------------------------------
+
+  response_metadata: {
+  "prompt_feedback": {
+    "block_reason": 0,
+    "safety_ratings": []
+  },
+  "finish_reason": "STOP",
+  "model_name": "gemini-2.5-pro",
+  "safety_ratings": []
+}
+------------------------------------------------
+
+  id: run--250d13d6-4045-4309-95e2-0578a3e0f67d-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'response_metadata', 'usage_metadata', 'id', 'additional_kwargs', 'invalid_tool_calls', 'content', 'tool_calls'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2229,
+  "output_tokens": 14,
+  "total_tokens": 3186,
+  "input_token_details": {
+    "cache_read": 0
+  },
+  "output_token_details": {
+    "reasoning": 943
+  }
+}
+------------------------------------------------
+
+🧪 Testing Google Gemini (model: gemini-2.5-pro) (with tools) with 'Hello' message...
+❌ Google Gemini (model: gemini-2.5-pro) (with tools) returned empty response
+⚠️ Google Gemini (model: gemini-2.5-pro) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (Google Gemini) initialized successfully with model gemini-2.5-pro
+🔄 Initializing LLM Groq (model: qwen-qwq-32b) (3 of 4)
+🧪 Testing Groq (model: qwen-qwq-32b) with 'Hello' message...
+✅ Groq (model: qwen-qwq-32b) test successful!
+   Response time: 1.77s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: Truncated. Original length: 2581
+
+<think>
+Okay, the user is asking, "What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)". Hmm, I need to figure out what they're really asking here. The phrase "main question in the whole Galaxy" sounds a bit philosophical or maybe referencing a specific context. Let me break it down.
+
+First, "Galaxy" could refer to the Milky Way galaxy, but maybe it's a metaphor. Alternatively, "Galaxy" might be part of a title or a specific work. Wait, there's a book called "The Hitchhiker's Guide to the Galaxy" where the ultimate question of life, the universe, and everything is mentioned. The main question there is "What is the meaning of life, the universe, and everything?" and the answer was 42. But the user is asking for the main question, not the answer. 
+
+Alternatively, maybe they're asking in a general sense, like the fundamental question about existence. But given the mention of "Galaxy," the Hitchhiker's Guide reference seems more likely. Let me check if there'
+------------------------------------------------
+
+  response_metadata: {
+  "token_usage": {
+    "completion_tokens": 581,
+    "prompt_tokens": 2213,
+    "total_tokens": 2794,
+    "completion_time": 1.366316956,
+    "prompt_time": 0.176672151,
+    "queue_time": 0.07356874800000002,
+    "total_time": 1.542989107
+  },
+  "model_name": "qwen-qwq-32b",
+  "system_fingerprint": "fp_28178d7ff6",
+  "finish_reason": "stop",
+  "logprobs": null
+}
+------------------------------------------------
+
+  id: run--12912540-6a7f-4c5e-a632-63ad40f7b627-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'response_metadata', 'usage_metadata', 'id', 'additional_kwargs', 'invalid_tool_calls', 'content', 'tool_calls'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2213,
+  "output_tokens": 581,
+  "total_tokens": 2794
+}
+------------------------------------------------
+
+🧪 Testing Groq (model: qwen-qwq-32b) (with tools) with 'Hello' message...
+❌ Groq (model: qwen-qwq-32b) (with tools) returned empty response
+⚠️ Groq (model: qwen-qwq-32b) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (Groq) initialized successfully with model qwen-qwq-32b
+🔄 Initializing LLM HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) (4 of 4)
+🧪 Testing HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) with 'Hello' message...
+❌ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) test failed: 402 Client Error: Payment Required for url: https://router.huggingface.co/hyperbolic/v1/chat/completions (Request ID: Root=1-68668618-0f815c76240a15ef579f2330;0fb8b750-82f3-4cca-95ee-1ca67256456d)
+
+You have exceeded your monthly included credits for Inference Providers. Subscribe to PRO to get 20x more monthly included credits.
+⚠️ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: microsoft/DialoGPT-medium) (4 of 4)
+🧪 Testing HuggingFace (model: microsoft/DialoGPT-medium) with 'Hello' message...
+❌ HuggingFace (model: microsoft/DialoGPT-medium) test failed: 
+⚠️ HuggingFace (model: microsoft/DialoGPT-medium) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: gpt2) (4 of 4)
+🧪 Testing HuggingFace (model: gpt2) with 'Hello' message...
+❌ HuggingFace (model: gpt2) test failed: 
+⚠️ HuggingFace (model: gpt2) failed initialization (plain_ok=False, tools_ok=None)
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+
+===== LLM Initialization Summary =====
+Provider       | Model                                          | Plain| Tools         | Error (tools)       
+-------------------------------------------------------------------------------------------------------------
+OpenRouter     | deepseek/deepseek-chat-v3-0324:free            | ❌    | ❌ (forced)    |                     
+OpenRouter     | mistralai/mistral-small-3.2-24b-instruct:free  | ❌    | ❌             |                     
+OpenRouter     | openrouter/cypher-alpha:free                   | ❌    | ❌             |                     
+Google Gemini  | gemini-2.5-pro                                 | ✅    | ❌ (forced)    |                     
+Groq           | qwen-qwq-32b                                   | ✅    | ❌ (forced)    |                     
+HuggingFace    | Qwen/Qwen2.5-Coder-32B-Instruct                | ❌    | N/A           |                     
+HuggingFace    | microsoft/DialoGPT-medium                      | ❌    | N/A           |                     
+HuggingFace    | gpt2                                           | ❌    | N/A           |                     
+=============================================================================================================
+
