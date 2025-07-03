@@ -1,0 +1,12 @@
+
+===== LLM Initialization Summary =====
+Provider       | Model                                   | Plain| Tools         | Error (tools)       
+------------------------------------------------------------------------------------------------------
+OpenRouter     | deepseek/deepseek-chat-v3-0324:free     | ✅    | ❌ (forced)    |                     
+Google Gemini  | gemini-2.5-pro                          | ✅    | ❌ (forced)    |                     
+Groq           | qwen-qwq-32b                            | ✅    | ❌ (forced)    |                     
+HuggingFace    | Qwen/Qwen2.5-Coder-32B-Instruct         | ❌    | N/A           |                     
+HuggingFace    | microsoft/DialoGPT-medium               | ❌    | N/A           |                     
+HuggingFace    | gpt2                                    | ❌    | N/A           |                     
+======================================================================================================
+
