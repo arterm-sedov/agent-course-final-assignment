@@ -142,7 +142,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     try:
         os.makedirs("logs", exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = f"logs/{timestamp}.log"
+        log_path = f"logs/{timestamp}.llm_trace.log"
         with open(log_path, "w", encoding="utf-8") as f:
             yaml.dump(results_log, f, allow_unicode=True)
         print(f"✅ Results log saved to: {log_path}")

@@ -408,7 +408,7 @@ class GaiaAgent:
         try:
             os.makedirs("logs", exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            init_log_path = f"logs/INIT_{timestamp}.log"
+            init_log_path = f"logs/{timestamp}.init.log"
             self.init_log_path = init_log_path
             with open(init_log_path, "w", encoding="utf-8") as f:
                 f.write(debug_output)
