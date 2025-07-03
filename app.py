@@ -8,6 +8,8 @@ from agent import GaiaAgent
 import datetime
 import yaml
 import subprocess
+import json
+import re
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -192,24 +194,61 @@ def get_logs_html():
     logs_dir = "logs"
     rows = []
     files = []
+    
     if os.path.exists(logs_dir):
         for fname in os.listdir(logs_dir):
             fpath = os.path.join(logs_dir, fname)
             if os.path.isfile(fpath):
-                mtime = os.path.getmtime(fpath)
-                mtime_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-                files.append((fname, mtime, mtime_str, fpath))
-        # Sort files by modification time descending (newest first)
-        files.sort(key=lambda x: x[1], reverse=True)
-        for fname, mtime, mtime_str, fpath in files:
+                timestamp, dt = extract_timestamp_from_filename(fname)
+                if not dt:
+                    # Fallback to modification time for files without timestamp in filename
+                    dt = datetime.datetime.fromtimestamp(os.path.getmtime(fpath))
+                    timestamp = dt.strftime('%Y-%m-%d %H:%M:%S (mtime)')
+                files.append((fname, timestamp, dt, fpath))
+        # Sort all files by datetime descending (newest first)
+        files.sort(key=lambda x: x[2], reverse=True)
+        for fname, timestamp, dt, fpath in files:
             download_link = f'<a href="file/{fpath}" download="{fname}">Download</a>'
-            rows.append(f"<tr><td>{fname}</td><td>{mtime_str}</td><td>{download_link}</td></tr>")
+            date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+            rows.append(f"<tr><td>{fname}</td><td>{date_str}</td><td>{download_link}</td></tr>")
+    
     table_html = (
         "<table border='1' style='width:100%;border-collapse:collapse;'>"
-        "<thead><tr><th>File Name</th><th>Modified Date</th><th>Download</th></tr></thead>"
+        "<thead><tr><th>File Name</th><th>Date/Time</th><th>Download</th></tr></thead>"
         "<tbody>" + "".join(rows) + "</tbody></table>"
     )
     return table_html
+
+def extract_timestamp_from_filename(filename):
+    """
+    Extract timestamp from filename using a single regex for all log patterns in @/logs.
+    Returns (timestamp_str, datetime_obj) or (None, None) if no timestamp found.
+    """
+    import re
+    name = os.path.splitext(filename)[0]
+    # 1. Leaderboard: 2025-07-02 090007
+    m = re.search(r'(\d{4})-(\d{2})-(\d{2})[ _]+(\d{2})(\d{2})(\d{2})', name)
+    if m:
+        y, mo, d, h, mi, s = m.groups()
+        dt = datetime.datetime.strptime(f"{y}{mo}{d}{h}{mi}{s}", "%Y%m%d%H%M%S")
+        return f"{y}-{mo}-{d} {h}:{mi}:{s}", dt
+    # 2. Prefix (optional), date, optional time: (INIT|LOG)?_?YYYYMMDD(_HHMMSS)? or just YYYYMMDD(_HHMMSS)?
+    m = re.match(r'(\w+)?_?(\d{8})(?:_(\d{6}))?$', name)
+    if m:
+        prefix, date, time = m.groups()
+        if time:
+            dt = datetime.datetime.strptime(f"{date}{time}", "%Y%m%d%H%M%S")
+            ts = '_'.join(filter(None, [prefix, date, time]))
+        else:
+            dt = datetime.datetime.strptime(date, "%Y%m%d")
+            ts = '_'.join(filter(None, [prefix, date]))
+        return ts, dt
+    # 3. 14-digit datetime: YYYYMMDDHHMMSS
+    m = re.match(r'(\d{14})$', name)
+    if m:
+        dt = datetime.datetime.strptime(m.group(1), "%Y%m%d%H%M%S")
+        return m.group(1), dt
+    return None, None
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
