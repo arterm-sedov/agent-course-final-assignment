@@ -55,7 +55,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     # 1. Instantiate Agent (already done globally)
     if agent is None:
         return "Error initializing agent. Check logs for details.", None, None, None, None
-    agent_code = f"https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main"
+    agent_code = f"https://huggingface.co/spaces/{username}/agent-course-final-assignment/tree/main"
     print(agent_code)
 
     # --- Provide init log for download ---
