@@ -269,7 +269,8 @@ with gr.Blocks() as demo:
 
     gr.LoginButton()
 
-    profile = gr.OAuthProfile()
+    # Remove direct instantiation of gr.OAuthProfile (not needed in recent Gradio)
+    # profile = gr.OAuthProfile()
 
     run_button = gr.Button("Run Evaluation & Submit All Answers")
 
@@ -288,9 +289,10 @@ with gr.Blocks() as demo:
         outputs=[init_log_file, results_log_file, results_csv_file, score_file, file_state],
     )
 
+    # Use gr.OAuthProfile as an input type for run_and_submit_all, but do not instantiate it directly
     run_button.click(
         fn=run_and_submit_all,
-        inputs=[profile, file_state],
+        inputs=[gr.OAuthProfile(), file_state],
         outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file, file_state]
     )
 
