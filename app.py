@@ -196,18 +196,17 @@ def get_logs_html():
         for fname in os.listdir(logs_dir):
             fpath = os.path.join(logs_dir, fname)
             if os.path.isfile(fpath):
-                ext = os.path.splitext(fname)[1].lstrip('.')
                 mtime = os.path.getmtime(fpath)
                 mtime_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
-                files.append((fname, ext, mtime, mtime_str, fpath))
+                files.append((fname, mtime, mtime_str, fpath))
         # Sort files by modification time descending (newest first)
-        files.sort(key=lambda x: x[2], reverse=True)
-        for fname, ext, mtime, mtime_str, fpath in files:
+        files.sort(key=lambda x: x[1], reverse=True)
+        for fname, mtime, mtime_str, fpath in files:
             download_link = f'<a href="file/{fpath}" download="{fname}">Download</a>'
-            rows.append(f"<tr><td>{fname}</td><td>{ext}</td><td>{mtime_str}</td><td>{download_link}</td></tr>")
+            rows.append(f"<tr><td>{fname}</td><td>{mtime_str}</td><td>{download_link}</td></tr>")
     table_html = (
         "<table border='1' style='width:100%;border-collapse:collapse;'>"
-        "<thead><tr><th>File Name</th><th>File Type</th><th>Modified Date</th><th>Download</th></tr></thead>"
+        "<thead><tr><th>File Name</th><th>Modified Date</th><th>Download</th></tr></thead>"
         "<tbody>" + "".join(rows) + "</tbody></table>"
     )
     return table_html
@@ -245,7 +244,7 @@ with gr.Blocks() as demo:
                 outputs=[status_output, results_table]
             )
         with gr.TabItem("LOGS"):
-            gr.Markdown("## Logs Table")
+            gr.Markdown("## Logs download links")
             gr.HTML(get_logs_html())
 
 if __name__ == "__main__":
