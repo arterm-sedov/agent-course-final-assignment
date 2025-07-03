@@ -328,13 +328,24 @@ class GaiaAgent:
                                 return None
                         llm_instance = get_llm_instance(llm_type, config, model_config)
                         if llm_instance is not None:
-                            plain_ok = self._ping_llm(f"{llm_name} (model: {model_id})", llm_type, use_tools=False, llm_instance=llm_instance)
+                            try:
+                                plain_ok = self._ping_llm(f"{llm_name} (model: {model_id})", llm_type, use_tools=False, llm_instance=llm_instance)
+                            except Exception as e:
+                                plain_ok, error_plain = self._handle_llm_error(e, llm_name, llm_type, phase="init", context="plain")
+                                if not plain_ok:
+                                    # Do not add to available LLMs, break out
+                                    break
                         else:
                             error_plain = "instantiation returned None"
-                        if config.get("tool_support", False) and self.tools and llm_instance is not None:
+                        if config.get("tool_support", False) and self.tools and llm_instance is not None and plain_ok:
                             try:
                                 llm_with_tools = llm_instance.bind_tools(self.tools)
-                                tools_ok = self._ping_llm(f"{llm_name} (model: {model_id}) (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
+                                try:
+                                    tools_ok = self._ping_llm(f"{llm_name} (model: {model_id}) (with tools)", llm_type, use_tools=True, llm_instance=llm_with_tools)
+                                except Exception as e:
+                                    tools_ok, error_tools = self._handle_llm_error(e, llm_name, llm_type, phase="init", context="tools")
+                                    if not tools_ok:
+                                        break
                             except Exception as e:
                                 tools_ok = False
                                 error_tools = str(e)
@@ -753,28 +764,12 @@ class GaiaAgent:
             try:
                 response = llm.invoke(messages)
             except Exception as e:
-                print(f"[Tool Loop] ❌ LLM invocation failed: {e}")
-                
-                # Enhanced token limit error handling for all LLMs
-                if self._is_token_limit_error(e, llm_type):
-                    print(f"[Tool Loop] Token limit error detected for {llm_type} in tool calling loop")
-                    # Get the LLM name for proper logging
-                    _, llm_name, _ = self._select_llm(llm_type, True)
-                    return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
-                
-                # Handle HuggingFace router errors with chunking
-                if llm_type == "huggingface" and self._is_token_limit_error(e):
-                    print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
-                    return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
-                
-                # Check for general token limit errors specifically
-                if "413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower():
-                    print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
-                    if tool_results_history:
-                        return self._force_final_answer(messages, tool_results_history, llm)
-                    else:
-                        return AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
-                return AIMessage(content=f"Error during LLM processing: {str(e)}")
+                handled, result = self._handle_llm_error(e, llm_name=llm_type, llm_type=llm_type, phase="tool_loop",
+                    messages=messages, llm=llm, tool_results_history=tool_results_history)
+                if handled:
+                    return result
+                else:
+                    raise
 
             # Check if response was truncated due to token limits
             if hasattr(response, 'response_metadata') and response.response_metadata:
@@ -1089,24 +1084,19 @@ class GaiaAgent:
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
                 response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
-                # If tool calling resulted in empty content, try without tools as fallback
                 if not hasattr(response, 'content') or not response.content:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
                     llm_no_tools, _, _ = self._select_llm(llm_type, False)
                     if llm_no_tools:
-                        # Check if tool results are already in message history as ToolMessage objects
                         has_tool_messages = self._has_tool_messages(messages)
-                        
                         if has_tool_messages:
                             print(f"⚠️ Retrying {llm_name} without tools (tool results already in message history)")
                             response = llm_no_tools.invoke(messages)
                         else:
-                            # Extract raw tool results from message history for _get_reminder_prompt
                             tool_results_history = []
                             for msg in messages:
                                 if hasattr(msg, 'type') and msg.type == 'tool' and hasattr(msg, 'content'):
                                     tool_results_history.append(msg.content)
-                            
                             if tool_results_history:
                                 print(f"⚠️ Retrying {llm_name} without tools with enhanced context")
                                 print(f"📝 Tool results included: {len(tool_results_history)} tools")
@@ -1121,41 +1111,18 @@ class GaiaAgent:
                             else:
                                 print(f"⚠️ Retrying {llm_name} without tools (no tool results found)")
                                 response = llm_no_tools.invoke(messages)
-                    
-                    # NEW: If still no content, this might be a token limit issue
                     if not hasattr(response, 'content') or not response.content:
                         print(f"⚠️ {llm_name} still returning empty content even without tools. This may be a token limit issue.")
+                        from langchain_core.messages import AIMessage
                         return AIMessage(content=f"Error: {llm_name} failed due to token limits. Cannot complete reasoning.")
             else:
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
             return response
         except Exception as e:
-            # Enhanced Groq token limit error handling
-            if llm_type == "groq" and self._is_token_limit_error(e):
-                print(f"⚠️ Groq token limit error detected: {e}")
-                return self._handle_groq_token_limit_error(messages, llm, llm_name, e)
-            
-            # Special handling for HuggingFace router errors
-            if llm_type == "huggingface" and self._is_token_limit_error(e):
-                print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
-                return self._handle_token_limit_error(messages, llm, llm_name, e, llm_type)
-            elif llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
-                error_msg = f"HuggingFace router service error (500): {e}"
-                print(f"⚠️ {error_msg}")
-                print("💡 This is a known issue with HuggingFace's router service. Consider using Google Gemini or Groq instead.")
-                raise Exception(error_msg)
-            elif llm_type == "huggingface" and "timeout" in str(e).lower():
-                error_msg = f"HuggingFace timeout error: {e}"
-                print(f"⚠️ {error_msg}")
-                print("💡 HuggingFace models may be slow or overloaded. Consider using Google Gemini or Groq instead.")
-                raise Exception(error_msg)
-            # Special handling for Groq network errors
-            elif llm_type == "groq" and ("no healthy upstream" in str(e).lower() or "network" in str(e).lower() or "connection" in str(e).lower()):
-                error_msg = f"Groq network connectivity error: {e}"
-                print(f"⚠️ {error_msg}")
-                print("💡 This is a network connectivity issue with Groq's servers. The service may be temporarily unavailable.")
-                raise Exception(error_msg)
+            handled, result = self._handle_llm_error(e, llm_name, llm_type, phase="request", messages=messages, llm=llm)
+            if handled:
+                return result
             else:
                 raise Exception(f"{llm_name} failed: {e}")
 
@@ -2419,3 +2386,66 @@ class GaiaAgent:
         """
         config = self.LLM_CONFIG.get(llm_type, {})
         return config.get("tool_support", False)
+
+    def _handle_llm_error(self, e, llm_name, llm_type, phase, **kwargs):
+        """
+        Centralized error handler for LLM errors (init, runtime, tool loop, request, etc.).
+        For phase="init": returns (ok: bool, error_str: str).
+        For phase="runtime"/"tool_loop"/"request": returns (handled: bool, result: Optional[Any]).
+        All logging and comments are preserved from original call sites.
+        """
+        # --- INIT PHASE ---
+        if phase == "init":
+            if self._is_token_limit_error(e, llm_type) or "429" in str(e):
+                print(f"⛔ {llm_name} initialization failed due to rate limit/quota (429) [{phase}]: {e}")
+                return False, str(e)
+            raise
+        # --- RUNTIME/TOOL LOOP PHASE ---
+        # Enhanced Groq token limit error handling
+        if llm_type == "groq" and self._is_token_limit_error(e):
+            print(f"⚠️ Groq token limit error detected: {e}")
+            return True, self._handle_groq_token_limit_error(kwargs.get('messages'), kwargs.get('llm'), llm_name, e)
+        # Special handling for HuggingFace router errors
+        if llm_type == "huggingface" and self._is_token_limit_error(e):
+            print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
+            return True, self._handle_token_limit_error(kwargs.get('messages'), kwargs.get('llm'), llm_name, e, llm_type)
+        if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
+            error_msg = f"HuggingFace router service error (500): {e}"
+            print(f"⚠️ {error_msg}")
+            print("💡 This is a known issue with HuggingFace's router service. Consider using Google Gemini or Groq instead.")
+            raise Exception(error_msg)
+        if llm_type == "huggingface" and "timeout" in str(e).lower():
+            error_msg = f"HuggingFace timeout error: {e}"
+            print(f"⚠️ {error_msg}")
+            print("💡 HuggingFace models may be slow or overloaded. Consider using Google Gemini or Groq instead.")
+            raise Exception(error_msg)
+        # Special handling for Groq network errors
+        if llm_type == "groq" and ("no healthy upstream" in str(e).lower() or "network" in str(e).lower() or "connection" in str(e).lower()):
+            error_msg = f"Groq network connectivity error: {e}"
+            print(f"⚠️ {error_msg}")
+            print("💡 This is a network connectivity issue with Groq's servers. The service may be temporarily unavailable.")
+            raise Exception(error_msg)
+        # Enhanced token limit error handling for all LLMs (tool loop context)
+        if phase in ("tool_loop", "runtime", "request") and self._is_token_limit_error(e, llm_type):
+            print(f"[Tool Loop] Token limit error detected for {llm_type} in tool calling loop")
+            _, llm_name, _ = self._select_llm(llm_type, True)
+            return True, self._handle_token_limit_error(kwargs.get('messages'), kwargs.get('llm'), llm_name, e, llm_type)
+        # Handle HuggingFace router errors with chunking (tool loop context)
+        if phase in ("tool_loop", "runtime", "request") and llm_type == "huggingface" and self._is_token_limit_error(e):
+            print(f"⚠️ HuggingFace router error detected, applying chunking: {e}")
+            return True, self._handle_token_limit_error(kwargs.get('messages'), kwargs.get('llm'), llm_name, e, llm_type)
+        # Check for general token limit errors specifically (tool loop context)
+        if phase in ("tool_loop", "runtime", "request") and ("413" in str(e) or "token" in str(e).lower() or "limit" in str(e).lower()):
+            print(f"[Tool Loop] Token limit error detected. Forcing final answer with available information.")
+            tool_results_history = kwargs.get('tool_results_history')
+            if tool_results_history:
+                return True, self._force_final_answer(kwargs.get('messages'), tool_results_history, kwargs.get('llm'))
+            else:
+                from langchain_core.messages import AIMessage
+                return True, AIMessage(content=f"Error: Token limit exceeded for {llm_type} LLM. Cannot complete reasoning.")
+        # Generic fallback for tool loop
+        if phase in ("tool_loop", "runtime", "request"):
+            from langchain_core.messages import AIMessage
+            return True, AIMessage(content=f"Error during LLM processing: {str(e)}")
+        # Fallback: not handled here
+        return False, None
