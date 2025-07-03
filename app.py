@@ -45,9 +45,16 @@ def get_init_log():
     return None
 
 # --- Provide latest log files for download on app load ---
-def get_latest_logs():
+def get_latest_logs(state=None):
+    """
+    Returns the latest log, csv, and score files for download links.
+    If state is provided and valid, use it; otherwise, discover from disk.
+    """
     import glob
     import os
+    if state and isinstance(state, list) and any(state):
+        # Use state if available and valid
+        return state
     log_dir = "logs"
     if not os.path.exists(log_dir):
         return [None, None, None, None]
@@ -69,10 +76,10 @@ def get_latest_logs():
     latest_score = score_files[0] if score_files else None
     return [init_log_path, latest_log, latest_results_csv, latest_score]
 
-def run_and_submit_all(profile: gr.OAuthProfile | None):
+def run_and_submit_all(profile: gr.OAuthProfile | None, state=None):
     """
     Fetches all questions, runs the GaiaAgent on them, submits all answers,
-    and displays the results.
+    and displays the results. Also returns new file paths for download links and updates state.
     """
     space_id = os.getenv("SPACE_ID")
     if profile:
@@ -80,7 +87,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         print(f"User logged in: {username}")
     else:
         print("User not logged in.")
-        return "Please Login to Hugging Face with the button.", None, None, None, None
+        return "Please Login to Hugging Face with the button.", None, None, None, None, None
 
     api_url = DEFAULT_API_URL
     questions_url = f"{api_url}/questions"
@@ -88,7 +95,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     # 1. Instantiate Agent (already done globally)
     if agent is None:
-        return "Error initializing agent. Check logs for details.", None, None, None, None
+        return "Error initializing agent. Check logs for details.", None, None, None, None, None
     agent_code = f"https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main"
     print(agent_code)
 
@@ -105,18 +112,18 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         questions_data = response.json()
         if not questions_data:
             print("Fetched questions list is empty.")
-            return "Fetched questions list is empty or invalid format.", None, init_log_path, None, None
+            return "Fetched questions list is empty or invalid format.", None, init_log_path, None, None, None
         print(f"Fetched {len(questions_data)} questions.")
     except requests.exceptions.RequestException as e:
         print(f"Error fetching questions: {e}")
-        return f"Error fetching questions: {e}", None, init_log_path, None, None
+        return f"Error fetching questions: {e}", None, init_log_path, None, None, None
     except requests.exceptions.JSONDecodeError as e:
         print(f"Error decoding JSON response from questions endpoint: {e}")
         print(f"Response text: {response.text[:500]}")
-        return f"Error decoding server response for questions: {e}", None, init_log_path, None, None
+        return f"Error decoding server response for questions: {e}", None, init_log_path, None, None, None
     except Exception as e:
         print(f"An unexpected error occurred fetching questions: {e}")
-        return f"An unexpected error occurred fetching questions: {e}", None, init_log_path, None, None
+        return f"An unexpected error occurred fetching questions: {e}", None, init_log_path, None, None, None
 
     # 3. Run the Agent
     results_log = []
@@ -185,7 +192,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
-        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log), init_log_path, None, None
+        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log), init_log_path, None, None, None
 
     # --- Save log to logs/ folder with timestamp ---
     try:
@@ -227,7 +234,9 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         score_path = f"logs/{timestamp}.score.txt"
         with open(score_path, "w", encoding="utf-8") as f:
             f.write(final_status)
-        return final_status, results_df, init_log_path, log_path, csv_path, score_path
+        # Return new file paths and update state
+        new_state = [init_log_path, log_path, csv_path, score_path]
+        return final_status, results_df, init_log_path, log_path, csv_path, score_path, new_state
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
@@ -235,7 +244,9 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         score_path = f"logs/{timestamp}.score.txt"
         with open(score_path, "w", encoding="utf-8") as f:
             f.write(status_message)
-        return status_message, results_df, init_log_path, log_path, csv_path, score_path
+        # Return new file paths and update state
+        new_state = [init_log_path, log_path, csv_path, score_path]
+        return status_message, results_df, init_log_path, log_path, csv_path, score_path, new_state
 
 
 # --- Build Gradio Interface using Blocks ---
@@ -266,17 +277,19 @@ with gr.Blocks() as demo:
     results_log_file = gr.File(label="Download Full Results Log")
     results_csv_file = gr.File(label="Download Results Table (CSV)")
     score_file = gr.File(label="Download Final Score/Status")
+    file_state = gr.State([None, None, None, None])  # [init_log, results_log, csv, score]
 
-    # On app load, show the latest logs (if available)
+    # On app load, show the latest logs (if available), using state if present
     demo.load(
         fn=get_latest_logs,
-        inputs=[],
-        outputs=[init_log_file, results_log_file, results_csv_file, score_file],
+        inputs=[file_state],
+        outputs=[init_log_file, results_log_file, results_csv_file, score_file, file_state],
     )
 
     run_button.click(
         fn=run_and_submit_all,
-        outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
+        inputs=[gr.OAuthProfile(), file_state],
+        outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file, file_state]
     )
 
 if __name__ == "__main__":
