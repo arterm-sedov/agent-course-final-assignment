@@ -1608,9 +1608,11 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
 def _get_best_chess_move_internal(fen: str) -> str:
     """
     Internal function to get the best chess move for a given FEN position.
+    Tries multiple sources (Lichess, Stockfish Online, python-chess, heuristics) and returns all candidates with explanations for LLM selection.
     """
+    move_candidates = []
+    # 1. Lichess API
     try:
-        # First try Lichess API
         chess_eval_url = os.environ.get("CHESS_EVAL_URL", "https://lichess.org/api/cloud-eval")
         url = f"{chess_eval_url}?fen={urllib.parse.quote(fen)}&depth=15"
         lichess_key = os.environ.get("LICHESS_KEY")
@@ -1627,34 +1629,137 @@ def _get_best_chess_move_internal(fen: str) -> str:
                 if moves_string:
                     # Split by space and take the first move
                     first_move = moves_string.split()[0]
-                    return first_move
+                    move_candidates.append({
+                        "source": "lichess_api",
+                        "move": first_move,
+                        "explanation": "Move suggested by Lichess Cloud Evaluation API."
+                    })
                 else:
-                    return json.dumps({
-                        "type": "tool_response",
-                        "tool_name": "get_best_chess_move",
-                        "error": "Error getting chess evaluation: No moves in response"
+                    move_candidates.append({
+                        "source": "lichess_api",
+                        "move": None,
+                        "explanation": "Lichess API returned no moves in response."
                     })
             else:
-                return json.dumps({
-                    "type": "tool_response",
-                    "tool_name": "get_best_chess_move",
-                    "error": "Error getting chess evaluation: No pvs data in response"
+                move_candidates.append({
+                    "source": "lichess_api",
+                    "move": None,
+                    "explanation": "Lichess API returned no pvs data in response."
                 })
-        elif response.status_code == 404:
-            # Position not found in Lichess database - try alternative APIs
-            return _get_best_move_fallback(fen)
         else:
-            return json.dumps({
-                "type": "tool_response",
-                "tool_name": "get_best_chess_move",
-                "error": f"Error getting chess evaluation: HTTP {response.status_code}"
+            move_candidates.append({
+                "source": "lichess_api",
+                "move": None,
+                "explanation": f"Lichess API error: HTTP {response.status_code}"
             })
     except Exception as e:
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "get_best_chess_move",
-            "error": f"Error getting chess evaluation: {str(e)}"
+        move_candidates.append({
+            "source": "lichess_api",
+            "move": None,
+            "explanation": f"Lichess API exception: {str(e)}"
         })
+
+    # 2. Stockfish Online API
+    try:
+        stockfish_result = _try_stockfish_online_api_v2(fen)
+        move = None
+        if isinstance(stockfish_result, str) and not stockfish_result.startswith("Error"):
+            move = stockfish_result
+        elif isinstance(stockfish_result, dict) and 'move' in stockfish_result:
+            move = stockfish_result['move']
+        move_candidates.append({
+            "source": "stockfish_online_api",
+            "move": move,
+            "explanation": "Move suggested by Stockfish Online API v2." if move else f"Stockfish Online API error: {stockfish_result}"
+        })
+    except Exception as e:
+        move_candidates.append({
+            "source": "stockfish_online_api",
+            "move": None,
+            "explanation": f"Stockfish Online API exception: {str(e)}"
+        })
+
+    # 3. python-chess local engine
+    try:
+        if 'CHESS_AVAILABLE' in globals() and CHESS_AVAILABLE:
+            import chess
+            import chess.engine
+            board = chess.Board(fen)
+            try:
+                engine = chess.engine.SimpleEngine.popen_uci("stockfish")
+                result = engine.play(board, chess.engine.Limit(time=2.0))
+                engine.quit()
+                if result.move:
+                    move = chess.square_name(result.move.from_square) + chess.square_name(result.move.to_square)
+                    move_candidates.append({
+                        "source": "python_chess_stockfish",
+                        "move": move,
+                        "explanation": "Move suggested by local Stockfish engine via python-chess."
+                    })
+                else:
+                    move_candidates.append({
+                        "source": "python_chess_stockfish",
+                        "move": None,
+                        "explanation": "python-chess Stockfish engine returned no move."
+                    })
+            except Exception as e:
+                move_candidates.append({
+                    "source": "python_chess_stockfish",
+                    "move": None,
+                    "explanation": f"python-chess Stockfish engine exception: {str(e)}"
+                })
+    except Exception as e:
+        move_candidates.append({
+            "source": "python_chess_stockfish",
+            "move": None,
+            "explanation": f"python-chess Stockfish engine import/availability exception: {str(e)}"
+        })
+
+    # 4. _get_best_move_simple_heuristic
+    try:
+        heuristic_move = _get_best_move_simple_heuristic(fen)
+        move = None
+        if isinstance(heuristic_move, str) and len(heuristic_move) in [4, 5]:
+            move = heuristic_move
+        move_candidates.append({
+            "source": "simple_heuristic",
+            "move": move,
+            "explanation": "Move suggested by simple FEN-based heuristic." if move else f"Heuristic error: {heuristic_move}"
+        })
+    except Exception as e:
+        move_candidates.append({
+            "source": "simple_heuristic",
+            "move": None,
+            "explanation": f"Simple heuristic exception: {str(e)}"
+        })
+
+    # 5. _evaluate_moves_simple
+    try:
+        if 'CHESS_AVAILABLE' in globals() and CHESS_AVAILABLE:
+            import chess
+            board = chess.Board(fen)
+            legal_moves = list(board.legal_moves)
+            best_move = _evaluate_moves_simple(board, legal_moves)
+            move = None
+            if best_move:
+                move = chess.square_name(best_move.from_square) + chess.square_name(best_move.to_square)
+            move_candidates.append({
+                "source": "evaluate_moves_simple",
+                "move": move,
+                "explanation": "Move suggested by simple move evaluation (captures, checks, center, development)." if move else "No move found by simple evaluation."
+            })
+    except Exception as e:
+        move_candidates.append({
+            "source": "evaluate_moves_simple",
+            "move": None,
+            "explanation": f"Simple evaluation exception: {str(e)}"
+        })
+
+    return json.dumps({
+        "type": "tool_response",
+        "tool_name": "get_best_chess_move",
+        "move_candidates": move_candidates
+    })
 
 def _get_best_move_fallback(fen: str) -> str:
     """
@@ -1932,28 +2037,22 @@ def _get_best_move_simple_heuristic(fen: str) -> str:
 @tool
 def get_best_chess_move(fen: str) -> str:
     """
-    Get the best chess move in coordinate notation based on a FEN representation
-    using a chess evaluation API.
-    
-    This tool uses a chess evaluation API (default: Lichess cloud eval) 
-    to find the best move for a given position.
+    Get the best chess move candidates in coordinate notation based on a FEN representation
+    using multiple chess evaluation sources.
     The FEN (Forsyth-Edwards Notation) describes the current chess position.
     Eg. rn1q1rk1/pp2b1pp/2p2n2/3p1pB1/3P4/1QP2N2/PP1N1PPP/R4RK1 b - - 1 11
+    This tool tries several sources (Lichess cloud eval, Stockfish Online API, local python-chess Stockfish, simple heuristics)
+    to find the best move for a given position.
+    Instead of returning a single move, it returns a JSON structure with all candidate moves and explanations.
+    The LLM must analyze the candidates and decide which move is best for the context.
 
     Args:
         fen (str): The chess position in FEN (Forsyth-Edwards Notation) format.
 
     Returns:
-        str: The best move in coordinate notation (e.g., "e2e4"), or an error message.
-    
-    Note:
-        Requires CHESS_EVAL_URL environment variable to be set.
+        str: A JSON string with all move candidates and their explanations.
     """
-    return json.dumps({
-        "type": "tool_response",
-        "tool_name": "get_best_chess_move",
-        "result": _get_best_chess_move_internal(fen)
-    })
+    return _get_best_chess_move_internal(fen)
 
 # ========== FEN PROCESSING HELPERS ==========
 def _add_fen_game_state(board_placement,
@@ -2088,7 +2187,6 @@ def _get_chess_board_fen_internal(image_input: str) -> str:
             "tool_name": "get_chess_board_fen",
             "error": f"Error running image-to-FEN API: {str(e)}"
         })
-
 @tool
 def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     """
