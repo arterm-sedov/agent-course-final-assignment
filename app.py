@@ -8,6 +8,7 @@ from agent import GaiaAgent
 import datetime
 import yaml
 import subprocess
+import glob
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -42,6 +43,27 @@ def get_init_log():
     if init_log_path and os.path.exists(init_log_path):
         return init_log_path
     return None
+
+# --- Provide latest log files for download on app load ---
+def get_latest_logs():
+    import glob
+    import os
+    log_dir = "logs"
+    if not os.path.exists(log_dir):
+        return [None, None, None, None]
+    # Find latest log, results.csv, and score.txt
+    log_files = sorted(glob.glob(os.path.join(log_dir, "*.log")), reverse=True)
+    results_csv_files = sorted(glob.glob(os.path.join(log_dir, "*.results.csv")), reverse=True)
+    score_files = sorted(glob.glob(os.path.join(log_dir, "*.score.txt")), reverse=True)
+    # Use the most recent file of each type
+    latest_log = log_files[0] if log_files else None
+    latest_results_csv = results_csv_files[0] if results_csv_files else None
+    latest_score = score_files[0] if score_files else None
+    # For init log, use the agent's init_log_path if available
+    init_log_path = getattr(agent, "init_log_path", None)
+    if not init_log_path or not os.path.exists(init_log_path):
+        init_log_path = None
+    return [init_log_path, latest_log, latest_results_csv, latest_score]
 
 def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
@@ -241,11 +263,11 @@ with gr.Blocks() as demo:
     results_csv_file = gr.File(label="Download Results Table (CSV)")
     score_file = gr.File(label="Download Final Score/Status")
 
-    # On app load, show the init log (if available), others empty
+    # On app load, show the latest logs (if available)
     demo.load(
-        fn=get_init_log,
+        fn=get_latest_logs,
         inputs=[],
-        outputs=[init_log_file],
+        outputs=[init_log_file, results_log_file, results_csv_file, score_file],
     )
 
     run_button.click(
