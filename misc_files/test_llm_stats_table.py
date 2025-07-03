@@ -12,32 +12,32 @@ class MockGaiaAgent(GaiaAgent):
                 'successes': 3,
                 'failures': 2,
                 'threshold_passes': 2,
-                'finalist_wins': 1,
-                'low_score_submissions': 1,
+                'submitted': 1,
+                'lowsumb': 1,
                 'total_attempts': 5
             },
             'groq': {
                 'successes': 2,
                 'failures': 3,
                 'threshold_passes': 1,
-                'finalist_wins': 1,
-                'low_score_submissions': 2,
+                'submitted': 1,
+                'lowsumb': 2,
                 'total_attempts': 5
             },
             'openrouter': {
                 'successes': 4,
                 'failures': 1,
                 'threshold_passes': 3,
-                'finalist_wins': 2,
-                'low_score_submissions': 0,
+                'submitted': 2,
+                'lowsumb': 0,
                 'total_attempts': 5
             },
             'gemini': {
                 'successes': 1,
                 'failures': 4,
                 'threshold_passes': 1,
-                'finalist_wins': 0,
-                'low_score_submissions': 3,
+                'submitted': 0,
+                'lowsumb': 3,
                 'total_attempts': 5
             },
         }
@@ -70,13 +70,13 @@ if __name__ == "__main__":
     stats_str = agent._format_llm_stats_table(as_str=True)
     print("\n--- String output of stats table ---\n")
     print(stats_str)
-    assert "TOTALS:" in stats_str
-    # Check for the new totals row in the table (should start with 'TOTALS')
-    lines = stats_str.splitlines()
-    totals_row = next((line for line in lines if line.strip().startswith("TOTALS ")), None)
-    assert totals_row is not None, "Totals row not found in stats table!"
+    # Robust check for the TOTALS row (should start with 'TOTALS')
+    assert any(line.strip().startswith("TOTALS") for line in stats_str.splitlines()), "Totals row not found in stats table!"
     # Optionally, check that numeric totals match expected sums
     # (Successes: 3+2+4+1=10, Failures: 2+3+1+4=10, Attempts: 5+5+5+5=20, etc.)
+    lines = stats_str.splitlines()
+    totals_row = next((line for line in lines if line.strip().startswith("TOTALS")), None)
+    assert totals_row is not None, "Totals row not found in stats table!"
     assert "10" in totals_row, "Expected total value not found in totals row!"
     # Mock and check init summary
     agent.llm_init_results = [

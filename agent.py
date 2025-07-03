@@ -260,8 +260,8 @@ class GaiaAgent:
                     "successes": 0,
                     "failures": 0,
                     "threshold_passes": 0,
-                    "finalist_wins": 0,
-                    "low_score_submissions": 0,  # Submissions below reference threshold
+                    "submitted": 0,      # Above threshold, submitted
+                    "lowsumb": 0,        # Below threshold, submitted
                     "total_attempts": 0
                 }
             self.total_questions = 0
@@ -1319,16 +1319,14 @@ class GaiaAgent:
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
                     self._update_llm_tracking(llm_type, "success")
-                    self._update_llm_tracking(llm_type, "finalist_win")
-                    return answer, llm_name
+                    llm_results.append((1.0, answer, llm_name, llm_type))
+                    break
                 is_match, similarity = self._vector_answers_match(answer, reference)
                 if is_match:
                     print(f"✅ {llm_name} succeeded with similar answer to reference")
                 else:
                     print(f"⚠️ {llm_name} succeeded but answer doesn't match reference")
-                    self._update_llm_tracking(llm_type, "low_score")
                 llm_results.append((similarity, answer, llm_name, llm_type))
-                # Count every LLM that passes the threshold
                 if similarity >= self.similarity_threshold:
                     self._update_llm_tracking(llm_type, "threshold_pass")
                 if llm_type != available_llms[-1][0]:
@@ -1337,41 +1335,22 @@ class GaiaAgent:
                     print(f"🔄 All LLMs tried, all failed")
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
-                # Track failure
                 self._update_llm_tracking(llm_type, "failure")
-                # Special retry logic for HuggingFace router errors
-                if llm_type == "huggingface" and "500 Server Error" in str(e) and "router.huggingface.co" in str(e):
-                    print("🔄 HuggingFace router error detected, retrying once...")
-                    try:
-                        time.sleep(2)
-                        response = self._make_llm_request(messages, use_tools=llm_use_tools, llm_type=llm_type)
-                        answer = self._extract_final_answer(response)
-                        if not answer:
-                            answer, response = self._retry_with_final_answer_reminder(messages, llm_use_tools, llm_type)
-                        if answer and not answer == str(response).strip():
-                            print(f"✅ HuggingFace retry succeeded: {answer}")
-                            self._update_llm_tracking(llm_type, "threshold_pass")
-                            self._update_llm_tracking(llm_type, "success")
-                            llm_results.append((1.0, answer, llm_name, llm_type))
-                            # Decrement failure count since retry succeeded
-                            self._update_llm_tracking(llm_type, "failure", -1)
-                    except Exception as retry_error:
-                        print(f"❌ HuggingFace retry also failed: {retry_error}")
                 if llm_type == available_llms[-1][0]:
                     raise Exception(f"All available LLMs failed. Last error from {llm_name}: {e}")
                 print(f"🔄 Trying next LLM...")
+        # --- Finalist selection and stats update ---
         if llm_results:
             threshold = self.similarity_threshold
             for sim, ans, name, llm_type in llm_results:
                 if sim >= threshold:
                     print(f"🎯 First answer above threshold: {ans} (LLM: {name}, similarity: {sim:.3f})")
-                    self._update_llm_tracking(llm_type, "success")
-                    self._update_llm_tracking(llm_type, "finalist_win")
+                    self._update_llm_tracking(llm_type, "submitted")
                     return ans, name
+            # If none above threshold, pick best similarity as low score submission
             best_similarity, best_answer, best_llm, best_llm_type = max(llm_results, key=lambda x: x[0])
             print(f"🔄 Returning best answer by similarity: {best_answer} (LLM: {best_llm}, similarity: {best_similarity:.3f})")
-            self._update_llm_tracking(best_llm_type, "success")
-            self._update_llm_tracking(best_llm_type, "finalist_win")
+            self._update_llm_tracking(best_llm_type, "lowsumb")
             return best_answer, best_llm
         raise Exception("All LLMs failed")
 
@@ -1495,17 +1474,11 @@ class GaiaAgent:
             return False, -1.0
 
     def get_llm_stats(self) -> dict:
-        """
-        Get comprehensive statistics about LLM success and failure rates, per provider and model.
-        Returns:
-            dict: Dictionary with LLM (provider+model) names, success/failure counts, and rates
-        """
         stats = {
             "total_questions": self.total_questions,
             "llm_stats": {},
             "summary": {}
         }
-        # Build a mapping of llm_type to model_id actually used
         used_models = {}
         for llm_type in self.llm_tracking.keys():
             model_id = None
@@ -1513,10 +1486,11 @@ class GaiaAgent:
                 model_id = self.active_model_config[llm_type].get("model", self.active_model_config[llm_type].get("repo_id", ""))
             used_models[llm_type] = model_id
         llm_types = list(self.llm_tracking.keys())
-        total_success = 0
+        total_submitted = 0
+        total_lowsumb = 0
+        total_passed = 0
         total_failures = 0
         total_attempts = 0
-        # Calculate per-model stats
         for llm_type in llm_types:
             llm_name = self.LLM_CONFIG[llm_type]["name"]
             model_id = used_models.get(llm_type, "")
@@ -1525,41 +1499,37 @@ class GaiaAgent:
             successes = tracking["successes"]
             failures = tracking["failures"]
             threshold_count = tracking["threshold_passes"]
-            finalist_count = tracking["finalist_wins"]
-            low_score_count = tracking.get("low_score_submissions", 0)
+            submitted = tracking["submitted"]
+            lowsumb = tracking["lowsumb"]
             attempts = tracking["total_attempts"]
-            total_success += successes
+            total_submitted += submitted
+            total_lowsumb += lowsumb
+            total_passed += successes
             total_failures += failures
             total_attempts += attempts
-            # Calculate rates
-            success_rate = (successes / attempts * 100) if attempts > 0 else 0
-            failure_rate = (failures / attempts * 100) if attempts > 0 else 0
-            threshold_rate = (threshold_count / attempts * 100) if attempts > 0 else 0
-            finalist_rate = (finalist_count / attempts * 100) if attempts > 0 else 0
-            low_score_rate = (low_score_count / attempts * 100) if attempts > 0 else 0
+            pass_rate = (successes / attempts * 100) if attempts > 0 else 0
+            fail_rate = (failures / attempts * 100) if attempts > 0 else 0
+            submit_rate = (submitted / self.total_questions * 100) if self.total_questions > 0 else 0
             stats["llm_stats"][display_name] = {
-                "successes": successes,
-                "failures": failures,
-                "attempts": attempts,
-                "success_rate": f"{success_rate:.1f}%",
-                "failure_rate": f"{failure_rate:.1f}%",
-                "threshold_passes": threshold_count,
-                "threshold_rate": f"{threshold_rate:.1f}%",
-                "finalist_wins": finalist_count,
-                "finalist_rate": f"{finalist_rate:.1f}%",
-                "low_score_submissions": low_score_count,
-                "low_score_rate": f"{low_score_rate:.1f}%"
+                "runs": attempts,
+                "passed": successes,
+                "pass_rate": f"{pass_rate:.1f}",
+                "submitted": submitted,
+                "submit_rate": f"{submit_rate:.1f}",
+                "lowsumb": lowsumb,
+                "failed": failures,
+                "fail_rate": f"{fail_rate:.1f}",
+                "threshold": threshold_count
             }
-        # Overall summary
-        overall_success_rate = (total_success / total_attempts * 100) if total_attempts > 0 else 0
-        overall_failure_rate = (total_failures / total_attempts * 100) if total_attempts > 0 else 0
+        overall_submit_rate = (total_submitted / self.total_questions * 100) if self.total_questions > 0 else 0
         stats["summary"] = {
             "total_questions": self.total_questions,
-            "total_successes": total_success,
+            "total_submitted": total_submitted,
+            "total_lowsumb": total_lowsumb,
+            "total_passed": total_passed,
             "total_failures": total_failures,
             "total_attempts": total_attempts,
-            "overall_success_rate": f"{overall_success_rate:.1f}%",
-            "overall_failure_rate": f"{overall_failure_rate:.1f}%"
+            "overall_submit_rate": f"{overall_submit_rate:.1f}"
         }
         return stats
 
@@ -1610,19 +1580,22 @@ class GaiaAgent:
         stats = self.get_llm_stats()
         rows = []
         for name, data in stats["llm_stats"].items():
-            rows.append([
-                name,
-                data["successes"],
-                data["failures"],
-                data["low_score_submissions"],
-                data["attempts"],
-                data["success_rate"],
-                data["failure_rate"],
-                data["threshold_passes"],
-                data["finalist_wins"]
-            ])
+            # Only show active LLMs (at least one run)
+            if data["runs"] > 0:
+                rows.append([
+                    name,
+                    data["runs"],
+                    data["passed"],
+                    data["pass_rate"],
+                    data["submitted"],
+                    data["submit_rate"],
+                    data["lowsumb"],
+                    data["failed"],
+                    data["fail_rate"],
+                    data["threshold"]
+                ])
         header = [
-            "Provider (Model)", "Successes", "Failures", "Low Score Submissions", "Attempts", "Success Rate", "Failure Rate", "Threshold Passes", "Finalist Wins"
+            "Model", "Runs", "Passed", "Pass %", "Submitted", "Submit %", "LowSumb", "Failed", "Fail %", "Threshold"
         ]
         col_widths = [max(len(str(row[i])) for row in ([header] + rows)) for i in range(len(header))]
         def fmt_row(row):
@@ -1633,14 +1606,14 @@ class GaiaAgent:
         # Add true totals row for numeric columns
         totals = ["TOTALS"]
         for i, col in enumerate(header[1:], 1):
-            if "Rate" in col:
+            if col.endswith("%"):
                 totals.append("")
             else:
                 totals.append(sum(row[i] for row in rows if isinstance(row[i], (int, float))))
         lines.append(fmt_row(totals))
         lines.append("-" * (sum(col_widths) + 3 * (len(header) - 1)))
         s = stats["summary"]
-        lines.append(f"TOTALS: Successes: {s['total_successes']} | Failures: {s['total_failures']} | Attempts: {s['total_attempts']} | Success Rate: {s['overall_success_rate']} | Failure Rate: {s['overall_failure_rate']}")
+        lines.append(f"Above Threshold Submissions: {s['total_submitted']} / {s['total_questions']} ({s['overall_submit_rate']}%)")
         lines.append("=" * (sum(col_widths) + 3 * (len(header) - 1)))
         return "\n".join(lines) if as_str else lines
 
@@ -1660,7 +1633,7 @@ class GaiaAgent:
         
         Args:
             llm_type (str): The LLM type (e.g., 'gemini', 'groq')
-            event_type (str): The type of event ('success', 'failure', 'threshold_pass', 'finalist_win', 'low_score')
+            event_type (str): The type of event ('success', 'failure', 'threshold_pass', 'submitted', 'lowsumb')
             increment (int): Amount to increment (default: 1)
         """
         if llm_type not in self.llm_tracking:
@@ -1673,11 +1646,10 @@ class GaiaAgent:
             self.llm_tracking[llm_type]["total_attempts"] += increment
         elif event_type == "threshold_pass":
             self.llm_tracking[llm_type]["threshold_passes"] += increment
-        elif event_type == "finalist_win":
-            self.llm_tracking[llm_type]["finalist_wins"] += increment
-        elif event_type == "low_score":
-            self.llm_tracking[llm_type]["low_score_submissions"] += increment
-            self.llm_tracking[llm_type]["total_attempts"] += increment
+        elif event_type == "submitted":
+            self.llm_tracking[llm_type]["submitted"] += increment
+        elif event_type == "lowsumb":
+            self.llm_tracking[llm_type]["lowsumb"] += increment
 
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
         """
