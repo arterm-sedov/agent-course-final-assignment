@@ -20,6 +20,7 @@ Files required in the same directory:
 import os
 import json
 import csv
+import datetime
 import time
 import random
 import re
@@ -369,6 +370,19 @@ class GaiaAgent:
         self.tools = self._gather_tools()
         # Print summary table after all initializations
         self._print_llm_init_summary()
+
+        # --- Save LLM initialization summary to log file ---
+        try:
+            os.makedirs("logs", exist_ok=True)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            init_log_path = f"logs/INIT_{timestamp}.log"
+            self.init_log_path = init_log_path
+            with open(init_log_path, "w", encoding="utf-8") as f:
+                summary = self._format_llm_init_summary(as_str=True)
+                f.write(summary + "\n")
+            print(f"✅ LLM initialization summary saved to: {init_log_path}")
+        except Exception as e:
+            print(f"⚠️ Failed to save LLM initialization summary log: {e}")
 
     def _load_system_prompt(self):
         """
@@ -1525,9 +1539,52 @@ class GaiaAgent:
         }
         return stats
 
-    def print_llm_stats_table(self):
+    def _format_llm_init_summary(self, as_str=True):
         """
-        Print a clean table of LLM stats (provider+model), with totals at the bottom.
+        Return the LLM initialization summary as a string (for printing or saving).
+        """
+        if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
+            return ""
+        provider_w = max(14, max(len(r['provider']) for r in self.llm_init_results) + 2)
+        model_w = max(40, max(len(r['model']) for r in self.llm_init_results) + 2)
+        plain_w = max(5, len('Plain'))
+        tools_w = max(5, len('Tools (forced)'))
+        error_w = max(20, len('Error (tools)'))
+        header = (
+            f"{'Provider':<{provider_w}}| "
+            f"{'Model':<{model_w}}| "
+            f"{'Plain':<{plain_w}}| "
+            f"{'Tools':<{tools_w}}| "
+            f"{'Error (tools)':<{error_w}}"
+        )
+        lines = ["===== LLM Initialization Summary =====", header, "-" * len(header)]
+        for r in self.llm_init_results:
+            plain = '✅' if r['plain_ok'] else '❌'
+            config = self.LLM_CONFIG.get(r['llm_type'], {})
+            model_force_tools = False
+            for m in config.get('models', []):
+                if m.get('model', m.get('repo_id', '')) == r['model']:
+                    model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
+                    break
+            if r['tools_ok'] is None:
+                tools = 'N/A'
+            else:
+                tools = '✅' if r['tools_ok'] else '❌'
+            if model_force_tools:
+                tools += ' (forced)'
+            error_tools = ''
+            if r['tools_ok'] is False and r['error_tools']:
+                if '400' in r['error_tools']:
+                    error_tools = '400'
+                else:
+                    error_tools = r['error_tools'][:18]
+            lines.append(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w}}| {error_tools:<{error_w}}")
+        lines.append("=" * len(header))
+        return "\n".join(lines) if as_str else lines
+
+    def _format_llm_stats_table(self, as_str=True):
+        """
+        Return the LLM stats table as a string (for printing or saving).
         """
         stats = self.get_llm_stats()
         rows = []
@@ -1543,24 +1600,30 @@ class GaiaAgent:
                 data["threshold_passes"],
                 data["finalist_wins"]
             ])
-        # Table header
         header = [
             "Provider (Model)", "Successes", "Failures", "Low Score Submissions", "Attempts", "Success Rate", "Failure Rate", "Threshold Passes", "Finalist Wins"
         ]
-        # Compute column widths
         col_widths = [max(len(str(row[i])) for row in ([header] + rows)) for i in range(len(header))]
         def fmt_row(row):
             return " | ".join(str(val).ljust(col_widths[i]) for i, val in enumerate(row))
-        print("\n===== LLM Model Statistics =====")
-        print(fmt_row(header))
-        print("-" * (sum(col_widths) + 3 * (len(header) - 1)))
+        lines = ["===== LLM Model Statistics =====", fmt_row(header), "-" * (sum(col_widths) + 3 * (len(header) - 1))]
         for row in rows:
-            print(fmt_row(row))
-        # Totals
+            lines.append(fmt_row(row))
         s = stats["summary"]
-        print("-" * (sum(col_widths) + 3 * (len(header) - 1)))
-        print(f"TOTALS: Successes: {s['total_successes']} | Failures: {s['total_failures']} | Attempts: {s['total_attempts']} | Success Rate: {s['overall_success_rate']} | Failure Rate: {s['overall_failure_rate']}")
-        print("=" * (sum(col_widths) + 3 * (len(header) - 1)))
+        lines.append("-" * (sum(col_widths) + 3 * (len(header) - 1)))
+        lines.append(f"TOTALS: Successes: {s['total_successes']} | Failures: {s['total_failures']} | Attempts: {s['total_attempts']} | Success Rate: {s['overall_success_rate']} | Failure Rate: {s['overall_failure_rate']}")
+        lines.append("=" * (sum(col_widths) + 3 * (len(header) - 1)))
+        return "\n".join(lines) if as_str else lines
+
+    def _print_llm_init_summary(self):
+        summary = self._format_llm_init_summary(as_str=True)
+        if summary:
+            print("\n" + summary + "\n")
+
+    def print_llm_stats_table(self):
+        summary = self._format_llm_stats_table(as_str=True)
+        if summary:
+            print("\n" + summary + "\n")
 
     def _update_llm_tracking(self, llm_type: str, event_type: str, increment: int = 1):
         """
@@ -2355,50 +2418,3 @@ class GaiaAgent:
         """
         config = self.LLM_CONFIG.get(llm_type, {})
         return config.get("tool_support", False)
-
-    def _print_llm_init_summary(self):
-        """
-        Print a structured summary table of all LLMs and models initialized, with plain/tools status and errors.
-        Dynamically adjust column widths for provider and model names.
-        """
-        if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
-            return
-        # Calculate max widths dynamically for all columns
-        provider_w = max(14, max(len(r['provider']) for r in self.llm_init_results) + 2)
-        model_w = max(40, max(len(r['model']) for r in self.llm_init_results) + 2)
-        plain_w = max(5, len('Plain'))
-        tools_w = max(5, len('Tools (forced)'))
-        error_w = max(20, len('Error (tools)'))
-        header = (
-            f"{'Provider':<{provider_w}}| "
-            f"{'Model':<{model_w}}| "
-            f"{'Plain':<{plain_w}}| "
-            f"{'Tools':<{tools_w}}| "
-            f"{'Error (tools)':<{error_w}}"
-        )
-        print("\n===== LLM Initialization Summary =====")
-        print(header)
-        print("-" * len(header))
-        for r in self.llm_init_results:
-            plain = '✅' if r['plain_ok'] else '❌'
-            # Determine if force_tools is set for this model/provider
-            config = self.LLM_CONFIG.get(r['llm_type'], {})
-            model_force_tools = False
-            for m in config.get('models', []):
-                if m.get('model', m.get('repo_id', '')) == r['model']:
-                    model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
-                    break
-            if r['tools_ok'] is None:
-                tools = 'N/A'
-            else:
-                tools = '✅' if r['tools_ok'] else '❌'
-            if model_force_tools:
-                tools += ' (forced)'
-            error_tools = ''
-            if r['tools_ok'] is False and r['error_tools']:
-                if '400' in r['error_tools']:
-                    error_tools = '400'
-                else:
-                    error_tools = r['error_tools'][:18]
-            print(f"{r['provider']:<{provider_w}}| {r['model']:<{model_w}}| {plain:<{plain_w}}| {tools:<{tools_w}}| {error_tools:<{error_w}}")
-        print("=" * len(header) + "\n")

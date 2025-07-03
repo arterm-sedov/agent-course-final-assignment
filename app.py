@@ -22,6 +22,19 @@ except Exception as e:
     agent = None
     print(f"Error initializing GaiaAgent: {e}")
 
+# Helper to save DataFrame as CSV for download
+def save_df_to_csv(df, path):
+    df.to_csv(path, index=False, encoding="utf-8")
+    return path
+
+# --- Provide init log for download on app load ---
+def get_init_log():
+    import os
+    init_log_path = getattr(agent, "init_log_path", None)
+    if init_log_path and os.path.exists(init_log_path):
+        return init_log_path
+    return None
+
 def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the GaiaAgent on them, submits all answers,
@@ -33,7 +46,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         print(f"User logged in: {username}")
     else:
         print("User not logged in.")
-        return "Please Login to Hugging Face with the button.", None
+        return "Please Login to Hugging Face with the button.", None, None, None, None
 
     api_url = DEFAULT_API_URL
     questions_url = f"{api_url}/questions"
@@ -41,9 +54,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     # 1. Instantiate Agent (already done globally)
     if agent is None:
-        return "Error initializing agent. Check logs for details.", None
+        return "Error initializing agent. Check logs for details.", None, None, None, None
     agent_code = f"https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main"
     print(agent_code)
+
+    # --- Provide init log for download ---
+    init_log_path = getattr(agent, "init_log_path", None)
+    if not init_log_path or not os.path.exists(init_log_path):
+        init_log_path = None
 
     # 2. Fetch Questions
     print(f"Fetching questions from: {questions_url}")
@@ -53,18 +71,18 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         questions_data = response.json()
         if not questions_data:
             print("Fetched questions list is empty.")
-            return "Fetched questions list is empty or invalid format.", None
+            return "Fetched questions list is empty or invalid format.", None, init_log_path, None, None
         print(f"Fetched {len(questions_data)} questions.")
     except requests.exceptions.RequestException as e:
         print(f"Error fetching questions: {e}")
-        return f"Error fetching questions: {e}", None
+        return f"Error fetching questions: {e}", None, init_log_path, None, None
     except requests.exceptions.JSONDecodeError as e:
         print(f"Error decoding JSON response from questions endpoint: {e}")
         print(f"Response text: {response.text[:500]}")
-        return f"Error decoding server response for questions: {e}", None
+        return f"Error decoding server response for questions: {e}", None, init_log_path, None, None
     except Exception as e:
         print(f"An unexpected error occurred fetching questions: {e}")
-        return f"An unexpected error occurred fetching questions: {e}", None
+        return f"An unexpected error occurred fetching questions: {e}", None, init_log_path, None, None
 
     # 3. Run the Agent
     results_log = []
@@ -88,7 +106,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         file_data = None
         if file_name and file_name.strip():
             try:
-                print(f"📁 Downloading file: {file_name} for task {task_id}")
+                print(f"\U0001F4C1 Downloading file: {file_name} for task {task_id}")
                 file_url = f"{api_url}/files/{task_id}"
                 file_response = requests.get(file_url, timeout=30)
                 file_response.raise_for_status()
@@ -118,7 +136,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
-        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
+        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log), init_log_path, None, None
 
     # --- Save log to logs/ folder with timestamp ---
     try:
@@ -128,16 +146,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         with open(log_path, "w", encoding="utf-8") as f:
             yaml.dump(results_log, f, allow_unicode=True)
         print(f"✅ Results log saved to: {log_path}")
-        # # --- Auto-commit the new log file to git ---
-        # try:
-        #     subprocess.run(["git", "add", log_path], check=True)
-        #     commit_msg = f"Add agent results log {timestamp}"
-        #     subprocess.run(["git", "commit", "-m", commit_msg], check=True)
-        #     print(f"✅ Log file committed to git with message: {commit_msg}")
-        # except Exception as git_e:
-        #     print(f"⚠️ Failed to commit log file to git: {git_e}")
     except Exception as e:
         print(f"⚠️ Failed to save results log: {e}")
+        log_path = None
+
+    # --- Save results table as CSV for download ---
+    results_df = pd.DataFrame(results_log)
+    csv_path = f"logs/{timestamp}.results.csv"
+    save_df_to_csv(results_df, csv_path)
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -158,34 +174,19 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             f"Message: {result_data.get('message', 'No message received.')}"
         )
         print("Submission successful.")
-        results_df = pd.DataFrame(results_log)
-        return final_status, results_df
-    except requests.exceptions.HTTPError as e:
-        error_detail = f"Server responded with status {e.response.status_code}."
-        try:
-            error_json = e.response.json()
-            error_detail += f" Detail: {error_json.get('detail', e.response.text)}"
-        except requests.exceptions.JSONDecodeError:
-            error_detail += f" Response: {e.response.text[:500]}"
-        status_message = f"Submission Failed: {error_detail}"
-        print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
-    except requests.exceptions.Timeout:
-        status_message = "Submission Failed: The request timed out."
-        print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
-    except requests.exceptions.RequestException as e:
-        status_message = f"Submission Failed: Network error - {e}"
-        print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        # Save final status to a text file for download
+        score_path = f"logs/{timestamp}.score.txt"
+        with open(score_path, "w", encoding="utf-8") as f:
+            f.write(final_status)
+        return final_status, results_df, init_log_path, log_path, csv_path, score_path
     except Exception as e:
-        status_message = f"An unexpected error occurred during submission: {e}"
+        status_message = f"Submission Failed: {e}"
         print(status_message)
-        results_df = pd.DataFrame(results_log)
-        return status_message, results_df
+        # Save error status to a text file for download
+        score_path = f"logs/{timestamp}.score.txt"
+        with open(score_path, "w", encoding="utf-8") as f:
+            f.write(status_message)
+        return status_message, results_df, init_log_path, log_path, csv_path, score_path
 
 
 # --- Build Gradio Interface using Blocks ---
@@ -212,10 +213,21 @@ with gr.Blocks() as demo:
 
     status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
     results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
+    init_log_file = gr.File(label="Download LLM Initialization Log")
+    results_log_file = gr.File(label="Download Full Results Log")
+    results_csv_file = gr.File(label="Download Results Table (CSV)")
+    score_file = gr.File(label="Download Final Score/Status")
+
+    # On app load, show the init log (if available), others empty
+    demo.load(
+        fn=get_init_log,
+        inputs=[],
+        outputs=[init_log_file],
+    )
 
     run_button.click(
         fn=run_and_submit_all,
-        outputs=[status_output, results_table]
+        outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
     )
 
 if __name__ == "__main__":

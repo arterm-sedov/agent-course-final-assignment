@@ -65,4 +65,21 @@ class MockGaiaAgent(GaiaAgent):
 if __name__ == "__main__":
     print("Testing LLM statistics table with variable-length provider/model names:\n")
     agent = MockGaiaAgent()
-    agent.print_llm_stats_table() 
+    # Print and check stats table
+    agent.print_llm_stats_table()
+    stats_str = agent._format_llm_stats_table(as_str=True)
+    print("\n--- String output of stats table ---\n")
+    print(stats_str)
+    assert "TOTALS:" in stats_str
+    # Mock and check init summary
+    agent.llm_init_results = [
+        {"provider": "HuggingFace", "llm_type": "huggingface", "model": "Qwen/Qwen2.5-Coder-32B-Instruct", "plain_ok": True, "tools_ok": True, "error_plain": None, "error_tools": None},
+        {"provider": "Groq", "llm_type": "groq", "model": "qwen-qwq-32b", "plain_ok": False, "tools_ok": False, "error_plain": "fail", "error_tools": "fail"}
+    ]
+    agent.LLM_CONFIG = {
+        'huggingface': {'name': 'HuggingFace', 'models': [{'repo_id': 'Qwen/Qwen2.5-Coder-32B-Instruct'}]},
+        'groq': {'name': 'Groq', 'models': [{'model': 'qwen-qwq-32b'}]},
+    }
+    print("\n--- LLM Init Summary ---\n")
+    print(agent._format_llm_init_summary(as_str=True))
+    assert "LLM Initialization Summary" in agent._format_llm_init_summary(as_str=True) 
