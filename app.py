@@ -269,6 +269,8 @@ with gr.Blocks() as demo:
 
     gr.LoginButton()
 
+    profile = gr.OAuthProfile()
+
     run_button = gr.Button("Run Evaluation & Submit All Answers")
 
     status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
@@ -288,7 +290,7 @@ with gr.Blocks() as demo:
 
     run_button.click(
         fn=run_and_submit_all,
-        inputs=["oauth_profile", file_state],
+        inputs=[profile, file_state],
         outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file, file_state]
     )
 
