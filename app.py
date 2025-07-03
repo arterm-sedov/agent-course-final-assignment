@@ -221,40 +221,92 @@ def get_logs_html():
 
 def extract_timestamp_from_filename(filename):
     """
-    Extract timestamp from filename using a single regex for all log patterns in @/logs.
+    Extract timestamp from filename using comprehensive regex patterns for all log formats in @/logs.
     Returns (timestamp_str, datetime_obj) or (None, None) if no timestamp found.
     """
     import re
-    name = os.path.splitext(filename)[0]
+    
+    # Handle multiple extensions by removing all extensions
+    name = filename
+    while '.' in name:
+        name = os.path.splitext(name)[0]
+    
     # 1. 14-digit datetime: YYYYMMDDHHMMSS (must be exact 14 digits)
     m = re.match(r'^(\d{14})$', name)
     if m:
         timestamp_str = m.group(1)
-        dt = datetime.datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
-        return timestamp_str, dt
-    # 2. Leaderboard: 2025-07-02 090007
+        try:
+            dt = datetime.datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+            return timestamp_str, dt
+        except ValueError:
+            pass
+    
+    # 2. Leaderboard format: 2025-07-02 090007
     m = re.search(r'(\d{4})-(\d{2})-(\d{2})[ _]+(\d{2})(\d{2})(\d{2})', name)
     if m:
         y, mo, d, h, mi, s = m.groups()
-        dt = datetime.datetime.strptime(f"{y}{mo}{d}{h}{mi}{s}", "%Y%m%d%H%M%S")
-        return f"{y}-{mo}-{d} {h}:{mi}:{s}", dt
-    # 3. Prefix (optional), date, optional time: (INIT|LOG)?_?YYYYMMDD(_HHMMSS)? or just YYYYMMDD(_HHMMSS)?
-    m = re.match(r'^(\w+)?_?(\d{8})(?:_(\d{6}))?$', name)
-    if m:
-        prefix, date, time = m.groups()
-        # Ensure we only use the first 8 digits for the date
-        date_clean = date[:8] if date else ""
         try:
-            if time:
-                dt = datetime.datetime.strptime(f"{date_clean}{time}", "%Y%m%d%H%M%S")
-                ts = '_'.join(filter(None, [prefix, date_clean, time]))
-            else:
-                dt = datetime.datetime.strptime(date_clean, "%Y%m%d")
-                ts = '_'.join(filter(None, [prefix, date_clean]))
-            return ts, dt
+            dt = datetime.datetime.strptime(f"{y}{mo}{d}{h}{mi}{s}", "%Y%m%d%H%M%S")
+            return f"{y}-{mo}-{d} {h}:{mi}:{s}", dt
         except ValueError:
-            # If parsing fails, skip this pattern
             pass
+    
+    # 3. LOG prefix with 12-digit timestamp: LOG202506281412
+    m = re.match(r'^LOG(\d{12})$', name)
+    if m:
+        timestamp_str = m.group(1)
+        try:
+            dt = datetime.datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+            return f"LOG{timestamp_str}", dt
+        except ValueError:
+            pass
+    
+    # 4. LOG prefix with 8-digit date and optional suffix: LOG20250628_2, LOG20250629_1
+    m = re.match(r'^LOG(\d{8})(?:_(\d+))?$', name)
+    if m:
+        date_str, suffix = m.groups()
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y%m%d")
+            timestamp_str = f"LOG{date_str}"
+            if suffix:
+                timestamp_str += f"_{suffix}"
+            return timestamp_str, dt
+        except ValueError:
+            pass
+    
+    # 5. INIT prefix with date and time: INIT_20250704_000343
+    m = re.match(r'^INIT_(\d{8})_(\d{6})$', name)
+    if m:
+        date_str, time_str = m.groups()
+        try:
+            dt = datetime.datetime.strptime(f"{date_str}{time_str}", "%Y%m%d%H%M%S")
+            return f"INIT_{date_str}_{time_str}", dt
+        except ValueError:
+            pass
+    
+    # 6. Date with underscore and time: 20250702_202757, 20250703_135654
+    m = re.match(r'^(\d{8})_(\d{6})$', name)
+    if m:
+        date_str, time_str = m.groups()
+        try:
+            dt = datetime.datetime.strptime(f"{date_str}{time_str}", "%Y%m%d%H%M%S")
+            return f"{date_str}_{time_str}", dt
+        except ValueError:
+            pass
+    
+    # 7. Date only (8 digits): 20250628
+    m = re.match(r'^(\d{8})$', name)
+    if m:
+        date_str = m.group(1)
+        try:
+            dt = datetime.datetime.strptime(date_str, "%Y%m%d")
+            return date_str, dt
+        except ValueError:
+            pass
+    
+    # 8. Files with no timestamp pattern (like "Score 60.log")
+    # These will return None and fall back to modification time
+    
     return None, None
 
 # --- Build Gradio Interface using Blocks ---
