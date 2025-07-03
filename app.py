@@ -188,6 +188,20 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             f.write(status_message)
         return status_message, results_df, init_log_path, log_path, csv_path, score_path
 
+def get_logs_table():
+    logs_dir = "logs"
+    files = []
+    if os.path.exists(logs_dir):
+        for fname in os.listdir(logs_dir):
+            fpath = os.path.join(logs_dir, fname)
+            if os.path.isfile(fpath):
+                ext = os.path.splitext(fname)[1].lstrip('.')
+                files.append({
+                    "File Name": fname,
+                    "File Type": ext,
+                    "Download": fpath
+                })
+    return files
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
@@ -228,19 +242,13 @@ with gr.Blocks() as demo:
                 outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
             )
         with gr.TabItem("LOGS"):
-            gr.Markdown("## Logs Table (Mock)")
-            gr.DataFrame(
-                value=[["2024-07-01 12:00", "INFO", "App started"],
-                       ["2024-07-01 12:01", "WARNING", "Low disk space"],
-                       ["2024-07-01 12:02", "ERROR", "Failed to connect"]],
-                headers=["Timestamp", "Level", "Message"],
-                label="Mock Logs Table",
+            gr.Markdown("## Logs Table")
+            logs_table = gr.DataFrame(
+                value=get_logs_table(),
+                headers=["File Name", "File Type", "Download"],
+                label="Logs Table",
                 interactive=False
             )
-            init_log_file = gr.File(label="Download LLM Initialization Log")
-            results_log_file = gr.File(label="Download Full Results Log")
-            results_csv_file = gr.File(label="Download Results Table (CSV)")
-            score_file = gr.File(label="Download Final Score/Status")
 
 if __name__ == "__main__":
     print("\n" + "-"*30 + " App Starting " + "-"*30)
