@@ -24,7 +24,15 @@ except Exception as e:
 
 # Helper to save DataFrame as CSV for download
 def save_df_to_csv(df, path):
+    # Ensure all columns are string type to avoid truncation or encoding issues
+    df = df.astype(str)
     df.to_csv(path, index=False, encoding="utf-8")
+    # Explicitly flush and close the file to ensure all data is written
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.flush()
+    except Exception:
+        pass
     return path
 
 # --- Provide init log for download on app load ---
@@ -127,12 +135,27 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
                 submitted_answer = agent(enhanced_question, file_data=file_data, file_name=file_name)
             else:
                 submitted_answer = agent(question_text)
-            
+            # Ensure submitted_answer is always a string (never None)
+            if submitted_answer is None:
+                submitted_answer = ""
+            else:
+                submitted_answer = str(submitted_answer)
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": submitted_answer})
+            # Also ensure all values in results_log are strings for robust CSV output
+            results_log.append({
+                "Task ID": str(task_id) if task_id is not None else "",
+                "Question": str(question_text) if question_text is not None else "",
+                "File": str(file_name) if file_name is not None else "",
+                "Submitted Answer": submitted_answer
+            })
         except Exception as e:
             print(f"Error running agent on task {task_id}: {e}")
-            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": f"AGENT ERROR: {e}"})
+            results_log.append({
+                "Task ID": str(task_id) if task_id is not None else "",
+                "Question": str(question_text) if question_text is not None else "",
+                "File": str(file_name) if file_name is not None else "",
+                "Submitted Answer": f"AGENT ERROR: {e}"
+            })
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
