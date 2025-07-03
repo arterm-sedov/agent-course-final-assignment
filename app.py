@@ -230,18 +230,13 @@ with gr.Blocks() as demo:
             run_button = gr.Button("Run Evaluation & Submit All Answers")
             status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
             results_table = gr.DataFrame(label="Questions and Agent Answers", wrap=True)
-            init_log_file = gr.File(label="Download LLM Initialization Log")
-            results_log_file = gr.File(label="Download Full Results Log")
-            results_csv_file = gr.File(label="Download Results Table (CSV)")
-            score_file = gr.File(label="Download Final Score/Status")
             demo.load(
                 fn=get_init_log,
-                inputs=[],
-                outputs=[init_log_file],
+                inputs=[]
             )
             run_button.click(
                 fn=run_and_submit_all,
-                outputs=[status_output, results_table, init_log_file, results_log_file, results_csv_file, score_file]
+                outputs=[status_output, results_table]
             )
         with gr.TabItem("LOGS"):
             gr.Markdown("## Logs Table")
