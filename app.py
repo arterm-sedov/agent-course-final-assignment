@@ -6,7 +6,6 @@ import pandas as pd
 import random
 from agent import GaiaAgent
 import datetime
-import yaml
 import subprocess
 import json
 import re
@@ -48,7 +47,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         print(f"User logged in: {username}")
     else:
         print("User not logged in.")
-        return "Please Login to Hugging Face with the button.", None, None, None, None
+        return "Please Login to Hugging Face with the button.", None
 
     api_url = DEFAULT_API_URL
     questions_url = f"{api_url}/questions"
@@ -56,14 +55,9 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     # 1. Instantiate Agent (already done globally)
     if agent is None:
-        return "Error initializing agent. Check logs for details.", None, None, None, None
+        return "Error initializing agent. Check logs for details.", None
     agent_code = f"https://huggingface.co/spaces/{username}/agent-course-final-assignment/tree/main"
     print(agent_code)
-
-    # --- Provide init log for download ---
-    init_log_path = getattr(agent, "init_log_path", None)
-    if not init_log_path or not os.path.exists(init_log_path):
-        init_log_path = None
 
     # 2. Fetch Questions
     print(f"Fetching questions from: {questions_url}")
@@ -73,18 +67,18 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         questions_data = response.json()
         if not questions_data:
             print("Fetched questions list is empty.")
-            return "Fetched questions list is empty or invalid format.", None, init_log_path, None, None
+            return "Fetched questions list is empty or invalid format.", None
         print(f"Fetched {len(questions_data)} questions.")
     except requests.exceptions.RequestException as e:
         print(f"Error fetching questions: {e}")
-        return f"Error fetching questions: {e}", None, init_log_path, None, None
+        return f"Error fetching questions: {e}", None
     except requests.exceptions.JSONDecodeError as e:
         print(f"Error decoding JSON response from questions endpoint: {e}")
         print(f"Response text: {response.text[:500]}")
-        return f"Error decoding server response for questions: {e}", None, init_log_path, None, None
+        return f"Error decoding server response for questions: {e}", None
     except Exception as e:
         print(f"An unexpected error occurred fetching questions: {e}")
-        return f"An unexpected error occurred fetching questions: {e}", None, init_log_path, None, None
+        return f"An unexpected error occurred fetching questions: {e}", None
 
     # 3. Run the Agent
     results_log = []
@@ -138,22 +132,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
-        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log), init_log_path, None, None
+        return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
-    # --- Save log to logs/ folder with timestamp ---
-    try:
-        os.makedirs("logs", exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = f"logs/{timestamp}.llm_trace.log"
-        with open(log_path, "w", encoding="utf-8") as f:
-            yaml.dump(results_log, f, allow_unicode=True)
-        print(f"✅ Results log saved to: {log_path}")
-    except Exception as e:
-        print(f"⚠️ Failed to save results log: {e}")
-        log_path = None
+    # --- Save results log to logs/ folder with timestamp ---
+    log_path = save_results_log(results_log)
 
     # --- Save results table as CSV for download ---
     results_df = pd.DataFrame(results_log)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     csv_path = f"logs/{timestamp}.results.csv"
     save_df_to_csv(results_df, csv_path)
 
@@ -308,6 +294,35 @@ def extract_timestamp_from_filename(filename):
     # These will return None and fall back to modification time
     
     return None, None
+
+def save_results_log(results_log: list) -> str:
+    """
+    Save the complete results log to a file before submission.
+    
+    Args:
+        results_log (list): List of dictionaries containing task results
+        
+    Returns:
+        str: Path to the saved log file, or None if failed
+    """
+    try:
+        # Create logs directory if it doesn't exist
+        os.makedirs("logs", exist_ok=True)
+        
+        # Generate timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Save to LLM trace log file
+        log_path = f"logs/{timestamp}.llm_trace.log"
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(results_log, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Results log saved to: {log_path}")
+        return log_path
+        
+    except Exception as e:
+        print(f"⚠️ Failed to save results log: {e}")
+        return None
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
