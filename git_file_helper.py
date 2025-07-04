@@ -53,4 +53,7 @@ def save_and_commit_file(
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         commit_message = f"Add {file_path} at {timestamp}"
     subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-    subprocess.run(['git', 'push', 'origin', 'main'], check=True) 
+    # Use GIT_ASKPASS=echo to prevent password prompt
+    env = os.environ.copy()
+    env["GIT_ASKPASS"] = "echo"
+    subprocess.run(['git', 'push', 'origin', 'main'], check=True, env=env) 
