@@ -43,6 +43,10 @@ def save_and_commit_file(
     repo_url = f"https://{hf_token}@huggingface.co/spaces/{space_id}.git"
     subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
 
+    # Debug prints for troubleshooting authentication issues
+    print("HF_TOKEN present:", bool(hf_token))
+    print("Remote URL:", repo_url[:30] + '...' + repo_url[-20:])  # Mask token in output
+
     # 5. Add, commit, and push
     subprocess.run(['git', 'add', file_path], check=True)
     if not commit_message:
