@@ -92,7 +92,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     print(f"Running GaiaAgent on {len(questions_data)} questions...")
     
     # DEBUG: Select one random task instead of all
-    questions_data = random.sample(questions_data, len(questions_data))
+    questions_data = random.sample(questions_data, 1)
     #questions_data = [questions_data[0]]
     
     for item in questions_data:
@@ -180,7 +180,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         score_path = f"logs/{timestamp}.score.txt"
         with open(score_path, "w", encoding="utf-8") as f:
             f.write(final_status)
-        return final_status, results_df, init_log_path, log_path, csv_path, score_path
+        return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
@@ -188,7 +188,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         score_path = f"logs/{timestamp}.score.txt"
         with open(score_path, "w", encoding="utf-8") as f:
             f.write(status_message)
-        return status_message, results_df, init_log_path, log_path, csv_path, score_path
+        return status_message, results_df
 
 def get_logs_html():
     logs_dir = "logs"
