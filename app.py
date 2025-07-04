@@ -135,13 +135,13 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
     # --- Save results log to logs/ folder with timestamp ---
-    log_path = save_results_log(results_log)
+    # log_path = save_results_log(results_log)  # Disabled file writing
 
     # --- Save results table as CSV for download ---
-    results_df = pd.DataFrame(results_log)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = f"logs/{timestamp}.results.csv"
-    save_df_to_csv(results_df, csv_path)
+    # results_df = pd.DataFrame(results_log)
+    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # csv_path = f"logs/{timestamp}.results.csv"
+    # save_df_to_csv(results_df, csv_path)  # Disabled file writing
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -163,17 +163,17 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         )
         print("Submission successful.")
         # Save final status to a text file for download
-        score_path = f"logs/{timestamp}.score.txt"
-        with open(score_path, "w", encoding="utf-8") as f:
-            f.write(final_status)
+        # score_path = f"logs/{timestamp}.score.txt"
+        # with open(score_path, "w", encoding="utf-8") as f:
+        #     f.write(final_status)
         return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Save error status to a text file for download
-        score_path = f"logs/{timestamp}.score.txt"
-        with open(score_path, "w", encoding="utf-8") as f:
-            f.write(status_message)
+        # score_path = f"logs/{timestamp}.score.txt"
+        # with open(score_path, "w", encoding="utf-8") as f:
+        #     f.write(status_message)
         return status_message, results_df
 
 def get_logs_html():

@@ -407,20 +407,21 @@ class GaiaAgent:
             sys.stdout = old_stdout
         debug_output = debug_buffer.getvalue()
         # --- Save LLM initialization summary to log file and commit to repo ---
-        try:
-            os.makedirs("logs", exist_ok=True)
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            init_log_path = f"logs/{timestamp}.init.log"
-            self.init_log_path = init_log_path
-            summary = self._format_llm_init_summary(as_str=True)
-            log_content = debug_output
-            if summary not in debug_output:
-                log_content += summary + "\n"
-            commit_msg = f"Add log {init_log_path} at {timestamp}"
-            save_and_commit_file(init_log_path, log_content, commit_message=commit_msg)
-            print(f"✅ LLM initialization summary saved and committed to: {init_log_path}")
-        except Exception as e:
-            print(f"⚠️ Failed to save and commit LLM initialization summary log: {e}")
+        # Disabled file saving and committing for now. Re-enable when needed.
+        # try:
+        #     os.makedirs("logs", exist_ok=True)
+        #     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        #     init_log_path = f"logs/{timestamp}.init.log"
+        #     self.init_log_path = init_log_path
+        #     summary = self._format_llm_init_summary(as_str=True)
+        #     log_content = debug_output
+        #     if summary not in debug_output:
+        #         log_content += summary + "\n"
+        #     commit_msg = f"Add log {init_log_path} at {timestamp}"
+        #     save_and_commit_file(init_log_path, log_content, commit_message=commit_msg)
+        #     print(f"✅ LLM initialization summary saved and committed to: {init_log_path}")
+        # except Exception as e:
+        #     print(f"⚠️ Failed to save and commit LLM initialization summary log: {e}")
 
     def _load_system_prompt(self):
         """
