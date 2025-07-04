@@ -41,11 +41,22 @@ def save_and_commit_file(
         raise RuntimeError("SPACE_ID or HF_TOKEN not set in environment variables/secrets.")
 
     repo_url = f"https://{hf_token}@huggingface.co/spaces/{space_id}.git"
+    # Ensure no trailing slash in repo_url
+    if repo_url.endswith('/'):
+        repo_url = repo_url[:-1]
+    # Print the repo_url with token masked for debug
+    masked_repo_url = repo_url.replace(hf_token, '***TOKEN***')
+    print("Setting remote URL:", masked_repo_url)
     subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
+
+    # Print remotes to confirm
+    remotes = subprocess.run(['git', 'remote', '-v'], capture_output=True, text=True)
+    print("Current git remotes:")
+    print(remotes.stdout.replace(hf_token, '***TOKEN***'))
 
     # Debug prints for troubleshooting authentication issues
     print("HF_TOKEN present:", bool(hf_token))
-    print("Remote URL:", repo_url[:30] + '...' + repo_url[-20:])  # Mask token in output
+    print("Remote URL:", masked_repo_url)
 
     # 5. Add, commit, and push
     subprocess.run(['git', 'add', file_path], check=True)
