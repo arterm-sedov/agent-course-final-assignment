@@ -45,6 +45,8 @@ from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
+# Import the git file helper
+from git_file_helper import save_and_commit_file
 
 class Tee:
     """
@@ -404,20 +406,21 @@ class GaiaAgent:
         finally:
             sys.stdout = old_stdout
         debug_output = debug_buffer.getvalue()
-        # --- Save LLM initialization summary to log file ---
+        # --- Save LLM initialization summary to log file and commit to repo ---
         try:
             os.makedirs("logs", exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             init_log_path = f"logs/{timestamp}.init.log"
             self.init_log_path = init_log_path
-            with open(init_log_path, "w", encoding="utf-8") as f:
-                f.write(debug_output)
-                summary = self._format_llm_init_summary(as_str=True)
-                if summary not in debug_output:
-                    f.write(summary + "\n")
-            print(f"✅ LLM initialization summary saved to: {init_log_path}")
+            summary = self._format_llm_init_summary(as_str=True)
+            log_content = debug_output
+            if summary not in debug_output:
+                log_content += summary + "\n"
+            commit_msg = f"Add log {init_log_path} at {timestamp}"
+            save_and_commit_file(init_log_path, log_content, commit_message=commit_msg)
+            print(f"✅ LLM initialization summary saved and committed to: {init_log_path}")
         except Exception as e:
-            print(f"⚠️ Failed to save LLM initialization summary log: {e}")
+            print(f"⚠️ Failed to save and commit LLM initialization summary log: {e}")
 
     def _load_system_prompt(self):
         """
