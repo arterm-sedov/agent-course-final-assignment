@@ -172,7 +172,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             "results_df": json.dumps(results_df.to_dict('records')),  # Convert to JSON string as per schema
             "username": username.strip() if username else "unknown",
             "final_status": "",  # Will be updated after submission
-            "score_path": ""     # Will be updated after submission
+            "score_result": ""     # Will be updated after submission
         }
         
         success = upload_run_data(run_data)
@@ -203,13 +203,13 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             f"Message: {result_data.get('message', 'No message received.')}"
         )
         print("Submission successful.")
-        # Save final status to a text file and upload via API
-        score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
+        # Extract just the score percentage from the result data
+        score_result = f"{result_data.get('score', 'N/A')}% ({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)"
         
-        # Update the run data with final status and upload complete record
+        # Update the run data with final status and score result
         try:
             run_data["final_status"] = final_status
-            run_data["score_path"] = score_path
+            run_data["score_result"] = score_result
             
             success = upload_run_data(run_data)
             if success:
@@ -224,13 +224,13 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
-        # Save error status to a text file and upload via API
-        score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
+        # Set error score result
+        score_result = "N/A (Submission Failed)"
         
-        # Update the run data with error status and upload complete record
+        # Update the run data with error status and score result
         try:
             run_data["final_status"] = status_message
-            run_data["score_path"] = score_path
+            run_data["score_result"] = score_result
             
             success = upload_run_data(run_data)
             if success:

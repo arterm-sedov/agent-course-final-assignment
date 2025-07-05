@@ -44,7 +44,7 @@
       "results_df": {"dtype": "string", "_type": "Value"},
       "username": {"dtype": "string", "_type": "Value"},
       "final_status": {"dtype": "string", "_type": "Value"},
-      "score_path": {"dtype": "string", "_type": "Value"}
+      "score_result": {"dtype": "string", "_type": "Value"}
     }
   }
 } 

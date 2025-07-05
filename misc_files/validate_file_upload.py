@@ -83,7 +83,7 @@ def test_runs_data_structure():
         "results_df": [{"test": "df"}],
         "username": "test_user",
         "final_status": "Test status",
-        "score_path": "test/path"
+        "score_result": "85.5% (17/20 correct)"
     }
     
     # Validate structure
