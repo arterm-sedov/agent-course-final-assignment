@@ -11,22 +11,22 @@
       "minor": 0,
       "patch": 0
     },
-      "splits": {
-    "init": {
-      "name": "init",
-      "num_bytes": 0,
-      "num_examples": 0,
-      "shard_lengths": null
-    },
-    "runs_new": {
-      "name": "runs_new",
-      "num_bytes": 0,
-      "num_examples": 0,
-      "shard_lengths": null
-    }
-  },
     "supervised_keys": null
   },
+  "configs": [
+    {
+      "name": "init",
+      "data_files": {
+        "train": "init-*.jsonl"
+      }
+    },
+    {
+      "name": "runs_new", 
+      "data_files": {
+        "train": "runs_new-*.jsonl"
+      }
+    }
+  ],
   "features": {
     "init": {
       "timestamp": {"dtype": "string", "_type": "Value"},
@@ -34,7 +34,8 @@
       "debug_output": {"dtype": "string", "_type": "Value"},
       "llm_config": {"dtype": "string", "_type": "Value"},
       "available_models": {"dtype": "string", "_type": "Value"},
-      "tool_support": {"dtype": "string", "_type": "Value"}
+      "tool_support": {"dtype": "string", "_type": "Value"},
+      "init_summary_json": {"dtype": "string", "_type": "Value"}
     },
     "runs_new": {
       "run_id": {"dtype": "string", "_type": "Value"},
