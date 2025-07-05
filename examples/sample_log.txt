@@ -1,0 +1,6 @@
+Log Entry
+Timestamp: 2025-07-05 13:33:24.386327
+Level: INFO
+Message: Example log file upload via API
+Status: Success
+Details: This demonstrates how to upload log files using CommitOperationAdd
