@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from file_helper import (
     upload_init_summary, 
-    upload_evaluation_run, 
+    upload_run_data, 
     validate_data_structure,
     get_dataset_features,
     print_dataset_schema
@@ -100,7 +100,7 @@ def test_upload_functions():
     # Test function availability
     functions_available = all([
         upload_init_summary is not None,
-        upload_evaluation_run is not None
+        upload_run_data is not None
     ])
     print(f"✅ Upload functions available: {'PASS' if functions_available else 'FAIL'}")
     
@@ -108,9 +108,9 @@ def test_upload_functions():
     try:
         import inspect
         init_sig = inspect.signature(upload_init_summary)
-        runs_sig = inspect.signature(upload_evaluation_run)
+        runs_sig = inspect.signature(upload_run_data)
         print(f"✅ upload_init_summary signature: {init_sig}")
-        print(f"✅ upload_evaluation_run signature: {runs_sig}")
+        print(f"✅ upload_run_data signature: {runs_sig}")
         signature_ok = True
     except Exception as e:
         print(f"❌ Error checking function signatures: {e}")
@@ -153,10 +153,10 @@ def test_app_imports():
             print("❌ app.py not found in any expected location")
             return False
         app_source = app_path.read_text()
-        if "upload_evaluation_run" in app_source:
-            print("✅ app.py uses upload_evaluation_run")
+        if "upload_run_data" in app_source:
+            print("✅ app.py uses upload_run_data")
         else:
-            print("❌ app.py does not use upload_evaluation_run")
+            print("❌ app.py does not use upload_run_data")
         if "from file_helper import" in app_source:
             print("✅ app.py imports from file_helper")
         else:

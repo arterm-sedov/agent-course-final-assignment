@@ -10,7 +10,7 @@ import json
 import re
 import base64
 from agent import GaiaAgent
-from file_helper import TRACES_DIR, upload_evaluation_run
+from file_helper import TRACES_DIR, upload_run_data
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -168,14 +168,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             "run_id": run_id,
             "timestamp": timestamp,
             "questions_count": len(results_log),
-            "results_log": results_log,
-            "results_df": results_df.to_dict('records'),
+            "results_log": json.dumps(results_log),  # Convert to JSON string as per schema
+            "results_df": json.dumps(results_df.to_dict('records')),  # Convert to JSON string as per schema
             "username": username.strip() if username else "unknown",
             "final_status": "",  # Will be updated after submission
             "score_path": ""     # Will be updated after submission
         }
         
-        success = upload_evaluation_run(run_data)
+        success = upload_run_data(run_data)
         if success:
             print(f"✅ Evaluation run uploaded to dataset: {run_id}")
         else:
@@ -211,7 +211,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             run_data["final_status"] = final_status
             run_data["score_path"] = score_path
             
-            success = upload_evaluation_run(run_data)
+            success = upload_run_data(run_data)
             if success:
                 print(f"✅ Complete evaluation run uploaded to dataset: {run_id}")
             else:
@@ -232,7 +232,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             run_data["final_status"] = status_message
             run_data["score_path"] = score_path
             
-            success = upload_evaluation_run(run_data)
+            success = upload_run_data(run_data)
             if success:
                 print(f"✅ Complete evaluation run (with error) uploaded to dataset: {run_id}")
             else:

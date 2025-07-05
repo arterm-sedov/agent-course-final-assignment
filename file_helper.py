@@ -206,7 +206,7 @@ def upload_init_summary(
     """
     return upload_to_dataset(DATASET_ID, init_data, "init", token)
 
-def upload_evaluation_run(
+def upload_run_data(
     run_data: Dict,
     token: Optional[str] = None
 ) -> bool:

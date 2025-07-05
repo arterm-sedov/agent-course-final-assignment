@@ -15,7 +15,7 @@ import sys
 import os
 # Add parent directory to path to import file_helper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from file_helper import upload_init_summary, upload_evaluation_run, TRACES_DIR
+from file_helper import upload_init_summary, upload_run_data, TRACES_DIR
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -249,7 +249,7 @@ def test_evaluation_upload():
         print("❌ Runs data validation failed")
         return False
     
-    success = upload_evaluation_run(run_data)
+    success = upload_run_data(run_data)
     if success:
         print(f"✅ Evaluation upload successful for {LLM_TRACE_FILE}")
     else:
