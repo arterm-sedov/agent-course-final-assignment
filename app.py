@@ -135,13 +135,13 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
     # --- Save results log to logs/ folder with timestamp ---
-    # log_path = save_results_log(results_log)  # Disabled file writing
+    log_path = save_results_log(results_log)  # Re-enabled with API support
 
     # --- Save results table as CSV for download ---
-    # results_df = pd.DataFrame(results_log)
-    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # csv_path = f"logs/{timestamp}.results.csv"
-    # save_df_to_csv(results_df, csv_path)  # Disabled file writing
+    results_df = pd.DataFrame(results_log)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    csv_path = f"logs/{timestamp}.results.csv"
+    save_df_to_csv(results_df, csv_path)  # Re-enabled with API support
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -163,17 +163,17 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         )
         print("Submission successful.")
         # Save final status to a text file for download
-        # score_path = f"logs/{timestamp}.score.txt"
-        # with open(score_path, "w", encoding="utf-8") as f:
-        #     f.write(final_status)
+        score_path = f"logs/{timestamp}.score.txt"
+        with open(score_path, "w", encoding="utf-8") as f:
+            f.write(final_status)
         return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Save error status to a text file for download
-        # score_path = f"logs/{timestamp}.score.txt"
-        # with open(score_path, "w", encoding="utf-8") as f:
-        #     f.write(status_message)
+        score_path = f"logs/{timestamp}.score.txt"
+        with open(score_path, "w", encoding="utf-8") as f:
+            f.write(status_message)
         return status_message, results_df
 
 def get_logs_html():
@@ -324,6 +324,53 @@ def save_results_log(results_log: list) -> str:
         print(f"⚠️ Failed to save results log: {e}")
         return None
 
+def demonstrate_api_upload():
+    """
+    Demonstrate the API-based file upload functionality.
+    This function shows how to use CommitOperationAdd for file uploads.
+    """
+    try:
+        from git_file_helper import upload_file_via_api, batch_upload_files
+        
+        print("🚀 Demonstrating HuggingFace Hub API upload functionality...")
+        
+        # Example 1: Single file upload
+        demo_content = f"API Upload Demo - {datetime.datetime.now()}\nThis file was uploaded using CommitOperationAdd."
+        success = upload_file_via_api(
+            file_path="demo/api_upload_demo.txt",
+            content=demo_content,
+            commit_message="Demo: API-based file upload"
+        )
+        
+        if success:
+            print("✅ Single file upload demo successful")
+        else:
+            print("❌ Single file upload demo failed")
+        
+        # Example 2: Batch file upload
+        demo_files = {
+            "demo/batch_demo_1.txt": f"Batch demo file 1 - {datetime.datetime.now()}",
+            "demo/batch_demo_2.json": f'{{"demo": "data", "timestamp": "{datetime.datetime.now()}"}}',
+            "demo/batch_demo_3.md": f"# Demo Markdown\n\nCreated at {datetime.datetime.now()}"
+        }
+        
+        batch_results = batch_upload_files(
+            files_data=demo_files,
+            commit_message="Demo: Batch file upload via API"
+        )
+        
+        success_count = sum(batch_results.values())
+        print(f"✅ Batch upload demo: {success_count}/{len(demo_files)} files successful")
+        
+        return True
+        
+    except ImportError:
+        print("⚠️ huggingface_hub not available - API upload demo skipped")
+        return False
+    except Exception as e:
+        print(f"❌ API upload demo failed: {e}")
+        return False
+
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
     gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner")
@@ -383,4 +430,8 @@ if __name__ == "__main__":
     print("-"*(60 + len(" App Starting ")) + "\n")
 
     print("Launching Gradio Interface for GAIA Unit 4 Agent Evaluation...")
+    
+    # Demonstrate API upload functionality on startup
+    demonstrate_api_upload()
+    
     demo.launch(debug=True, share=False)

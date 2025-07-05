@@ -1,70 +1,250 @@
 import os
-import subprocess
 import datetime
+from typing import Optional, Union, Dict, Any
+from pathlib import Path
+
+# Import huggingface_hub components for API-based file operations
+try:
+    from huggingface_hub import HfApi, CommitOperationAdd
+    HF_HUB_AVAILABLE = True
+except ImportError:
+    HF_HUB_AVAILABLE = False
+    print("Warning: huggingface_hub not available. Install with: pip install huggingface_hub")
+
+def get_hf_api_client(token: Optional[str] = None) -> Optional[HfApi]:
+    """
+    Create and configure an HfApi client for repository operations.
+    
+    Args:
+        token (str, optional): HuggingFace token. If None, uses environment variable.
+        
+    Returns:
+        HfApi: Configured API client or None if not available
+    """
+    if not HF_HUB_AVAILABLE:
+        return None
+        
+    try:
+        # Get token from parameter or environment
+        hf_token = token or os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+        if not hf_token:
+            print("Warning: No HuggingFace token found. API operations will fail.")
+            return None
+            
+        # Create API client
+        api = HfApi(token=hf_token)
+        return api
+    except Exception as e:
+        print(f"Error creating HfApi client: {e}")
+        return None
+
+def get_repo_info() -> tuple[Optional[str], Optional[str]]:
+    """
+    Get repository information from environment variables.
+    
+    Returns:
+        tuple: (space_id, repo_type) or (None, None) if not found
+    """
+    space_id = os.environ.get("SPACE_ID")
+    repo_type = os.environ.get("REPO_TYPE", "space")  # Default to space type
+    
+    return space_id, repo_type
+
+def upload_file_via_api(
+    file_path: str,
+    content: Union[str, bytes],
+    commit_message: Optional[str] = None,
+    token: Optional[str] = None,
+    repo_id: Optional[str] = None,
+    repo_type: str = "space"
+) -> bool:
+    """
+    Upload a file to HuggingFace repository using the API (CommitOperationAdd).
+    
+    Args:
+        file_path (str): Path in the repository where to save the file
+        content (Union[str, bytes]): File content to upload
+        commit_message (str, optional): Commit message
+        token (str, optional): HuggingFace token
+        repo_id (str, optional): Repository ID. If None, uses SPACE_ID from env
+        repo_type (str): Repository type (space, model, dataset)
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if not HF_HUB_AVAILABLE:
+        print("Error: huggingface_hub not available for API operations")
+        return False
+        
+    try:
+        # Get API client
+        api = get_hf_api_client(token)
+        if not api:
+            return False
+            
+        # Get repository info
+        if not repo_id:
+            repo_id, repo_type = get_repo_info()
+            if not repo_id:
+                print("Error: No repository ID found in environment variables")
+                return False
+        
+        # Prepare content
+        if isinstance(content, str):
+            content_bytes = content.encode('utf-8')
+        else:
+            content_bytes = content
+            
+        # Create commit operation
+        operation = CommitOperationAdd(
+            path_in_repo=file_path,
+            path_or_fileobj=content_bytes
+        )
+        
+        # Generate commit message if not provided
+        if not commit_message:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            commit_message = f"Add {file_path} at {timestamp}"
+        
+        # Commit the operation
+        commit_info = api.create_commit(
+            repo_id=repo_id,
+            repo_type=repo_type,
+            operations=[operation],
+            commit_message=commit_message
+        )
+        
+        print(f"✅ File uploaded successfully via API: {file_path}")
+        print(f"   Commit: {commit_info.commit_url}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error uploading file via API: {e}")
+        return False
 
 def save_and_commit_file(
     file_path: str,
     content: str,
     commit_message: str = None,
-    user_name: str = None,
-    user_email: str = None,
-    hf_token_env: str = "HF_TOKEN"
-):
+    token: Optional[str] = None,
+    repo_id: Optional[str] = None,
+    repo_type: str = "space"
+) -> bool:
     """
-    Save a file, commit, and push it to the HuggingFace Space repo for persistence.
-
+    Save a file and commit it to the HuggingFace repository using the API.
+    
+    This function uses CommitOperationAdd for efficient file uploads.
+    Used primarily for saving log files.
+    
     Args:
         file_path (str): Path to save the file (e.g., 'logs/mylog.txt')
         content (str): File content to write
-        commit_message (str): Commit message (optional, will use timestamp and file name if not provided)
-        user_name (str): Git user.name (optional, from env or fallback)
-        user_email (str): Git user.email (optional, from env or fallback)
-        hf_token_env (str): Name of the env var holding the HF token
+        commit_message (str, optional): Commit message
+        token (str, optional): HuggingFace token
+        repo_id (str, optional): Repository ID
+        repo_type (str): Repository type
+        
+    Returns:
+        bool: True if successful, False otherwise
     """
-    # 1. Write the file
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(content)
+    if not HF_HUB_AVAILABLE:
+        print("Error: huggingface_hub not available. Install with: pip install huggingface_hub")
+        return False
+        
+    try:
+        # Upload file via API
+        success = upload_file_via_api(
+            file_path=file_path,
+            content=content,
+            commit_message=commit_message,
+            token=token,
+            repo_id=repo_id,
+            repo_type=repo_type
+        )
+        
+        if success:
+            print(f"✅ File saved and committed successfully: {file_path}")
+        else:
+            print(f"❌ Failed to save and commit file: {file_path}")
+            
+        return success
+        
+    except Exception as e:
+        print(f"❌ Error in save_and_commit_file: {e}")
+        return False
 
-    # 2. Get user info
-    user_name = user_name or os.environ.get("GIT_USER_NAME", "HF Space Bot")
-    user_email = user_email or os.environ.get("GIT_USER_EMAIL", "hfspacebot@users.noreply.huggingface.co")
-
-    # 3. Configure git user
-    subprocess.run(['git', 'config', '--global', 'user.name', user_name], check=True)
-    subprocess.run(['git', 'config', '--global', 'user.email', user_email], check=True)
-
-    # 4. Get repo info from env
-    space_id = os.environ.get("SPACE_ID")
-    hf_token = os.environ.get(hf_token_env)
-    if not space_id or not hf_token:
-        raise RuntimeError("SPACE_ID or HF_TOKEN not set in environment variables/secrets.")
-
-    repo_url = f"https://{hf_token}@huggingface.co/spaces/{space_id}.git"
-    # Ensure no trailing slash in repo_url
-    if repo_url.endswith('/'):
-        repo_url = repo_url[:-1]
-    # Print the repo_url with token masked for debug
-    masked_repo_url = repo_url.replace(hf_token, '***TOKEN***')
-    print("Setting remote URL:", masked_repo_url)
-    subprocess.run(['git', 'remote', 'set-url', 'origin', repo_url], check=True)
-
-    # Print remotes to confirm
-    remotes = subprocess.run(['git', 'remote', '-v'], capture_output=True, text=True)
-    print("Current git remotes:")
-    print(remotes.stdout.replace(hf_token, '***TOKEN***'))
-
-    # Debug prints for troubleshooting authentication issues
-    print("HF_TOKEN present:", bool(hf_token))
-    print("Remote URL:", masked_repo_url)
-
-    # 5. Add, commit, and push
-    subprocess.run(['git', 'add', file_path], check=True)
-    if not commit_message:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        commit_message = f"Add {file_path} at {timestamp}"
-    subprocess.run(['git', 'commit', '-m', commit_message], check=True)
-    # Use GIT_ASKPASS=echo to prevent password prompt
-    env = os.environ.copy()
-    env["GIT_ASKPASS"] = "echo"
-    subprocess.run(['git', 'push', 'origin', 'main'], check=True, env=env) 
+def batch_upload_files(
+    files_data: Dict[str, Union[str, bytes]],
+    commit_message: Optional[str] = None,
+    token: Optional[str] = None,
+    repo_id: Optional[str] = None,
+    repo_type: str = "space"
+) -> Dict[str, bool]:
+    """
+    Upload multiple files in a single commit using the API.
+    
+    Useful for uploading multiple log files at once.
+    
+    Args:
+        files_data (Dict[str, Union[str, bytes]]): Dictionary mapping file paths to content
+        commit_message (str, optional): Commit message
+        token (str, optional): HuggingFace token
+        repo_id (str, optional): Repository ID
+        repo_type (str): Repository type
+        
+    Returns:
+        Dict[str, bool]: Dictionary mapping file paths to success status
+    """
+    if not HF_HUB_AVAILABLE:
+        print("Error: huggingface_hub not available for batch operations")
+        return {path: False for path in files_data.keys()}
+        
+    try:
+        # Get API client
+        api = get_hf_api_client(token)
+        if not api:
+            return {path: False for path in files_data.keys()}
+            
+        # Get repository info
+        if not repo_id:
+            repo_id, repo_type = get_repo_info()
+            if not repo_id:
+                print("Error: No repository ID found in environment variables")
+                return {path: False for path in files_data.keys()}
+        
+        # Create operations for all files
+        operations = []
+        for file_path, content in files_data.items():
+            # Prepare content
+            if isinstance(content, str):
+                content_bytes = content.encode('utf-8')
+            else:
+                content_bytes = content
+                
+            operation = CommitOperationAdd(
+                path_in_repo=file_path,
+                path_or_fileobj=content_bytes
+            )
+            operations.append(operation)
+        
+        # Generate commit message if not provided
+        if not commit_message:
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            file_count = len(files_data)
+            commit_message = f"Batch upload {file_count} files at {timestamp}"
+        
+        # Commit all operations
+        commit_info = api.create_commit(
+            repo_id=repo_id,
+            repo_type=repo_type,
+            operations=operations,
+            commit_message=commit_message
+        )
+        
+        print(f"✅ Batch upload successful: {len(files_data)} files")
+        print(f"   Commit: {commit_info.commit_url}")
+        return {path: True for path in files_data.keys()}
+        
+    except Exception as e:
+        print(f"❌ Error in batch upload: {e}")
+        return {path: False for path in files_data.keys()} 

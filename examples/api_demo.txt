@@ -1,5 +1,0 @@
-API-based Save and Commit Demo
-Created at: 2025-07-05 13:33:25.959761
-
-This demonstrates the API-based save_and_commit_file function
-which uses CommitOperationAdd for efficient file uploads.

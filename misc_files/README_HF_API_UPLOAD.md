@@ -40,11 +40,13 @@ Behold arterm-sedov's GAIA Unit 4 Agent — a robust, transparent, and extensibl
 - **`agent.py`**: Main agent logic, LLM/model orchestration, tool binding, and summary reporting
 - **`tools.py`**: Modular tool collection—math, code, web, file, image, chess, and more
 - **`app.py`**: Gradio interface for interactive use
+- **`git_file_helper.py`**: File operations with HuggingFace Hub API (CommitOperationAdd)
 - **`setup_venv.py`**: Cross-platform setup script
 
 ### Platform-Specific Dependencies
 - All core dependencies included in `requirements.txt`
 - TensorFlow pre-installed on Hugging Face Spaces
+- File operations with `huggingface_hub` for API-based uploads
 
 ---
 
@@ -66,6 +68,41 @@ See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for:
 - Vector store setup
 - Platform-specific tips (Windows, Linux/macOS, Hugging Face Spaces)
 - Troubleshooting and advanced configuration
+
+---
+
+## 📁 HF API File Operations
+
+The project includes file operations using the HuggingFace Hub API:
+
+### 🚀 New Features
+- **API-based file uploads** using `CommitOperationAdd`
+- **Batch file operations** with multiple files in single commit
+- **Log file management** for saving agent logs and results
+- **Clean and focused** - no unnecessary operations
+- **Simple integration** with existing code
+
+### 📚 Documentation
+- **`HF_API_UPLOAD_GUIDE.md`**: Comprehensive guide for API-based file operations
+- **`test_hf_api_upload.py`**: Test suite for API functionality
+- **`example_api_usage.py`**: Practical examples and demonstrations
+
+### 🔧 Usage Examples
+
+```python
+# Single file upload
+from git_file_helper import upload_file_via_api
+success = upload_file_via_api("logs/test.txt", "content")
+
+# Batch upload
+from git_file_helper import batch_upload_files
+files_data = {"file1.txt": "content1", "file2.txt": "content2"}
+results = batch_upload_files(files_data)
+
+# Enhanced existing function
+from git_file_helper import save_and_commit_file
+success = save_and_commit_file("logs/test.txt", "content")  # API-based
+```
 
 ---
 
