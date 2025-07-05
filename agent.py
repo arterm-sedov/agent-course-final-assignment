@@ -410,11 +410,13 @@ class GaiaAgent:
         try:
             # Create structured init data
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            summary = self._format_llm_init_summary(as_str=True)
+            summary_table = self._format_llm_init_summary(as_str=True)
+            summary_json = self._get_llm_init_summary_json()
             
             init_data = {
                 "timestamp": timestamp,
-                "init_summary": summary,
+                "init_summary": summary_table,
+                "init_summary_json": summary_json,
                 "debug_output": debug_output,
                 "llm_config": self.LLM_CONFIG,
                 "available_models": self._get_available_models(),
@@ -1515,7 +1517,7 @@ class GaiaAgent:
 
     def _format_llm_init_summary(self, as_str=True):
         """
-        Return the LLM initialization summary as a string (for printing or saving).
+        Return the LLM initialization summary as a formatted table string (for printing or saving).
         """
         if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
             return ""
@@ -1556,7 +1558,43 @@ class GaiaAgent:
         lines.append("=" * len(header))
         return "\n".join(lines) if as_str else lines
 
+    def _get_llm_init_summary_json(self):
+        """
+        Return the LLM initialization summary as structured JSON data for dataset upload.
+        """
+        if not hasattr(self, 'llm_init_results') or not self.llm_init_results:
+            return {}
+        
+        summary_data = {
+            "results": []
+        }
+        
+        for r in self.llm_init_results:
+            config = self.LLM_CONFIG.get(r['llm_type'], {})
+            model_force_tools = False
+            for m in config.get('models', []):
+                if m.get('model', m.get('repo_id', '')) == r['model']:
+                    model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
+                    break
+            
+            result_entry = {
+                "provider": r['provider'],
+                "model": r['model'],
+                "llm_type": r['llm_type'],
+                "plain_ok": r['plain_ok'],
+                "tools_ok": r['tools_ok'],
+                "force_tools": model_force_tools,
+                "error_tools": r.get('error_tools', ''),
+                "error_plain": r.get('error_plain', '')
+            }
+            summary_data["results"].append(result_entry)
+        
+        return summary_data
+
     def _format_llm_stats_table(self, as_str=True):
+        """
+        Return the LLM statistics as a formatted table string (for printing or saving).
+        """
         stats = self.get_llm_stats()
         rows = []
         for name, data in stats["llm_stats"].items():
@@ -1598,6 +1636,38 @@ class GaiaAgent:
         lines.append("=" * (sum(col_widths) + 3 * (len(header) - 1)))
         return "\n".join(lines) if as_str else lines
 
+    def _get_llm_stats_json(self):
+        """
+        Return the LLM statistics as structured JSON data for dataset upload.
+        """
+        stats = self.get_llm_stats()
+        
+        stats_data = {
+            "llm_stats": {}
+        }
+        
+        for name, data in stats["llm_stats"].items():
+            # Include all LLMs that have any activity
+            if (data["runs"] > 0 or data["submitted"] > 0 or data["low_submit"] > 0 or 
+                data["passed"] > 0 or data["failed"] > 0 or data["threshold"] > 0):
+                stats_data["llm_stats"][name] = {
+                    "runs": data["runs"],
+                    "passed": data["passed"],
+                    "pass_rate": data["pass_rate"],
+                    "submitted": data["submitted"],
+                    "submit_rate": data["submit_rate"],
+                    "low_submit": data["low_submit"],
+                    "failed": data["failed"],
+                    "fail_rate": data["fail_rate"],
+                    "threshold": data["threshold"],
+                    "successes": data.get("successes", 0),
+                    "failures": data.get("failures", 0),
+                    "total_attempts": data.get("total_attempts", 0),
+                    "threshold_passes": data.get("threshold_passes", 0)
+                }
+        
+        return stats_data
+
     def _print_llm_init_summary(self):
         summary = self._format_llm_init_summary(as_str=True)
         if summary:
@@ -1638,7 +1708,7 @@ class GaiaAgent:
             if self.llm_tracking[llm_type]["total_attempts"] == 0:
                 self.llm_tracking[llm_type]["total_attempts"] += increment
 
-    def __call__(self, question: str, file_data: str = None, file_name: str = None) -> str:
+    def __call__(self, question: str, file_data: str = None, file_name: str = None) -> dict:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
 
@@ -1648,7 +1718,14 @@ class GaiaAgent:
             file_name (str, optional): Name of the attached file.
 
         Returns:
-            str: The agent's final answer, formatted per system_prompt.
+            dict: Dictionary containing:
+                - answer: The agent's final answer, formatted per system_prompt
+                - similarity_score: Similarity score against reference (0.0-1.0)
+                - llm_used: Name of the LLM that provided the answer
+                - reference: Reference answer used for comparison, or "Reference answer not found"
+                - question: Original question text
+                - file_name: Name of attached file (if any)
+                - error: Error message (if any error occurred)
 
         Workflow:
             1. Store file data for use by tools.
@@ -1679,13 +1756,45 @@ class GaiaAgent:
         try:
             answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
             print(f"🎯 Final answer from {llm_used}")
+            
+            # Calculate similarity score if reference exists
+            similarity_score = 0.0
+            if reference:
+                is_match, similarity_score = self._vector_answers_match(answer, reference)
+            else:
+                similarity_score = 1.0  # No reference to compare against
+                
             # Display comprehensive stats
             self.print_llm_stats_table()
-            return answer
+            
+            # Return structured result
+            result = {
+                "answer": answer,
+                "similarity_score": similarity_score,
+                "llm_used": llm_used,
+                "reference": reference if reference else "Reference answer not found",
+                "question": question,
+                "file_name": file_name
+            }
+            
+            return result
+            
         except Exception as e:
             print(f"❌ All LLMs failed: {e}")
             self.print_llm_stats_table()
-            raise Exception(f"All LLMs failed: {e}")
+            
+            # Return error result
+            error_result = {
+                "answer": f"Error: {e}",
+                "similarity_score": 0.0,
+                "llm_used": "none",
+                "reference": reference if reference else "Reference answer not found",
+                "question": question,
+                "file_name": file_name,
+                "error": str(e)
+            }
+            
+            return error_result
 
     def _extract_text_from_response(self, response: Any) -> str:
         """

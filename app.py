@@ -57,6 +57,54 @@ def get_init_log():
         return init_log_path
     return None
 
+def generate_run_id(timestamp: str, idx: int) -> str:
+    """Generate a unique run ID for a question."""
+    return f"{timestamp}_q{idx+1:02d}"
+
+def create_run_data_for_runs_new(
+    run_id: str,
+    idx: int,
+    total_questions: int,
+    result: dict,
+    llm_stats_json: dict,
+    username: str = "N/A",
+    total_score: str = "N/A"
+) -> dict:
+    """
+    Create run data for the runs_new split.
+    
+    Args:
+        run_id: Unique identifier for the run
+        idx: Index of the question in the batch (0-based)
+        total_questions: Total number of questions in the batch
+        result: Individual result dictionary
+        llm_stats_json: LLM statistics JSON
+        username: Username of the person running the agent
+        total_score: Overall score for the complete evaluation run
+        
+    Returns:
+        dict: Run data for upload to runs_new split
+    """
+    return {
+        "run_id": run_id,
+        "questions_count": f"{idx+1}/{total_questions}",
+        "input_data": json.dumps([{
+            "task_id": result.get("task_id", f"task_{idx+1:03d}"),
+            "question": result.get("question", ""),
+            "file_name": result.get("file_name", "")
+        }]),
+        "reference_answer": result.get("reference_answer", "Reference answer not found"),  # Reference answer found by agent
+        "final_answer": result.get("submitted_answer", ""),  # Keep actual answer
+        "reference_similarity": result.get("similarity_score", 0.0),  # Use similarity score from agent
+        "question": result.get("question", ""),  # Question text
+        "file_name": result.get("file_name", ""),  # File name
+        "llm_used": result.get("llm_used", "unknown"),  # LLM used
+        "error": result.get("error", ""),  # Error information
+        "llm_stats_json": json.dumps(llm_stats_json),  # LLM statistics JSON
+        "total_score": total_score,  # Overall score for the complete evaluation run
+        "username": username.strip() if username else "unknown"
+    }
+
 def run_and_submit_all(profile: gr.OAuthProfile | None):
     """
     Fetches all questions, runs the GaiaAgent on them, submits all answers,
@@ -140,49 +188,91 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             if file_data:
                 # Create enhanced question with file context
                 enhanced_question = f"{question_text}\n\n[File attached: {file_name} - base64 encoded data available]"
-                submitted_answer = agent(enhanced_question, file_data=file_data, file_name=file_name)
+                agent_result = agent(enhanced_question, file_data=file_data, file_name=file_name)
             else:
-                submitted_answer = agent(question_text)
+                agent_result = agent(question_text)
+            
+            # Extract answer and additional info from agent result
+            submitted_answer = agent_result.get("answer", "No answer provided")
+            reference_similarity = agent_result.get("similarity_score", 0.0)
+            llm_used = agent_result.get("llm_used", "unknown")
+            reference_answer = agent_result.get("reference", "Reference answer not found")
+            question_text = agent_result.get("question", "")
+            file_name = agent_result.get("file_name", "")
+            error = agent_result.get("error", "")
             
             answers_payload.append({"task_id": task_id, "submitted_answer": submitted_answer})
-            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": submitted_answer})
+            results_log.append({
+                "task_id": task_id, 
+                "question": question_text, 
+                "file_name": file_name, 
+                "submitted_answer": submitted_answer,
+                "reference_answer": reference_answer,
+                "reference_similarity": reference_similarity,
+                "llm_used": llm_used,
+                "error": error
+            })
         except Exception as e:
             print(f"Error running agent on task {task_id}: {e}")
-            results_log.append({"Task ID": task_id, "Question": question_text, "File": file_name, "Submitted Answer": f"AGENT ERROR: {e}"})
+            results_log.append({
+                "task_id": task_id, 
+                "question": question_text, 
+                "file_name": file_name, 
+                "submitted_answer": f"AGENT ERROR: {e}",
+                "reference_answer": reference_answer,
+                "reference_similarity": 0.0,
+                "llm_used": "none",
+                "error": str(e)
+            })
 
     if not answers_payload:
         print("Agent did not produce any answers to submit.")
         return "Agent did not produce any answers to submit.", pd.DataFrame(results_log)
 
     # --- Save results log to logs/ folder with timestamp ---
-    log_path = save_results_log(results_log)  # Re-enabled with API support
+    #log_path = save_results_log(results_log)  # Re-enabled with API support
 
     # --- Save results table as CSV for download ---
     results_df = pd.DataFrame(results_log)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_id = f"run_{timestamp}"
     
-    # Upload evaluation run to dataset
-    try:
-        run_data = {
-            "run_id": run_id,
-            "timestamp": timestamp,
-            "questions_count": len(results_log),
-            "results_log": json.dumps(results_log),  # Convert to JSON string as per schema
-            "results_df": json.dumps(results_df.to_dict('records')),  # Convert to JSON string as per schema
-            "username": username.strip() if username else "unknown",
-            "final_status": "",  # Will be updated after submission
-            "score_result": ""     # Will be updated after submission
-        }
-        
-        success = upload_run_data(run_data)
-        if success:
-            print(f"✅ Evaluation run uploaded to dataset: {run_id}")
-        else:
-            print(f"⚠️ Failed to upload evaluation run to dataset")
+    # Upload each question as a separate run record to runs_new dataset
+    successful_uploads = 0
+    for idx, result in enumerate(results_log):
+        try:
+            run_id = generate_run_id(timestamp, idx)
             
-    except Exception as e:
-        print(f"⚠️ Failed to upload evaluation run: {e}")
+            # Get LLM stats JSON for this run
+            llm_stats_json = agent._get_llm_stats_json()
+            
+            # Create run data for runs_new split
+            run_data = create_run_data_for_runs_new(
+                run_id,
+                idx,
+                len(results_log),
+                result,
+                llm_stats_json,
+                username,
+                "N/A"  # Initial upload - score not available yet
+            )
+            
+            success = upload_run_data(run_data, split="runs_new")
+            if success:
+                print(f"✅ Question {idx+1} uploaded to runs_new dataset: {run_id}")
+                successful_uploads += 1
+            else:
+                print(f"⚠️ Failed to upload question {idx+1} to runs_new dataset")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to upload question {idx+1}: {e}")
+    
+    print(f"📊 Uploaded {successful_uploads}/{len(results_log)} questions to runs_new dataset")
+    
+    # Log complete evaluation run status
+    if successful_uploads == len(results_log):
+        print(f"✅ Complete evaluation run uploaded to dataset: {timestamp}")
+    else:
+        print(f"⚠️ Failed to upload complete evaluation run to dataset")
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -204,42 +294,76 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         )
         print("Submission successful.")
         # Extract just the score percentage from the result data
-        score_result = f"{result_data.get('score', 'N/A')}% ({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)"
+        total_score = f"{result_data.get('score', 'N/A')}% ({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)"
         
-        # Update the run data with final status and score result
-        try:
-            run_data["final_status"] = final_status
-            run_data["score_result"] = score_result
-            
-            success = upload_run_data(run_data)
-            if success:
-                print(f"✅ Complete evaluation run uploaded to dataset: {run_id}")
-            else:
-                print(f"⚠️ Failed to upload complete evaluation run to dataset")
+        # Update all run records with final status and score result
+        for idx, result in enumerate(results_log):
+            try:
+                run_id = generate_run_id(timestamp, idx)
                 
-        except Exception as e:
-            print(f"⚠️ Failed to upload complete evaluation run: {e}")
+                # Get LLM stats JSON for this run
+                llm_stats_json = agent._get_llm_stats_json()
+                
+                # Create updated run data for this question
+                run_data = create_run_data_for_runs_new(
+                    run_id,
+                    idx,
+                    len(results_log),
+                    result,
+                    llm_stats_json,
+                    username,
+                    total_score  # Use actual score from submission
+                )
+                
+                success = upload_run_data(run_data, split="runs_new")
+                if success:
+                    print(f"✅ Updated question {idx+1} with final results: {run_id}")
+                else:
+                    print(f"⚠️ Failed to update question {idx+1} with final results")
+                    
+            except Exception as e:
+                print(f"⚠️ Failed to update question {idx+1} with final results: {e}")
+        
+        # Log complete evaluation run update status
+        print(f"✅ Complete evaluation run updated with final results: {timestamp}")
             
         return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Set error score result
-        score_result = "N/A (Submission Failed)"
+        total_score = "N/A (Submission Failed)"
         
-        # Update the run data with error status and score result
-        try:
-            run_data["final_status"] = status_message
-            run_data["score_result"] = score_result
-            
-            success = upload_run_data(run_data)
-            if success:
-                print(f"✅ Complete evaluation run (with error) uploaded to dataset: {run_id}")
-            else:
-                print(f"⚠️ Failed to upload complete evaluation run (with error) to dataset")
+        # Update all run records with error status and score result
+        for idx, result in enumerate(results_log):
+            try:
+                run_id = generate_run_id(timestamp, idx)
                 
-        except Exception as upload_e:
-            print(f"⚠️ Failed to upload complete evaluation run (with error): {upload_e}")
+                # Get LLM stats JSON for this run
+                llm_stats_json = agent._get_llm_stats_json()
+                
+                # Create updated run data for this question
+                run_data = create_run_data_for_runs_new(
+                    run_id,
+                    idx,
+                    len(results_log),
+                    result,
+                    llm_stats_json,
+                    username,
+                    total_score  # Use error score result
+                )
+                
+                success = upload_run_data(run_data, split="runs_new")
+                if success:
+                    print(f"✅ Updated question {idx+1} with error results: {run_id}")
+                else:
+                    print(f"⚠️ Failed to update question {idx+1} with error results")
+                    
+            except Exception as upload_e:
+                print(f"⚠️ Failed to update question {idx+1} with error results: {upload_e}")
+        
+        # Log complete evaluation run update status
+        print(f"⚠️ Failed to upload complete evaluation run: {e}")
             
         return status_message, results_df
 

@@ -208,19 +208,21 @@ def upload_init_summary(
 
 def upload_run_data(
     run_data: Dict,
+    split: str = "runs_new",
     token: Optional[str] = None
 ) -> bool:
     """
-    Upload evaluation run data to runs split.
+    Upload evaluation run data to specified split.
     
     Args:
         run_data (Dict): Evaluation run data including results, stats, etc.
+        split (str): Dataset split name (default: "runs_new" for current schema)
         token (str, optional): HuggingFace token
         
     Returns:
         bool: True if successful, False otherwise
     """
-    return upload_to_dataset(DATASET_ID, run_data, "runs", token)
+    return upload_to_dataset(DATASET_ID, run_data, split, token)
 
 def get_dataset_info() -> Optional[Dict]:
     """

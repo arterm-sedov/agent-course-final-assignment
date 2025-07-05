@@ -23,6 +23,12 @@
         "num_bytes": 0,
         "num_examples": 0,
         "shard_lengths": null
+      },
+      "runs_new": {
+        "name": "runs_new",
+        "num_bytes": 0,
+        "num_examples": 0,
+        "shard_lengths": null
       }
     },
     "supervised_keys": null
@@ -45,6 +51,21 @@
       "username": {"dtype": "string", "_type": "Value"},
       "final_status": {"dtype": "string", "_type": "Value"},
       "score_result": {"dtype": "string", "_type": "Value"}
+    },
+    "runs_new": {
+      "run_id": {"dtype": "string", "_type": "Value"},
+      "questions_count": {"dtype": "string", "_type": "Value"},
+      "input_data": {"dtype": "string", "_type": "Value"},
+      "reference_answer": {"dtype": "string", "_type": "Value"},
+      "final_answer": {"dtype": "string", "_type": "Value"},
+      "reference_similarity": {"dtype": "float64", "_type": "Value"},
+      "question": {"dtype": "string", "_type": "Value"},
+      "file_name": {"dtype": "string", "_type": "Value"},
+      "llm_used": {"dtype": "string", "_type": "Value"},
+      "llm_stats_json": {"dtype": "string", "_type": "Value"},
+      "total_score": {"dtype": "string", "_type": "Value"},
+      "error": {"dtype": "string", "_type": "Value"},
+      "username": {"dtype": "string", "_type": "Value"}
     }
   }
 } 

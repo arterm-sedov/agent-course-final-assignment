@@ -36,15 +36,19 @@ def test_runs_new_schema():
             "question": "What is the capital of France?",
             "file_name": ""
         }]),
+        "reference_answer": "Paris is the capital of France",
         "final_answer": "Paris",
-        "score_estimate_agent": "0.95",
-        "results_log": json.dumps([{
-            "question": "What is the capital of France?",
-            "file_name": "",
-            "llm_used": "Google Gemini",
-            "similarity_score": 0.95,
-            "reference_found": True
-        }]),
+        "reference_similarity": 0.95,
+        "question": "What is the capital of France?",
+        "file_name": "",
+        "llm_used": "Google Gemini",
+        "llm_stats_json": json.dumps({
+            "models_used": ["Google Gemini"],
+            "total_tokens": 150,
+            "total_cost": 0.002
+        }),
+        "total_score": "85% (17/20 correct)",
+        "error": "",
         "username": "arterm-sedov"
     }
     
@@ -59,11 +63,11 @@ def test_runs_new_schema():
         # Test JSON parsing of complex fields
         try:
             input_data = json.loads(mock_data["input_data"])
-            results_log = json.loads(mock_data["results_log"])
+            llm_stats_json = json.loads(mock_data["llm_stats_json"])
             
             print("✅ JSON parsing successful for complex fields:")
             print(f"   - input_data: {len(input_data)} items")
-            print(f"   - results_log: {len(results_log)} items")
+            print(f"   - llm_stats_json: {len(llm_stats_json)} fields")
             
             # Test specific field content
             if input_data and len(input_data) > 0:
@@ -72,11 +76,10 @@ def test_runs_new_schema():
                 print(f"   - question: {first_input.get('question')}")
                 print(f"   - file_name: {first_input.get('file_name')}")
             
-            if results_log and len(results_log) > 0:
-                first_trace = results_log[0]
-                print(f"   - llm_used: {first_trace.get('llm_used')}")
-                print(f"   - similarity_score: {first_trace.get('similarity_score')}")
-                print(f"   - reference_found: {first_trace.get('reference_found')}")
+            print(f"   - total_score: {mock_data.get('total_score')}")
+            print(f"   - reference_similarity: {mock_data.get('reference_similarity')}")
+            print(f"   - reference_answer: {mock_data.get('reference_answer')}")
+            print(f"   - final_answer: {mock_data.get('final_answer')}")
                 
         except json.JSONDecodeError as e:
             print(f"❌ JSON parsing failed: {e}")
@@ -99,15 +102,19 @@ def test_file_upload():
             "question": "What is the capital of France?",
             "file_name": ""
         }]),
+        "reference_answer": "Paris is the capital of France",
         "final_answer": "Paris",
-        "score_estimate_agent": "0.95",
-        "results_log": json.dumps([{
-            "question": "What is the capital of France?",
-            "file_name": "",
-            "llm_used": "Google Gemini",
-            "similarity_score": 0.95,
-            "reference_found": True
-        }]),
+        "reference_similarity": 0.95,
+        "question": "What is the capital of France?",
+        "file_name": "",
+        "llm_used": "Google Gemini",
+        "llm_stats_json": json.dumps({
+            "models_used": ["Google Gemini"],
+            "total_tokens": 150,
+            "total_cost": 0.002
+        }),
+        "total_score": "85% (17/20 correct)",
+        "error": "",
         "username": "arterm-sedov"
     }
     
