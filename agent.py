@@ -45,8 +45,8 @@ from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
-# Import the git file helper
-from git_file_helper import save_and_commit_file, TRACES_DIR
+# Import the file helper
+from file_helper import TRACES_DIR, upload_init_summary
 
 class Tee:
     """
@@ -407,20 +407,29 @@ class GaiaAgent:
             sys.stdout = old_stdout
         debug_output = debug_buffer.getvalue()
         # --- Save LLM initialization summary to log file and commit to repo ---  
-        # try:
-        #     os.makedirs(TRACES_DIR, exist_ok=True)
-        #     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        #     init_log_path = f"{TRACES_DIR}/{timestamp}_init.log"
-        #     self.init_log_path = init_log_path
-        #     summary = self._format_llm_init_summary(as_str=True)
-        #     log_content = debug_output
-        #     if summary not in debug_output:
-        #         log_content += summary + "\n"
-        #     commit_msg = f"Add log {init_log_path} at {timestamp}"
-        #     save_and_commit_file(init_log_path, log_content, commit_message=commit_msg)
-        #     print(f"✅ LLM initialization summary saved and committed to: {init_log_path}")
-        # except Exception as e:
-        #     print(f"⚠️ Failed to save and commit LLM initialization summary log: {e}")
+        try:
+            # Create structured init data
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            summary = self._format_llm_init_summary(as_str=True)
+            
+            init_data = {
+                "timestamp": timestamp,
+                "init_summary": summary,
+                "debug_output": debug_output,
+                "llm_config": self.LLM_CONFIG,
+                "available_models": self._get_available_models(),
+                "tool_support": self._get_tool_support_status()
+            }
+            
+            # Upload to dataset
+            success = upload_init_summary(init_data)
+            if success:
+                print(f"✅ LLM initialization summary uploaded to dataset")
+            else:
+                print(f"⚠️ Failed to upload LLM initialization summary to dataset")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to upload LLM initialization summary: {e}")
 
     def _load_system_prompt(self):
         """
@@ -2460,3 +2469,39 @@ class GaiaAgent:
             return True, AIMessage(content=f"Error during LLM processing: {str(e)}")
         # Fallback: not handled here
         return False, None
+
+    def _get_available_models(self) -> Dict:
+        """
+        Get list of available models and their status.
+        
+        Returns:
+            Dict: Available models with their status
+        """
+        available_models = {}
+        for llm_type, config in self.LLM_CONFIG.items():
+            if llm_type == "default":
+                continue
+            available_models[llm_type] = {
+                "name": config.get("name", llm_type),
+                "models": config.get("models", []),
+                "tool_support": config.get("tool_support", False),
+                "max_history": config.get("max_history", 15)
+            }
+        return available_models
+
+    def _get_tool_support_status(self) -> Dict:
+        """
+        Get tool support status for each LLM type.
+        
+        Returns:
+            Dict: Tool support status for each LLM
+        """
+        tool_status = {}
+        for llm_type, config in self.LLM_CONFIG.items():
+            if llm_type == "default":
+                continue
+            tool_status[llm_type] = {
+                "tool_support": config.get("tool_support", False),
+                "force_tools": config.get("force_tools", False)
+            }
+        return tool_status

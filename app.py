@@ -10,7 +10,7 @@ import json
 import re
 import base64
 from agent import GaiaAgent
-from git_file_helper import save_and_commit_file, TRACES_DIR
+from file_helper import TRACES_DIR, upload_evaluation_run
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -159,9 +159,30 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     # --- Save results table as CSV for download ---
     results_df = pd.DataFrame(results_log)
-    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # csv_path = f"{TRACES_DIR}/{timestamp}_results.csv"
-    # save_df_to_csv(results_df, csv_path)  # Disabled to prevent Space restarts
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = f"run_{timestamp}"
+    
+    # Upload evaluation run to dataset
+    try:
+        run_data = {
+            "run_id": run_id,
+            "timestamp": timestamp,
+            "questions_count": len(results_log),
+            "results_log": results_log,
+            "results_df": results_df.to_dict('records'),
+            "username": username.strip() if username else "unknown",
+            "final_status": "",  # Will be updated after submission
+            "score_path": ""     # Will be updated after submission
+        }
+        
+        success = upload_evaluation_run(run_data)
+        if success:
+            print(f"✅ Evaluation run uploaded to dataset: {run_id}")
+        else:
+            print(f"⚠️ Failed to upload evaluation run to dataset")
+            
+    except Exception as e:
+        print(f"⚠️ Failed to upload evaluation run: {e}")
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -184,48 +205,42 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         print("Submission successful.")
         # Save final status to a text file and upload via API
         score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
-        # try:
-        #     success = save_and_commit_file(
-        #         file_path=score_path,
-        #         content=final_status,
-        #         commit_message=f"Add score summary {timestamp}"
-        #     )
-        #     if success:
-        #         print(f"✅ Score summary uploaded successfully: {score_path}")
-        #     else:
-        #         print(f"⚠️ Score summary upload failed, saved locally only: {score_path}")
-        #         # Fallback to local save
-        #         with open(score_path, "w", encoding="utf-8") as f:
-        #             f.write(final_status)
-        # except Exception as e:
-        #     print(f"⚠️ Score summary upload error: {e}, saving locally only")
-        #     # Fallback to local save
-        #     with open(score_path, "w", encoding="utf-8") as f:
-        #         f.write(final_status)
+        
+        # Update the run data with final status and upload complete record
+        try:
+            run_data["final_status"] = final_status
+            run_data["score_path"] = score_path
+            
+            success = upload_evaluation_run(run_data)
+            if success:
+                print(f"✅ Complete evaluation run uploaded to dataset: {run_id}")
+            else:
+                print(f"⚠️ Failed to upload complete evaluation run to dataset")
+                
+        except Exception as e:
+            print(f"⚠️ Failed to upload complete evaluation run: {e}")
+            
         return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Save error status to a text file and upload via API
         score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
-        # try:
-        #     success = save_and_commit_file(
-        #         file_path=score_path,
-        #         content=status_message,
-        #         commit_message=f"Add error score summary {timestamp}"
-        #     )
-        #     if success:
-        #         print(f"✅ Error score summary uploaded successfully: {score_path}")
-        #     else:
-        #         print(f"⚠️ Error score summary upload failed, saved locally only: {score_path}")
-        #         # Fallback to local save
-        #         with open(score_path, "w", encoding="utf-8") as f:
-        #             f.write(status_message)
-        # except Exception as e:
-        #     print(f"⚠️ Error score summary upload error: {e}, saving locally only")
-        #     # Fallback to local save
-        #     with open(score_path, "w", encoding="utf-8") as f:
-        #         f.write(status_message)
+        
+        # Update the run data with error status and upload complete record
+        try:
+            run_data["final_status"] = status_message
+            run_data["score_path"] = score_path
+            
+            success = upload_evaluation_run(run_data)
+            if success:
+                print(f"✅ Complete evaluation run (with error) uploaded to dataset: {run_id}")
+            else:
+                print(f"⚠️ Failed to upload complete evaluation run (with error) to dataset")
+                
+        except Exception as upload_e:
+            print(f"⚠️ Failed to upload complete evaluation run (with error): {upload_e}")
+            
         return status_message, results_df
 
 def get_logs_html():

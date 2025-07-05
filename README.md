@@ -86,53 +86,80 @@ See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for:
 
 ---
 
-## 📁 HF API File Operations
+## 📊 Dataset Upload System
 
-The project includes file operations using the HuggingFace Hub API:
+The project includes a comprehensive dataset upload system for tracking agent performance and initialization:
 
-### 🚀 New Features
+### 🚀 Features
 
-- **API-based file uploads** using `CommitOperationAdd`
-- **Batch file operations** with multiple files in single commit
-- **Log file management** for saving agent logs and results
-- **Clean and focused** - no unnecessary operations
-- **Simple integration** with existing code
+- **Structured dataset uploads** to HuggingFace datasets
+- **Schema validation** against `dataset_config.json`
+- **Two data splits**: `init` (initialization) and `runs` (evaluation results)
+- **Automatic data serialization** for complex objects
+- **Robust error handling** with fallback mechanisms
 
 ### 📚 Documentation
 
-- **`misc_files/HF_API_UPLOAD_GUIDE.md`**: Comprehensive guide for API-based file operations
-- **`misc_files/test_hf_api_upload.py`**: Test suite for API functionality
-- **`misc_files/example_api_usage.py`**: Practical examples and demonstrations
+- **`dataset_config.json`**: Schema definition for dataset structure
+- **`file_helper.py`**: Core upload functions with validation
+- **`misc_files/validate_file_upload.py`**: Validation script for upload functionality
+- **`misc_files/test_dataset_upload.py`**: Test suite for dataset uploads
 
 ### 🔧 Usage Examples
 
 ```python
-# Single file upload
-from git_file_helper import upload_file_via_api
-success = upload_file_via_api("logs/test.txt", "content")
+# Upload initialization data
+from file_helper import upload_init_summary
+init_data = {
+    "timestamp": "20250705_123456",
+    "init_summary": "LLM initialization results...",
+    "debug_output": "Debug information...",
+    "llm_config": {"models": [...]},
+    "available_models": {"gemini": {...}},
+    "tool_support": {"gemini": True}
+}
+success = upload_init_summary(init_data)
 
-# Batch upload
-from git_file_helper import batch_upload_files
-files_data = {"file1.txt": "content1", "file2.txt": "content2"}
-results = batch_upload_files(files_data)
-
-# Enhanced existing function
-from git_file_helper import save_and_commit_file
-success = save_and_commit_file("logs/test.txt", "content")  # API-based
+# Upload evaluation run data
+from file_helper import upload_evaluation_run
+run_data = {
+    "run_id": "run_20250705_123456",
+    "timestamp": "20250705_123456",
+    "questions_count": 10,
+    "results_log": [...],
+    "results_df": [...],
+    "username": "user123",
+    "final_status": "Success: 80% score",
+    "score_path": "logs/score.txt"
+}
+success = upload_evaluation_run(run_data)
 ```
 
 ---
 
-## 📋 Log Files Generated
+## 📋 Data Upload System
 
-The evaluation generates several log files that are automatically uploaded to the HuggingFace repository:
+The evaluation automatically uploads structured data to the HuggingFace dataset:
 
-- **LLM Trace Log** (`{timestamp}_llm_trace.log`): Detailed JSON log of agent interactions
-- **Results CSV** (`{timestamp}_results.csv`): Structured table of questions and answers  
-- **Score Summary** (`{timestamp}_score.txt`): Final evaluation results and scores
-- **Init Log** (`{timestamp}.init.log`): Agent initialization details
+### 🔄 Initialization Data (`init` split)
+- **Timestamp**: When the agent was initialized
+- **Init Summary**: LLM initialization results and model status
+- **Debug Output**: Detailed initialization logs
+- **LLM Config**: Configuration for all available models
+- **Available Models**: List of successfully initialized models
+- **Tool Support**: Tool support status for each model
 
-All logs are automatically uploaded to the HuggingFace repository for easy access and analysis.
+### 📊 Evaluation Data (`runs` split)
+- **Run ID**: Unique identifier for each evaluation run
+- **Timestamp**: When the evaluation was completed
+- **Questions Count**: Number of questions processed
+- **Results Log**: Detailed log of all questions and answers
+- **Results DF**: Structured data table of results
+- **Username**: User who ran the evaluation
+- **Final Status**: Success/failure status and score
+- **Score Path**: Path to detailed score file
+
+All data is automatically validated against the schema and uploaded to the HuggingFace dataset for analysis and tracking.
 
 ---
 
