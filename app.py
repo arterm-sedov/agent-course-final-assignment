@@ -367,6 +367,43 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             
         return status_message, results_df
 
+def get_dataset_stats_html():
+    """
+    Get dataset statistics and return as HTML.
+    """
+    try:
+        from datasets import load_dataset
+        
+        # Load the dataset
+        dataset = load_dataset("arterm-sedov/agent-course-final-assignment")
+        
+        # Get statistics for each split
+        stats_html = "<div style='margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;'>"
+        stats_html += "<h3>📊 Dataset Statistics</h3>"
+        
+        for split_name in dataset.keys():
+            split_data = dataset[split_name]
+            stats_html += f"<div style='margin: 10px 0;'>"
+            stats_html += f"<strong>{split_name.upper()} Split:</strong> {len(split_data)} records"
+            stats_html += "</div>"
+        
+        # Add latest run info if available
+        if "runs_new" in dataset:
+            runs_new_data = dataset["runs_new"]
+            if len(runs_new_data) > 0:
+                latest_run = runs_new_data[-1]
+                stats_html += f"<div style='margin: 10px 0;'>"
+                stats_html += f"<strong>Latest Run:</strong> {latest_run.get('run_id', 'N/A')}"
+                stats_html += f"<br><strong>Total Score:</strong> {latest_run.get('total_score', 'N/A')}"
+                stats_html += f"<br><strong>Username:</strong> {latest_run.get('username', 'N/A')}"
+                stats_html += "</div>"
+        
+        stats_html += "</div>"
+        return stats_html
+        
+    except Exception as e:
+        return f"<div style='margin: 20px 0; padding: 15px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px;'>⚠️ Could not load dataset statistics: {e}</div>"
+
 def get_logs_html():
     logs_dir = "logs"
     rows = []
@@ -569,7 +606,41 @@ with gr.Blocks() as demo:
                 fn=run_and_submit_all,
                 outputs=[status_output, results_table]
             )
-        with gr.TabItem("LOGS"):
+        with gr.TabItem("Results dataset"):
+            gr.Markdown("## Dataset statistics")
+            dataset_stats_output = gr.HTML(get_dataset_stats_html())
+            refresh_stats_btn = gr.Button("🔄 Refresh Dataset Statistics")
+            refresh_stats_btn.click(fn=get_dataset_stats_html, outputs=dataset_stats_output)
+            
+            gr.Markdown("## dataset viewer")
+            gr.Markdown(
+                """
+                ### Live Dataset viewer
+                View the latest evaluation runs uploaded to the HuggingFace dataset.
+                
+                **Dataset URL:** [arterm-sedov/agent-course-final-assignment](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
+                
+                **Runs New Split:** [View Latest Runs](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/default/runs_new)
+                
+                > **Note:** The dataset viewer may show schema conflicts between different splits (init, runs, runs_new). This is expected as each split has different schemas. The `runs_new` split contains the latest granular evaluation data.
+                """
+            )
+            
+            # Embed the dataset viewer
+            dataset_viewer_html = """
+            <div style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
+                <iframe 
+                    src="https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/default/runs_new" 
+                    width="100%" 
+                    height="100%" 
+                    frameborder="0"
+                    style="border: none;"
+                    title="Dataset Viewer">
+                </iframe>
+            </div>
+            """
+            gr.HTML(dataset_viewer_html)
+        with gr.TabItem("Logs"):
             gr.Markdown("## Logs download links")
             gr.HTML(get_logs_html())
 
