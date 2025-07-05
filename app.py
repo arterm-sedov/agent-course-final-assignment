@@ -374,38 +374,44 @@ def get_dataset_stats_html():
     try:
         from datasets import load_dataset
         
-        # Load the dataset with all configs
-        dataset = load_dataset("arterm-sedov/agent-course-final-assignment")
-        
-        # Get statistics for each config and split
+        # Load each config separately
+        configs = ['init', 'runs_new']
         stats_html = "<div style='margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;'>"
         stats_html += "<h3>📊 Dataset Statistics</h3>"
         
-        # Iterate through all configs
-        for config_name in dataset.keys():
-            config_data = dataset[config_name]
-            stats_html += f"<div style='margin: 15px 0; padding: 10px; background: #e9ecef; border-radius: 5px;'>"
-            stats_html += f"<h4>🔧 Config: {config_name.upper()}</h4>"
-            
-            # Get statistics for each split in this config
-            for split_name in config_data.keys():
-                split_data = config_data[split_name]
-                stats_html += f"<div style='margin: 8px 0;'>"
-                stats_html += f"<strong>{split_name.upper()} Split:</strong> {len(split_data)} records"
-                stats_html += "</div>"
-            
-            # Add latest run info for runs_new config
-            if config_name == "runs_new" and "default" in config_data:
-                runs_new_data = config_data["default"]
-                if len(runs_new_data) > 0:
-                    latest_run = runs_new_data[-1]
-                    stats_html += f"<div style='margin: 10px 0; padding: 8px; background: #d4edda; border-radius: 3px;'>"
-                    stats_html += f"<strong>Latest Run:</strong> {latest_run.get('run_id', 'N/A')}"
-                    stats_html += f"<br><strong>Total Score:</strong> {latest_run.get('total_score', 'N/A')}"
-                    stats_html += f"<br><strong>Username:</strong> {latest_run.get('username', 'N/A')}"
+        for config_name in configs:
+            try:
+                # Load specific config
+                config_data = load_dataset("arterm-sedov/agent-course-final-assignment", config_name)
+                
+                stats_html += f"<div style='margin: 15px 0; padding: 10px; background: #e9ecef; border-radius: 5px;'>"
+                stats_html += f"<h4>🔧 Config: {config_name.upper()}</h4>"
+                
+                # Get statistics for each split in this config
+                for split_name in config_data.keys():
+                    split_data = config_data[split_name]
+                    stats_html += f"<div style='margin: 8px 0;'>"
+                    stats_html += f"<strong>{split_name.upper()} Split:</strong> {len(split_data)} records"
                     stats_html += "</div>"
-            
-            stats_html += "</div>"
+                
+                # Add latest run info for runs_new config
+                if config_name == "runs_new" and "default" in config_data:
+                    runs_new_data = config_data["default"]
+                    if len(runs_new_data) > 0:
+                        latest_run = runs_new_data[-1]
+                        stats_html += f"<div style='margin: 10px 0; padding: 8px; background: #d4edda; border-radius: 3px;'>"
+                        stats_html += f"<strong>Latest Run:</strong> {latest_run.get('run_id', 'N/A')}"
+                        stats_html += f"<br><strong>Total Score:</strong> {latest_run.get('total_score', 'N/A')}"
+                        stats_html += f"<br><strong>Username:</strong> {latest_run.get('username', 'N/A')}"
+                        stats_html += "</div>"
+                
+                stats_html += "</div>"
+                
+            except Exception as config_error:
+                stats_html += f"<div style='margin: 15px 0; padding: 10px; background: #f8d7da; border-radius: 5px;'>"
+                stats_html += f"<h4>❌ Config: {config_name.upper()}</h4>"
+                stats_html += f"<div style='margin: 8px 0; color: #721c24;'>Error loading config: {config_error}</div>"
+                stats_html += "</div>"
         
         stats_html += "</div>"
         return stats_html
