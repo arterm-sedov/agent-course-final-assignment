@@ -3,6 +3,9 @@ import datetime
 from typing import Optional, Union, Dict, Any
 from pathlib import Path
 
+# Global constants
+TRACES_DIR = "traces"  # Directory for uploading trace files (won't trigger Space restarts)
+
 # Import huggingface_hub components for API-based file operations
 try:
     from huggingface_hub import HfApi, CommitOperationAdd

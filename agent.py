@@ -46,7 +46,7 @@ from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
 # Import the git file helper
-from git_file_helper import save_and_commit_file
+from git_file_helper import save_and_commit_file, TRACES_DIR
 
 class Tee:
     """
@@ -408,9 +408,9 @@ class GaiaAgent:
         debug_output = debug_buffer.getvalue()
         # --- Save LLM initialization summary to log file and commit to repo ---  
         try:
-            os.makedirs("logs", exist_ok=True)
+            os.makedirs(TRACES_DIR, exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            init_log_path = f"logs/{timestamp}_init.log"
+            init_log_path = f"{TRACES_DIR}/{timestamp}_init.log"
             self.init_log_path = init_log_path
             summary = self._format_llm_init_summary(as_str=True)
             log_content = debug_output

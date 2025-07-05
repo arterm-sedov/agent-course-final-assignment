@@ -10,7 +10,7 @@ import json
 import re
 import base64
 from agent import GaiaAgent
-from git_file_helper import save_and_commit_file
+from git_file_helper import save_and_commit_file, TRACES_DIR
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -160,7 +160,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     # --- Save results table as CSV for download ---
     results_df = pd.DataFrame(results_log)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = f"logs/{timestamp}_results.csv"
+    csv_path = f"{TRACES_DIR}/{timestamp}_results.csv"
     save_df_to_csv(results_df, csv_path)  # Re-enabled with API support
 
     # 4. Prepare Submission
@@ -183,7 +183,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         )
         print("Submission successful.")
         # Save final status to a text file and upload via API
-        score_path = f"logs/{timestamp}_score.txt"
+        score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
         try:
             success = save_and_commit_file(
                 file_path=score_path,
@@ -207,7 +207,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Save error status to a text file and upload via API
-        score_path = f"logs/{timestamp}_score.txt"
+        score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
         try:
             success = save_and_commit_file(
                 file_path=score_path,
@@ -358,15 +358,15 @@ def save_results_log(results_log: list) -> str:
         str: Path to the saved log file, or None if failed
     """
     try:
-        # Create logs directory if it doesn't exist
-        os.makedirs("logs", exist_ok=True)
+        # Create traces directory if it doesn't exist
+        os.makedirs(TRACES_DIR, exist_ok=True)
         
         # Generate timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Prepare log content
         log_content = json.dumps(results_log, indent=2, ensure_ascii=False)
-        log_path = f"logs/{timestamp}_llm_trace.log"
+        log_path = f"{TRACES_DIR}/{timestamp}_llm_trace.log"
         
         # Upload via API
         try:
