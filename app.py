@@ -424,6 +424,10 @@ def get_logs_html():
     rows = []
     files = []
     
+    # Get space ID for repository links
+    space_id = os.getenv("SPACE_ID", "arterm-sedov/agent-course-final-assignment")
+    repo_base_url = f"https://huggingface.co/spaces/{space_id}/resolve/main"
+    
     if os.path.exists(logs_dir):
         for fname in os.listdir(logs_dir):
             fpath = os.path.join(logs_dir, fname)
@@ -437,7 +441,9 @@ def get_logs_html():
         # Sort all files by datetime descending (newest first)
         files.sort(key=lambda x: x[2], reverse=True)
         for fname, timestamp, dt, fpath in files:
-            download_link = f'<a href="file/{fpath}" download="{fname}">Download</a>'
+            # Create repository download link
+            repo_download_url = f"{repo_base_url}/logs/{fname}?download=true"
+            download_link = f'<a href="{repo_download_url}" target="_blank" rel="noopener noreferrer">Download from Repo</a>'
             date_str = dt.strftime('%Y-%m-%d %H:%M:%S')
             rows.append(f"<tr><td>{fname}</td><td>{date_str}</td><td>{download_link}</td></tr>")
     
