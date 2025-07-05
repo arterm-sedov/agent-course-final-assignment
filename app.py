@@ -595,11 +595,18 @@ def save_results_log(results_log: list) -> str:
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
+    gr.Markdown(open("README.md", "r", encoding="utf-8").read())
     gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner")
     gr.Markdown(
         """
+       
         **Instructions:**
-
+        **If you want to test the agent**
+        
+        1.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
+        
+        **If you want to copy the agent**
+        
         1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
         2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
         3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
@@ -641,7 +648,7 @@ with gr.Blocks() as demo:
                 
                 **Dataset URL:** [arterm-sedov/agent-course-final-assignment](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
                 
-                **Runs New Split:** [View Latest Runs](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/default/runs_new)
+                **Runs New Split:** [View Latest Runs](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/runs_new)
                 
                 > **Note:** The dataset viewer may show schema conflicts between different splits (init, runs, runs_new). This is expected as each split has different schemas. The `runs_new` split contains the latest granular evaluation data.
                 """

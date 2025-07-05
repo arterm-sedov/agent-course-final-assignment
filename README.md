@@ -1,5 +1,7 @@
 ---
 title: Template Final Assignment
+author: Arte(r)m Sedov
+author_github: https://github.com/arterm-sedov/
 emoji: 🕵🏻‍♂️
 colorFrom: indigo
 colorTo: indigo
@@ -11,21 +13,25 @@ hf_oauth: true
 hf_oauth_expiration_minutes: 480
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
-
-# arterm-sedov GAIA Agent
-
-> **For setup, installation, and troubleshooting, see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).**
-
-## The result dataset
-
-https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment
+# GAIA Agent
 
 ---
 
-## 🚀 The Ultimate Multi-LLM GAIA Agent
+## 🚀 Arterm Sedov's Ultimate Multi-LLM GAIA Agent
 
-Behold arterm-sedov's GAIA Unit 4 Agent — a robust and extensible system designed for real-world reliability and benchmark performance. This agent is the result of a creative collaboration between Arterm and Cursor IDE to make complex things simple, powerful, and fun to use.
+Behold Arte(r)m's GAIA Unit 4 Agent — a robust and extensible system designed for real-world reliability and benchmark performance. This agent is the result of a creative collaboration between Arterm and Cursor IDE to make complex things simple, powerful, and fun to use.
+
+This is Arterm's graduation work for The Agents Course:
+
+<https://huggingface.co/learn/agents-course/en/>
+
+## The result dataset
+
+<https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment>
+
+Arterm's github <https://github.com/arterm-sedov/>
+
+> **For agent setup, installation, and troubleshooting, see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).**
 
 ### What Makes This Agent Stand Out?
 
@@ -134,3 +140,4 @@ All data is automatically validated against the schema and uploaded to the Huggi
 
 ---
 
+HF Spaces configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
