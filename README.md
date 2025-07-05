@@ -17,6 +17,10 @@ Check out the configuration reference at https://huggingface.co/docs/hub/spaces-
 
 > **For setup, installation, and troubleshooting, see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).**
 
+## The result dataset
+
+https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment
+
 ---
 
 ## 🚀 The Ultimate Multi-LLM GAIA Agent
