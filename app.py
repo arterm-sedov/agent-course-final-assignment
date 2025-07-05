@@ -159,9 +159,9 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
 
     # --- Save results table as CSV for download ---
     results_df = pd.DataFrame(results_log)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = f"{TRACES_DIR}/{timestamp}_results.csv"
-    save_df_to_csv(results_df, csv_path)  # Re-enabled with API support
+    # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # csv_path = f"{TRACES_DIR}/{timestamp}_results.csv"
+    # save_df_to_csv(results_df, csv_path)  # Disabled to prevent Space restarts
 
     # 4. Prepare Submission
     submission_data = {"username": username.strip(), "agent_code": agent_code, "answers": answers_payload}
@@ -184,48 +184,48 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
         print("Submission successful.")
         # Save final status to a text file and upload via API
         score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
-        try:
-            success = save_and_commit_file(
-                file_path=score_path,
-                content=final_status,
-                commit_message=f"Add score summary {timestamp}"
-            )
-            if success:
-                print(f"✅ Score summary uploaded successfully: {score_path}")
-            else:
-                print(f"⚠️ Score summary upload failed, saved locally only: {score_path}")
-                # Fallback to local save
-                with open(score_path, "w", encoding="utf-8") as f:
-                    f.write(final_status)
-        except Exception as e:
-            print(f"⚠️ Score summary upload error: {e}, saving locally only")
-            # Fallback to local save
-            with open(score_path, "w", encoding="utf-8") as f:
-                f.write(final_status)
+        # try:
+        #     success = save_and_commit_file(
+        #         file_path=score_path,
+        #         content=final_status,
+        #         commit_message=f"Add score summary {timestamp}"
+        #     )
+        #     if success:
+        #         print(f"✅ Score summary uploaded successfully: {score_path}")
+        #     else:
+        #         print(f"⚠️ Score summary upload failed, saved locally only: {score_path}")
+        #         # Fallback to local save
+        #         with open(score_path, "w", encoding="utf-8") as f:
+        #             f.write(final_status)
+        # except Exception as e:
+        #     print(f"⚠️ Score summary upload error: {e}, saving locally only")
+        #     # Fallback to local save
+        #     with open(score_path, "w", encoding="utf-8") as f:
+        #         f.write(final_status)
         return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Save error status to a text file and upload via API
         score_path = f"{TRACES_DIR}/{timestamp}_score.txt"
-        try:
-            success = save_and_commit_file(
-                file_path=score_path,
-                content=status_message,
-                commit_message=f"Add error score summary {timestamp}"
-            )
-            if success:
-                print(f"✅ Error score summary uploaded successfully: {score_path}")
-            else:
-                print(f"⚠️ Error score summary upload failed, saved locally only: {score_path}")
-                # Fallback to local save
-                with open(score_path, "w", encoding="utf-8") as f:
-                    f.write(status_message)
-        except Exception as e:
-            print(f"⚠️ Error score summary upload error: {e}, saving locally only")
-            # Fallback to local save
-            with open(score_path, "w", encoding="utf-8") as f:
-                f.write(status_message)
+        # try:
+        #     success = save_and_commit_file(
+        #         file_path=score_path,
+        #         content=status_message,
+        #         commit_message=f"Add error score summary {timestamp}"
+        #     )
+        #     if success:
+        #         print(f"✅ Error score summary uploaded successfully: {score_path}")
+        #     else:
+        #         print(f"⚠️ Error score summary upload failed, saved locally only: {score_path}")
+        #         # Fallback to local save
+        #         with open(score_path, "w", encoding="utf-8") as f:
+        #             f.write(status_message)
+        # except Exception as e:
+        #     print(f"⚠️ Error score summary upload error: {e}, saving locally only")
+        #     # Fallback to local save
+        #     with open(score_path, "w", encoding="utf-8") as f:
+        #         f.write(status_message)
         return status_message, results_df
 
 def get_logs_html():
@@ -369,24 +369,24 @@ def save_results_log(results_log: list) -> str:
         log_path = f"{TRACES_DIR}/{timestamp}_llm_trace.log"
         
         # Upload via API
-        try:
-            success = save_and_commit_file(
-                file_path=log_path,
-                content=log_content,
-                commit_message=f"Add LLM trace log {timestamp}"
-            )
-            if success:
-                print(f"✅ LLM trace log uploaded successfully: {log_path}")
-            else:
-                print(f"⚠️ LLM trace log upload failed, saved locally only: {log_path}")
-                # Fallback to local save
-                with open(log_path, "w", encoding="utf-8") as f:
-                    f.write(log_content)
-        except Exception as e:
-            print(f"⚠️ LLM trace log upload error: {e}, saving locally only")
-            # Fallback to local save
-            with open(log_path, "w", encoding="utf-8") as f:
-                f.write(log_content)
+        # try:
+        #     success = save_and_commit_file(
+        #         file_path=log_path,
+        #         content=log_content,
+        #         commit_message=f"Add LLM trace log {timestamp}"
+        #     )
+        #     if success:
+        #         print(f"✅ LLM trace log uploaded successfully: {log_path}")
+        #     else:
+        #         print(f"⚠️ LLM trace log upload failed, saved locally only: {log_path}")
+        #         # Fallback to local save
+        #         with open(log_path, "w", encoding="utf-8") as f:
+        #             f.write(log_content)
+        # except Exception as e:
+        #     print(f"⚠️ LLM trace log upload error: {e}, saving locally only")
+        #     # Fallback to local save
+        #     with open(log_path, "w", encoding="utf-8") as f:
+        #         f.write(log_content)
         
         return log_path
         
