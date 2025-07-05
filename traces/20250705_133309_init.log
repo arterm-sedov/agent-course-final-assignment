@@ -1,0 +1,460 @@
+🔄 Initializing LLMs based on sequence:
+   1. OpenRouter
+   2. Google Gemini
+   3. Groq
+   4. HuggingFace
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+🔄 Initializing LLM OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (1 of 4)
+🧪 Testing OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) with 'Hello' message...
+✅ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) test successful!
+   Response time: 3.04s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: FINAL ANSWER: What is the meaning of life
+------------------------------------------------
+
+  additional_kwargs: {
+  "refusal": null
+}
+------------------------------------------------
+
+  response_metadata: {
+  "token_usage": {
+    "completion_tokens": 11,
+    "prompt_tokens": 2257,
+    "total_tokens": 2268,
+    "completion_tokens_details": null,
+    "prompt_tokens_details": null
+  },
+  "model_name": "deepseek/deepseek-chat-v3-0324:free",
+  "system_fingerprint": null,
+  "id": "gen-1751715158-67tQzDhfq6HkbWVHvldY",
+  "service_tier": null,
+  "finish_reason": "stop",
+  "logprobs": null
+}
+------------------------------------------------
+
+  id: run--7a6f24ac-6f94-40ba-8beb-a4e9bcb1ffac-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'name', 'usage_metadata', 'id', 'tool_calls', 'additional_kwargs', 'invalid_tool_calls', 'response_metadata', 'content'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2257,
+  "output_tokens": 11,
+  "total_tokens": 2268,
+  "input_token_details": {},
+  "output_token_details": {}
+}
+------------------------------------------------
+
+🧪 Testing OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (with tools) with 'Hello' message...
+❌ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (with tools) returned empty response
+⚠️ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (OpenRouter) initialized successfully with model deepseek/deepseek-chat-v3-0324:free
+🔄 Initializing LLM Google Gemini (model: gemini-2.5-pro) (2 of 4)
+🧪 Testing Google Gemini (model: gemini-2.5-pro) with 'Hello' message...
+✅ Google Gemini (model: gemini-2.5-pro) test successful!
+   Response time: 11.49s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: FINAL ANSWER: What do you get if you multiply six by nine?
+------------------------------------------------
+
+  response_metadata: {
+  "prompt_feedback": {
+    "block_reason": 0,
+    "safety_ratings": []
+  },
+  "finish_reason": "STOP",
+  "model_name": "gemini-2.5-pro",
+  "safety_ratings": []
+}
+------------------------------------------------
+
+  id: run--26aa1794-6cb4-45f5-8ac3-e16bb9c448b2-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'usage_metadata', 'additional_kwargs', 'tool_calls', 'invalid_tool_calls', 'id', 'response_metadata', 'content'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2229,
+  "output_tokens": 14,
+  "total_tokens": 3186,
+  "input_token_details": {
+    "cache_read": 0
+  },
+  "output_token_details": {
+    "reasoning": 943
+  }
+}
+------------------------------------------------
+
+🧪 Testing Google Gemini (model: gemini-2.5-pro) (with tools) with 'Hello' message...
+❌ Google Gemini (model: gemini-2.5-pro) (with tools) returned empty response
+⚠️ Google Gemini (model: gemini-2.5-pro) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (Google Gemini) initialized successfully with model gemini-2.5-pro
+🔄 Initializing LLM Groq (model: qwen-qwq-32b) (3 of 4)
+🧪 Testing Groq (model: qwen-qwq-32b) with 'Hello' message...
+✅ Groq (model: qwen-qwq-32b) test successful!
+   Response time: 1.48s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: Truncated. Original length: 2263
+
+<think>
+Okay, the user is asking, "What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)". Hmm, I need to figure out what they're really looking for here. The question seems a bit abstract. Maybe they're referring to a specific context, like a book, movie, or a philosophical question. The mention of "Galaxy" could be a reference to "The Hitchhiker's Guide to the Galaxy," where the ultimate question of life, the universe, and everything is a central plot point. In that story, the answer to the ultimate question is 42, but the actual question itself is never revealed. So perhaps the user is asking for that main question from the book. Let me check if there's a tool I can use here. Since it's a literary reference, maybe a web_search or wiki_search would help confirm. Let me try the web_search tool first. Searching for "main question in the Hitchhiker's Guide to the Galaxy" should give me the relevant info. The results probably mention that the question is neve
+------------------------------------------------
+
+  response_metadata: {
+  "token_usage": {
+    "completion_tokens": 506,
+    "prompt_tokens": 2213,
+    "total_tokens": 2719,
+    "completion_time": 1.171538474,
+    "prompt_time": 0.117736559,
+    "queue_time": 0.01137864000000001,
+    "total_time": 1.289275033
+  },
+  "model_name": "qwen-qwq-32b",
+  "system_fingerprint": "fp_a91d9c2cfb",
+  "finish_reason": "stop",
+  "logprobs": null
+}
+------------------------------------------------
+
+  id: run--9900c161-f0e5-416f-95e4-cc9cd9b50b5d-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'usage_metadata', 'id', 'tool_calls', 'invalid_tool_calls', 'additional_kwargs', 'response_metadata', 'content'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2213,
+  "output_tokens": 506,
+  "total_tokens": 2719
+}
+------------------------------------------------
+
+🧪 Testing Groq (model: qwen-qwq-32b) (with tools) with 'Hello' message...
+✅ Groq (model: qwen-qwq-32b) (with tools) test successful!
+   Response time: 1.19s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: FINAL ANSWER: The ultimate question of life, the universe, and everything remains unknown in "The Hitchhiker's Guide to the Galaxy." The fictional answer given is 42, but the actual question is never revealed.
+------------------------------------------------
+
+  additional_kwargs: Truncated. Original length: 1498
+{
+  "reasoning_content": "Okay, the user is asking, \"What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)\". Hmm, this sounds familiar. Wait, in \"The Hitchhiker's Guide to the Galaxy,\" the ultimate question of life, the universe, and everything is a central plot point. The answer is 42, but the question itself is never revealed. The user might be referencing that. Let me check if there's a tool to confirm this.\n\nLooking at the tools provided, there's the exa_ai_helper function which can answer questions. I should use that first. Let me call exa_ai_helper with the user's question. If that doesn't work, maybe web_search or wiki_search. But according to the tool usage strategy, I should try exa_ai_helper first. Let me try that first. The function requires the question as input. So I'll call exa_ai_helper with the user's exact question. If it returns the correct info, I can format the answer. If not, maybe proceed to web_search. But since the question is a
+------------------------------------------------
+
+  response_metadata: {
+  "token_usage": {
+    "completion_tokens": 382,
+    "prompt_tokens": 4395,
+    "total_tokens": 4777,
+    "completion_time": 0.876283198,
+    "prompt_time": 0.23321365,
+    "queue_time": 0.019522505999999995,
+    "total_time": 1.109496848
+  },
+  "model_name": "qwen-qwq-32b",
+  "system_fingerprint": "fp_a91d9c2cfb",
+  "finish_reason": "stop",
+  "logprobs": null
+}
+------------------------------------------------
+
+  id: run--4af81e07-139d-4461-a021-102a3b71506a-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'usage_metadata', 'id', 'tool_calls', 'invalid_tool_calls', 'additional_kwargs', 'response_metadata', 'content'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 4395,
+  "output_tokens": 382,
+  "total_tokens": 4777
+}
+------------------------------------------------
+
+✅ LLM (Groq) initialized successfully with model qwen-qwq-32b
+🔄 Initializing LLM HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) (4 of 4)
+🧪 Testing HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) with 'Hello' message...
+❌ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) test failed: 402 Client Error: Payment Required for url: https://router.huggingface.co/hyperbolic/v1/chat/completions (Request ID: Root=1-68690d74-0dfef8be6484a4155df5fadf;28f005ae-0099-4b0a-8c53-16d14e185c46)
+
+You have exceeded your monthly included credits for Inference Providers. Subscribe to PRO to get 20x more monthly included credits.
+⚠️ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: microsoft/DialoGPT-medium) (4 of 4)
+🧪 Testing HuggingFace (model: microsoft/DialoGPT-medium) with 'Hello' message...
+❌ HuggingFace (model: microsoft/DialoGPT-medium) test failed: 
+⚠️ HuggingFace (model: microsoft/DialoGPT-medium) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: gpt2) (4 of 4)
+🧪 Testing HuggingFace (model: gpt2) with 'Hello' message...
+❌ HuggingFace (model: gpt2) test failed: 
+⚠️ HuggingFace (model: gpt2) failed initialization (plain_ok=False, tools_ok=None)
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+
+===== LLM Initialization Summary =====
+Provider       | Model                                   | Plain| Tools         | Error (tools)       
+------------------------------------------------------------------------------------------------------
+OpenRouter     | deepseek/deepseek-chat-v3-0324:free     | ✅    | ❌ (forced)    |                     
+Google Gemini  | gemini-2.5-pro                          | ✅    | ❌ (forced)    |                     
+Groq           | qwen-qwq-32b                            | ✅    | ✅ (forced)    |                     
+HuggingFace    | Qwen/Qwen2.5-Coder-32B-Instruct         | ❌    | N/A           |                     
+HuggingFace    | microsoft/DialoGPT-medium               | ❌    | N/A           |                     
+HuggingFace    | gpt2                                    | ❌    | N/A           |                     
+======================================================================================================
+
