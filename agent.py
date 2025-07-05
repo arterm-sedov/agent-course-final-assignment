@@ -410,7 +410,7 @@ class GaiaAgent:
         try:
             os.makedirs("logs", exist_ok=True)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            init_log_path = f"logs/{timestamp}.init.log"
+            init_log_path = f"logs/{timestamp}_init.log"
             self.init_log_path = init_log_path
             summary = self._format_llm_init_summary(as_str=True)
             log_content = debug_output

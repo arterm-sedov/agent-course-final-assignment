@@ -21,7 +21,7 @@ Check out the configuration reference at https://huggingface.co/docs/hub/spaces-
 
 ## 🚀 The Ultimate Multi-LLM GAIA Agent
 
-Behold arterm-sedov's GAIA Unit 4 Agent — a robust, transparent, and extensible system designed for real-world reliability and benchmark performance. This agent is the result of a creative collaboration between seasoned ML engineers, systems analysts, and technical writers who know how to make complex things simple, powerful, and fun to use.
+Behold arterm-sedov's GAIA Unit 4 Agent — a robust and extensible system designed for real-world reliability and benchmark performance. This agent is the result of a creative collaboration between Arterm and Cursor IDE to make complex things simple, powerful, and fun to use.
 
 ### What Makes This Agent Stand Out?
 
@@ -35,6 +35,19 @@ Behold arterm-sedov's GAIA Unit 4 Agent — a robust, transparent, and extensibl
 
 ---
 
+## 🎯 Usage
+
+1. Log in to your Hugging Face account using the login button
+2. Click "Run Evaluation & Submit All Answers" to start the evaluation
+3. Monitor progress and view results in the interface
+4. Download logs and results from the LOGS tab
+
+---
+
+The agent is ready for the GAIA Unit 4 benchmark — battle-tested, transparent, and extensible.
+
+If you want to know how it works, read on. If you want to get started, [check the setup instructions](./SETUP_INSTRUCTIONS.md). Happy hacking! 🕵🏻‍♂️
+
 ## 🏗️ Architecture at a Glance
 
 - **`agent.py`**: Main agent logic, LLM/model orchestration, tool binding, and summary reporting
@@ -44,6 +57,7 @@ Behold arterm-sedov's GAIA Unit 4 Agent — a robust, transparent, and extensibl
 - **`setup_venv.py`**: Cross-platform setup script
 
 ### Platform-Specific Dependencies
+
 - All core dependencies included in `requirements.txt`
 - TensorFlow pre-installed on Hugging Face Spaces
 - File operations with `huggingface_hub` for API-based uploads
@@ -62,6 +76,7 @@ Behold arterm-sedov's GAIA Unit 4 Agent — a robust, transparent, and extensibl
 ## 🛠️ For Setup & Troubleshooting
 
 See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for:
+
 - Installation and environment setup
 - Requirements and dependencies
 - Environment variable configuration
@@ -76,6 +91,7 @@ See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for:
 The project includes file operations using the HuggingFace Hub API:
 
 ### 🚀 New Features
+
 - **API-based file uploads** using `CommitOperationAdd`
 - **Batch file operations** with multiple files in single commit
 - **Log file management** for saving agent logs and results
@@ -83,9 +99,10 @@ The project includes file operations using the HuggingFace Hub API:
 - **Simple integration** with existing code
 
 ### 📚 Documentation
-- **`HF_API_UPLOAD_GUIDE.md`**: Comprehensive guide for API-based file operations
-- **`test_hf_api_upload.py`**: Test suite for API functionality
-- **`example_api_usage.py`**: Practical examples and demonstrations
+
+- **`misc_files/HF_API_UPLOAD_GUIDE.md`**: Comprehensive guide for API-based file operations
+- **`misc_files/test_hf_api_upload.py`**: Test suite for API functionality
+- **`misc_files/example_api_usage.py`**: Practical examples and demonstrations
 
 ### 🔧 Usage Examples
 
@@ -106,4 +123,16 @@ success = save_and_commit_file("logs/test.txt", "content")  # API-based
 
 ---
 
-The agent is ready for the GAIA Unit 4 benchmark—battle-tested, transparent, and extensible. If you want to know how it works, read on. If you want to get started, [check the setup instructions](./SETUP_INSTRUCTIONS.md). Happy hacking! 🕵🏻‍♂️
+## 📋 Log Files Generated
+
+The evaluation generates several log files that are automatically uploaded to the HuggingFace repository:
+
+- **LLM Trace Log** (`{timestamp}_llm_trace.log`): Detailed JSON log of agent interactions
+- **Results CSV** (`{timestamp}_results.csv`): Structured table of questions and answers  
+- **Score Summary** (`{timestamp}_score.txt`): Final evaluation results and scores
+- **Init Log** (`{timestamp}.init.log`): Agent initialization details
+
+All logs are automatically uploaded to the HuggingFace repository for easy access and analysis.
+
+---
+
