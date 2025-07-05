@@ -1,5 +1,0 @@
-Log Entry
-Timestamp: 2025-07-05 13:31:45.046825
-Level: INFO
-Message: Test log file upload via API
-Status: Success
