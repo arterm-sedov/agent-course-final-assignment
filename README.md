@@ -94,50 +94,23 @@ See [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md) for:
 
 The project includes a comprehensive dataset upload system for tracking agent performance and initialization:
 
+Dataset: https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment
+
 ### 🚀 Features
 
 - **Structured dataset uploads** to HuggingFace datasets
 - **Schema validation** against `dataset_config.json`
-- **Two data splits**: `init` (initialization) and `runs` (evaluation results)
+- **Three data splits**: `init` (initialization), `runs` (legacy aggregated results), and `runs_new` (granular per-question results)
 - **Automatic data serialization** for complex objects
 - **Robust error handling** with fallback mechanisms
 
 ### 📚 Documentation
 
 - **`dataset_config.json`**: Schema definition for dataset structure
+- **`dataset/README.md`**: Detailed dataset documentation and usage examples
 - **`file_helper.py`**: Core upload functions with validation
 - **`misc_files/validate_file_upload.py`**: Validation script for upload functionality
 - **`misc_files/test_dataset_upload.py`**: Test suite for dataset uploads
-
-### 🔧 Usage Examples
-
-```python
-# Upload initialization data
-from file_helper import upload_init_summary
-init_data = {
-    "timestamp": "20250705_123456",
-    "init_summary": "LLM initialization results...",
-    "debug_output": "Debug information...",
-    "llm_config": {"models": [...]},
-    "available_models": {"gemini": {...}},
-    "tool_support": {"gemini": True}
-}
-success = upload_init_summary(init_data)
-
-# Upload evaluation run data
-from file_helper import upload_evaluation_run
-run_data = {
-    "run_id": "run_20250705_123456",
-    "timestamp": "20250705_123456",
-    "questions_count": 10,
-    "results_log": [...],
-    "results_df": [...],
-    "username": "user123",
-    "final_status": "Success: 80% score",
-    "score_path": "logs/score.txt"
-}
-success = upload_evaluation_run(run_data)
-```
 
 ---
 
@@ -153,17 +126,11 @@ The evaluation automatically uploads structured data to the HuggingFace dataset:
 - **Available Models**: List of successfully initialized models
 - **Tool Support**: Tool support status for each model
 
-### 📊 Evaluation Data (`runs` split)
-- **Run ID**: Unique identifier for each evaluation run
-- **Timestamp**: When the evaluation was completed
-- **Questions Count**: Number of questions processed
-- **Results Log**: Detailed log of all questions and answers
-- **Results DF**: Structured data table of results
-- **Username**: User who ran the evaluation
-- **Final Status**: Success/failure status and score
-- **Score Path**: Path to detailed score file
+### 📊 Evaluation Data
+- **`runs` split (Legacy)**: Aggregated evaluation results with multiple questions per record
+- **`runs_new` split (Current)**: Granular per-question results with detailed trace information, similarity scores, and LLM usage tracking
 
-All data is automatically validated against the schema and uploaded to the HuggingFace dataset for analysis and tracking.
+All data is automatically validated against the schema and uploaded to the HuggingFace dataset for analysis and tracking. See `dataset/README.md` for detailed schema documentation and usage examples.
 
 ---
 
