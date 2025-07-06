@@ -57,6 +57,7 @@
       "llm_traces_json": {"dtype": "string", "_type": "Value"},
       "logs_json": {"dtype": "string", "_type": "Value"},
       "per_llm_stdout_json": {"dtype": "string", "_type": "Value"},
+      "full_debug": {"dtype": "string", "_type": "Value"},
       "error": {"dtype": "string", "_type": "Value"},
       "username": {"dtype": "string", "_type": "Value"}
     }

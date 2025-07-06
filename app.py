@@ -164,6 +164,7 @@ def create_run_data_for_runs_new(
         "llm_traces_json": json.dumps(trace.get("llm_traces", {})),
         "logs_json": json.dumps(trace.get("logs", [])),
         "per_llm_stdout_json": json.dumps(trace.get("per_llm_stdout", [])),
+        "full_debug": "N/A",
         "error": final_result.get("error", ""),  # Error information
         "username": username.strip() if username else "unknown"
     }
@@ -277,6 +278,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             results_log.append({
                 "task_id": task_id, 
                 "trace": trace,
+                "full_debug": ""
             })
             # Shorter results for dataframe for gradio table 
             results_log_df.append({
@@ -299,6 +301,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
                 "reference_similarity": 0.0,
                 "llm_used": "none",
                 "trace": trace, 
+                "full_debug": "",
                 "error": str(e)
             })
             results_log_df.append({
