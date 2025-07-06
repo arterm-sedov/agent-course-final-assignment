@@ -630,7 +630,17 @@ with gr.Blocks() as demo:
 
     with gr.Tabs():
         with gr.TabItem("Readme"):
-            gr.Markdown(open("README.md", "r", encoding="utf-8").read())
+            # Robust README file reading with error handling
+            try:
+                with open("README.md", "r", encoding="utf-8") as f:
+                    readme_content = f.read()
+                gr.Markdown(readme_content)
+            except FileNotFoundError:
+                gr.Markdown("## README.md not found\n\nThe README.md file could not be found. Please ensure it exists in the project root.")
+            except UnicodeDecodeError:
+                gr.Markdown("## README.md encoding error\n\nThe README.md file could not be read due to encoding issues.")
+            except Exception as e:
+                gr.Markdown(f"## Error reading README.md\n\nAn error occurred while reading the README.md file: {str(e)}")
         with gr.TabItem("Evaluation"):
             gr.LoginButton()
             run_button = gr.Button("Run Evaluation & Submit All Answers")

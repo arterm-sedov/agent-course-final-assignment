@@ -1,7 +1,4 @@
 ---
-title: Template Final Assignment
-author: Arte(r)m Sedov
-author_github: https://github.com/arterm-sedov/
 emoji: 🕵🏻‍♂️
 colorFrom: indigo
 colorTo: indigo
@@ -16,6 +13,9 @@ hf_oauth_expiration_minutes: 480
 # GAIA Agent
 
 ---
+
+**Author:** Arte(r)m Sedov
+**Github:** <https://github.com/arterm-sedov/>
 
 ## 🚀 Arterm Sedov's Ultimate Multi-LLM GAIA Agent
 
