@@ -667,8 +667,10 @@ with gr.Blocks() as demo:
             dataset_stats_output = gr.HTML(get_dataset_stats_html())
             refresh_stats_btn = gr.Button("🔄 Refresh Dataset Statistics")
             refresh_stats_btn.click(fn=get_dataset_stats_html, outputs=dataset_stats_output)
-        with gr.TabItem("Logs"):
-            gr.Markdown("## Logs download links")
+        with gr.TabItem("Log files"):
+            gr.Markdown("## Log files download links")
+            gr.Markdown("The `YYYMMDD_hhmmss_llm_trace.log` files contain complete traces of LLM initialization and calling.")
+            gr.Markdown("The `20250706_141040_score.results..csv` files contain submission and HuggingFace evaluation results.")
             gr.HTML(get_logs_html())
 
 if __name__ == "__main__":
