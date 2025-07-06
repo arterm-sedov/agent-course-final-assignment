@@ -1,0 +1,591 @@
+===== Application Startup at 2025-07-06 12:42:59 =====
+
+
+modules.json:   0%|          | 0.00/349 [00:00<?, ?B/s]
+modules.json: 100%|██████████| 349/349 [00:00<00:00, 1.65MB/s]
+
+config_sentence_transformers.json:   0%|          | 0.00/116 [00:00<?, ?B/s]
+config_sentence_transformers.json: 100%|██████████| 116/116 [00:00<00:00, 814kB/s]
+
+README.md:   0%|          | 0.00/10.4k [00:00<?, ?B/s]
+README.md: 100%|██████████| 10.4k/10.4k [00:00<00:00, 43.0MB/s]
+
+sentence_bert_config.json:   0%|          | 0.00/53.0 [00:00<?, ?B/s]
+sentence_bert_config.json: 100%|██████████| 53.0/53.0 [00:00<00:00, 442kB/s]
+
+config.json:   0%|          | 0.00/571 [00:00<?, ?B/s]
+config.json: 100%|██████████| 571/571 [00:00<00:00, 3.52MB/s]
+
+model.safetensors:   0%|          | 0.00/438M [00:00<?, ?B/s]
+model.safetensors:  54%|█████▍    | 237M/438M [00:01<00:00, 217MB/s]
+model.safetensors: 100%|██████████| 438M/438M [00:01<00:00, 337MB/s]
+
+tokenizer_config.json:   0%|          | 0.00/363 [00:00<?, ?B/s]
+tokenizer_config.json: 100%|██████████| 363/363 [00:00<00:00, 2.58MB/s]
+
+vocab.txt:   0%|          | 0.00/232k [00:00<?, ?B/s]
+vocab.txt: 100%|██████████| 232k/232k [00:00<00:00, 11.9MB/s]
+
+tokenizer.json:   0%|          | 0.00/466k [00:00<?, ?B/s]
+tokenizer.json: 100%|██████████| 466k/466k [00:00<00:00, 29.1MB/s]
+
+special_tokens_map.json:   0%|          | 0.00/239 [00:00<?, ?B/s]
+special_tokens_map.json: 100%|██████████| 239/239 [00:00<00:00, 2.07MB/s]
+
+config.json:   0%|          | 0.00/190 [00:00<?, ?B/s]
+config.json: 100%|██████████| 190/190 [00:00<00:00, 1.44MB/s]
+🔄 Initializing LLMs based on sequence:
+   1. OpenRouter
+   2. Google Gemini
+   3. Groq
+   4. HuggingFace
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+🔄 Initializing LLM OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) (1 of 4)
+🧪 Testing OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) with 'Hello' message...
+❌ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751846400000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: deepseek/deepseek-chat-v3-0324:free) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) (1 of 4)
+🧪 Testing OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) with 'Hello' message...
+❌ OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751846400000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: mistralai/mistral-small-3.2-24b-instruct:free) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM OpenRouter (model: openrouter/cypher-alpha:free) (1 of 4)
+🧪 Testing OpenRouter (model: openrouter/cypher-alpha:free) with 'Hello' message...
+❌ OpenRouter (model: openrouter/cypher-alpha:free) test failed: Error code: 429 - {'error': {'message': 'Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day', 'code': 429, 'metadata': {'headers': {'X-RateLimit-Limit': '50', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1751846400000'}, 'provider_name': None}}, 'user_id': 'user_2zGr0yIHMzRxIJYcW8N0my40LIs'}
+⚠️ OpenRouter (model: openrouter/cypher-alpha:free) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM Google Gemini (model: gemini-2.5-pro) (2 of 4)
+🧪 Testing Google Gemini (model: gemini-2.5-pro) with 'Hello' message...
+✅ Google Gemini (model: gemini-2.5-pro) test successful!
+   Response time: 8.98s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: FINAL ANSWER: What is the Ultimate Question of Life, the Universe, and Everything?
+------------------------------------------------
+
+  response_metadata: {
+  "prompt_feedback": {
+    "block_reason": 0,
+    "safety_ratings": []
+  },
+  "finish_reason": "STOP",
+  "model_name": "gemini-2.5-pro",
+  "safety_ratings": []
+}
+------------------------------------------------
+
+  id: run--d01a437c-c26e-4b24-8989-c0f6093b38cc-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'id', 'tool_calls', 'additional_kwargs', 'response_metadata', 'usage_metadata', 'content', 'invalid_tool_calls'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2229,
+  "output_tokens": 17,
+  "total_tokens": 2948,
+  "input_token_details": {
+    "cache_read": 0
+  },
+  "output_token_details": {
+    "reasoning": 702
+  }
+}
+------------------------------------------------
+
+🧪 Testing Google Gemini (model: gemini-2.5-pro) (with tools) with 'Hello' message...
+❌ Google Gemini (model: gemini-2.5-pro) (with tools) returned empty response
+⚠️ Google Gemini (model: gemini-2.5-pro) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (Google Gemini) initialized successfully with model gemini-2.5-pro
+🔄 Initializing LLM Groq (model: qwen-qwq-32b) (3 of 4)
+🧪 Testing Groq (model: qwen-qwq-32b) with 'Hello' message...
+✅ Groq (model: qwen-qwq-32b) test successful!
+   Response time: 2.53s
+   Test message details:
+------------------------------------------------
+
+Message test_input:
+  type: system
+------------------------------------------------
+
+  content: Truncated. Original length: 9413
+{"role": "You are a helpful assistant tasked with answering questions using a set of tools.", "answer_format": {"template": "FINAL ANSWER: [YOUR ANSWER]", "rules": ["No explanations, no extra text—just the answer.", "Answer must start with 'FINAL ANSWER:' followed by the answer.", "Try to give the final answer as soon as possible."], "answer_types": ["A number (no commas, no units unless specified)", "A few words (no articles, no abbreviations)", "A comma-separated list if asked for multiple items", "Number OR as few words as possible OR a comma separated list of numbers and/or strings", "If asked for a number, do not use commas or units unless specified", "If asked for a string, do not use articles or abbreviations, write digits in plain text unless specified", "For comma separated lists, apply the above rules to each element"]}, "length_rules": {"ideal": "1-10 words (or 1 to 30 tokens)", "maximum": "50 words", "not_allowed": "More than 50 words", "if_too_long": "Reiterate, reuse tool
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['system'] required=False default='system'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]"
+}
+------------------------------------------------
+
+  model_fields_set: {'content'}
+------------------------------------------------
+
+   Test response details:
+------------------------------------------------
+
+Message test:
+  type: ai
+------------------------------------------------
+
+  content: Truncated. Original length: 3874
+
+<think>
+Okay, the user is asking, "What is the main question in the whole Galaxy and all. Max 150 words (250 tokens)". Hmm, I need to figure out what they're really asking here. The phrase "main question in the whole Galaxy" sounds a bit philosophical or maybe referencing a specific context. Let me break it down.
+
+First, "Galaxy" could refer to the Milky Way galaxy, but maybe it's a metaphor. Alternatively, could it be a reference to a book, movie, or a known concept? For example, in Douglas Adams' "The Hitchhiker's Guide to the Galaxy," there's a supercomputer named Deep Thought that was built to find the answer to the "Ultimate Question of Life, the Universe, and Everything," which is 42. The user might be alluding to that. The mention of "all" after Galaxy might be emphasizing the universality of the question.
+
+Alternatively, if it's not a reference, the user might be asking about the fundamental question in cosmology or philosophy, like the origin of the universe, the meaning of l
+------------------------------------------------
+
+  response_metadata: {
+  "token_usage": {
+    "completion_tokens": 848,
+    "prompt_tokens": 2213,
+    "total_tokens": 3061,
+    "completion_time": 2.080170045,
+    "prompt_time": 0.139434707,
+    "queue_time": 0.220543249,
+    "total_time": 2.219604752
+  },
+  "model_name": "qwen-qwq-32b",
+  "system_fingerprint": "fp_98b01f25b2",
+  "finish_reason": "stop",
+  "logprobs": null
+}
+------------------------------------------------
+
+  id: run--d1456977-fc30-422a-ae35-9a4943acc70a-0
+------------------------------------------------
+
+  example: False
+------------------------------------------------
+
+  lc_attributes: {
+  "tool_calls": [],
+  "invalid_tool_calls": []
+}
+------------------------------------------------
+
+  model_config: {
+  "extra": "allow"
+}
+------------------------------------------------
+
+  model_fields: {
+  "content": "annotation=Union[str, list[Union[str, dict]]] required=True",
+  "additional_kwargs": "annotation=dict required=False default_factory=dict",
+  "response_metadata": "annotation=dict required=False default_factory=dict",
+  "type": "annotation=Literal['ai'] required=False default='ai'",
+  "name": "annotation=Union[str, NoneType] required=False default=None",
+  "id": "annotation=Union[str, NoneType] required=False default=None metadata=[_PydanticGeneralMetadata(coerce_numbers_to_str=True)]",
+  "example": "annotation=bool required=False default=False",
+  "tool_calls": "annotation=list[ToolCall] required=False default=[]",
+  "invalid_tool_calls": "annotation=list[InvalidToolCall] required=False default=[]",
+  "usage_metadata": "annotation=Union[UsageMetadata, NoneType] required=False default=None"
+}
+------------------------------------------------
+
+  model_fields_set: {'id', 'tool_calls', 'additional_kwargs', 'response_metadata', 'usage_metadata', 'content', 'invalid_tool_calls'}
+------------------------------------------------
+
+  usage_metadata: {
+  "input_tokens": 2213,
+  "output_tokens": 848,
+  "total_tokens": 3061
+}
+------------------------------------------------
+
+🧪 Testing Groq (model: qwen-qwq-32b) (with tools) with 'Hello' message...
+❌ Groq (model: qwen-qwq-32b) (with tools) returned empty response
+⚠️ Groq (model: qwen-qwq-32b) (with tools) test returned empty or failed, but binding tools anyway (force_tools=True: tool-calling is known to work in real use).
+✅ LLM (Groq) initialized successfully with model qwen-qwq-32b
+🔄 Initializing LLM HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) (4 of 4)
+🧪 Testing HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) with 'Hello' message...
+❌ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) test failed: 402 Client Error: Payment Required for url: https://router.huggingface.co/hyperbolic/v1/chat/completions (Request ID: Root=1-686a6fc4-4bcdac636731534966696aa9;c0e71d7b-5a87-4c73-ba41-0e645ed75a5a)
+
+You have exceeded your monthly included credits for Inference Providers. Subscribe to PRO to get 20x more monthly included credits.
+⚠️ HuggingFace (model: Qwen/Qwen2.5-Coder-32B-Instruct) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: microsoft/DialoGPT-medium) (4 of 4)
+🧪 Testing HuggingFace (model: microsoft/DialoGPT-medium) with 'Hello' message...
+❌ HuggingFace (model: microsoft/DialoGPT-medium) test failed: 
+⚠️ HuggingFace (model: microsoft/DialoGPT-medium) failed initialization (plain_ok=False, tools_ok=None)
+🔄 Initializing LLM HuggingFace (model: gpt2) (4 of 4)
+🧪 Testing HuggingFace (model: gpt2) with 'Hello' message...
+❌ HuggingFace (model: gpt2) test failed: 
+⚠️ HuggingFace (model: gpt2) failed initialization (plain_ok=False, tools_ok=None)
+✅ Gathered 32 tools: ['encode_image', 'decode_image', 'save_image', 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root', 'wiki_search', 'web_search', 'arxiv_search', 'save_and_read_file', 'download_file_from_url', 'get_task_file', 'extract_text_from_image', 'analyze_csv_file', 'analyze_excel_file', 'analyze_image', 'transform_image', 'draw_on_image', 'generate_simple_image', 'combine_images', 'understand_video', 'understand_audio', 'convert_chess_move', 'get_best_chess_move', 'get_chess_board_fen', 'solve_chess_position', 'execute_code_multilang', 'exa_ai_helper']
+
+===== LLM Initialization Summary =====
+Provider       | Model                                          | Plain| Tools         | Error (tools)       
+-------------------------------------------------------------------------------------------------------------
+OpenRouter     | deepseek/deepseek-chat-v3-0324:free            | ❌    | N/A (forced)  |                     
+OpenRouter     | mistralai/mistral-small-3.2-24b-instruct:free  | ❌    | N/A           |                     
+OpenRouter     | openrouter/cypher-alpha:free                   | ❌    | N/A           |                     
+Google Gemini  | gemini-2.5-pro                                 | ✅    | ❌ (forced)    |                     
+Groq           | qwen-qwq-32b                                   | ✅    | ❌ (forced)    |                     
+HuggingFace    | Qwen/Qwen2.5-Coder-32B-Instruct                | ❌    | N/A           |                     
+HuggingFace    | microsoft/DialoGPT-medium                      | ❌    | N/A           |                     
+HuggingFace    | gpt2                                           | ❌    | N/A           |                     
+=============================================================================================================
+
+🔍 Loaded schema for init: ['timestamp', 'init_summary', 'init_summary_json', 'debug_output', 'llm_config', 'available_models', 'tool_support']
+🔍 Validating init split:
+   Expected fields: ['timestamp', 'init_summary', 'init_summary_json', 'debug_output', 'llm_config', 'available_models', 'tool_support']
+   Actual fields: ['timestamp', 'init_summary', 'init_summary_json', 'debug_output', 'llm_config', 'available_models', 'tool_support']
+✅ Data uploaded to dataset: arterm-sedov/agent-course-final-assignment
+   File: init-20250706_144452.jsonl
+   Records: 1
+✅ LLM initialization summary uploaded to dataset
+
+README.md:   0%|          | 0.00/5.86k [00:00<?, ?B/s]
+README.md: 100%|██████████| 5.86k/5.86k [00:00<00:00, 32.4MB/s]
+Downloading data:   0%|          | 0/26 [00:00<?, ?files/s]
+init-20250703_153105.jsonl:   0%|          | 0.00/23.6k [00:00<?, ?B/s]
+init-20250703_153105.jsonl: 100%|██████████| 23.6k/23.6k [00:00<00:00, 122MB/s]
+
+init-20250705_131406.jsonl:   0%|          | 0.00/24.8k [00:00<?, ?B/s]
+init-20250705_131406.jsonl: 100%|██████████| 24.8k/24.8k [00:00<00:00, 102MB/s]
+
+init-20250705_131702.jsonl:   0%|          | 0.00/24.8k [00:00<?, ?B/s]
+init-20250705_131702.jsonl: 100%|██████████| 24.8k/24.8k [00:00<00:00, 77.8MB/s]
+
+init-20250705_130855.jsonl:   0%|          | 0.00/30.4k [00:00<?, ?B/s]
+init-20250705_131128.jsonl:   0%|          | 0.00/24.8k [00:00<?, ?B/s]
+init-20250705_130855.jsonl: 100%|██████████| 30.4k/30.4k [00:00<00:00, 22.0MB/s]
+init-20250705_131128.jsonl: 100%|██████████| 24.8k/24.8k [00:00<00:00, 13.6MB/s]
+
+init-20250705_203430.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250705_203430.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 108MB/s]
+
+init-20250705_210419.jsonl:   0%|          | 0.00/28.6k [00:00<?, ?B/s]
+init-20250705_210419.jsonl: 100%|██████████| 28.6k/28.6k [00:00<00:00, 33.5MB/s]
+
+init-20250705_221633.jsonl:   0%|          | 0.00/28.6k [00:00<?, ?B/s]
+init-20250705_221633.jsonl: 100%|██████████| 28.6k/28.6k [00:00<00:00, 158MB/s]
+
+init-20250705_223202.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250705_223202.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 105MB/s]
+
+init-20250705_132104.jsonl:   0%|          | 0.00/24.8k [00:00<?, ?B/s]
+init-20250705_132104.jsonl: 100%|██████████| 24.8k/24.8k [00:00<00:00, 77.5MB/s]
+
+init-20250705_131903.jsonl:   0%|          | 0.00/24.9k [00:00<?, ?B/s]
+init-20250705_131903.jsonl: 100%|██████████| 24.9k/24.9k [00:00<00:00, 88.2MB/s]
+
+init-20250703_123454.jsonl:   0%|          | 0.00/5.46k [00:00<?, ?B/s]
+init-20250703_123454.jsonl: 100%|██████████| 5.46k/5.46k [00:00<00:00, 46.8MB/s]
+
+init-20250705_223340.jsonl:   0%|          | 0.00/29.9k [00:00<?, ?B/s]
+init-20250705_223340.jsonl: 100%|██████████| 29.9k/29.9k [00:00<00:00, 124MB/s]
+
+init-20250703_122618.jsonl:   0%|          | 0.00/5.46k [00:00<?, ?B/s]
+init-20250703_122618.jsonl: 100%|██████████| 5.46k/5.46k [00:00<00:00, 53.7MB/s]
+
+init-20250703_124712.jsonl:   0%|          | 0.00/29.2k [00:00<?, ?B/s]
+init-20250703_124712.jsonl: 100%|██████████| 29.2k/29.2k [00:00<00:00, 177MB/s]
+
+init-20250705_225144.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250705_225144.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 100MB/s]
+
+init-20250705_131525.jsonl:   0%|          | 0.00/29.2k [00:00<?, ?B/s]
+init-20250705_131525.jsonl: 100%|██████████| 29.2k/29.2k [00:00<00:00, 129MB/s]
+
+init-20250706_034638.jsonl:   0%|          | 0.00/26.6k [00:00<?, ?B/s]
+init-20250706_034638.jsonl: 100%|██████████| 26.6k/26.6k [00:00<00:00, 122MB/s]
+
+init-20250706_141740.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250706_141740.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 120MB/s]
+
+init-20250705_132209.jsonl:   0%|          | 0.00/24.8k [00:00<?, ?B/s]
+init-20250705_132209.jsonl: 100%|██████████| 24.8k/24.8k [00:00<00:00, 93.2MB/s]
+
+init-20250706_131412.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250706_131412.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 113MB/s]
+
+init-20250706_144452.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250706_144452.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 108MB/s]
+
+init-20250706_142212.jsonl:   0%|          | 0.00/24.3k [00:00<?, ?B/s]
+init-20250706_142212.jsonl: 100%|██████████| 24.3k/24.3k [00:00<00:00, 133MB/s]
+
+init-20250706_143911.jsonl:   0%|          | 0.00/28.6k [00:00<?, ?B/s]
+init-20250706_143911.jsonl: 100%|██████████| 28.6k/28.6k [00:00<00:00, 88.2MB/s]
+
+init-20250706_035228.jsonl:   0%|          | 0.00/36.5k [00:00<?, ?B/s]
+init-20250706_035228.jsonl: 100%|██████████| 36.5k/36.5k [00:00<00:00, 111MB/s]
+Downloading data:  77%|███████▋  | 20/26 [00:01<00:00, 16.57files/s]
+init-20250706_100257.jsonl:   0%|          | 0.00/32.6k [00:00<?, ?B/s]
+init-20250706_100257.jsonl: 100%|██████████| 32.6k/32.6k [00:00<00:00, 116MB/s]
+Downloading data: 100%|██████████| 26/26 [00:01<00:00, 21.05files/s]
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 26 examples [00:00, 921.55 examples/s]
+Downloading data:   0%|          | 0/61 [00:00<?, ?files/s]
+runs_new-20250706_044100.jsonl:   0%|          | 0.00/2.25k [00:00<?, ?B/s]
+runs_new-20250706_044100.jsonl: 100%|██████████| 2.25k/2.25k [00:00<00:00, 14.4MB/s]
+
+runs_new-20250706_044059.jsonl:   0%|          | 0.00/1.67k [00:00<?, ?B/s]
+runs_new-20250706_044059.jsonl: 100%|██████████| 1.67k/1.67k [00:00<00:00, 16.2MB/s]
+
+runs_new-20250706_044058.jsonl:   0%|          | 0.00/1.69k [00:00<?, ?B/s]
+runs_new-20250706_044058.jsonl: 100%|██████████| 1.69k/1.69k [00:00<00:00, 13.8MB/s]
+
+runs_new-20250706_044110.jsonl:   0%|          | 0.00/1.80k [00:00<?, ?B/s]
+runs_new-20250706_044110.jsonl: 100%|██████████| 1.80k/1.80k [00:00<00:00, 19.8MB/s]
+
+runs_new-20250706_044103.jsonl:   0%|          | 0.00/1.77k [00:00<?, ?B/s]
+runs_new-20250706_044103.jsonl: 100%|██████████| 1.77k/1.77k [00:00<00:00, 12.2MB/s]
+
+runs_new-20250706_044105.jsonl:   0%|          | 0.00/2.10k [00:00<?, ?B/s]
+runs_new-20250706_044105.jsonl: 100%|██████████| 2.10k/2.10k [00:00<00:00, 20.7MB/s]
+
+runs_new-20250706_044101.jsonl:   0%|          | 0.00/1.75k [00:00<?, ?B/s]
+runs_new-20250706_044101.jsonl: 100%|██████████| 1.75k/1.75k [00:00<00:00, 14.8MB/s]
+
+runs_new-20250706_044107.jsonl:   0%|          | 0.00/1.89k [00:00<?, ?B/s]
+runs_new-20250706_044107.jsonl: 100%|██████████| 1.89k/1.89k [00:00<00:00, 11.5MB/s]
+
+runs_new-20250706_044104.jsonl:   0%|          | 0.00/1.83k [00:00<?, ?B/s]
+runs_new-20250706_044104.jsonl: 100%|██████████| 1.83k/1.83k [00:00<00:00, 20.7MB/s]
+
+runs_new-20250706_044057.jsonl:   0%|          | 0.00/1.98k [00:00<?, ?B/s]
+runs_new-20250706_044057.jsonl: 100%|██████████| 1.98k/1.98k [00:00<00:00, 24.0MB/s]
+
+runs_new-20250706_044106.jsonl:   0%|          | 0.00/1.92k [00:00<?, ?B/s]
+runs_new-20250706_044106.jsonl: 100%|██████████| 1.92k/1.92k [00:00<00:00, 18.2MB/s]
+
+runs_new-20250706_044102.jsonl:   0%|          | 0.00/3.60k [00:00<?, ?B/s]
+runs_new-20250706_044102.jsonl: 100%|██████████| 3.60k/3.60k [00:00<00:00, 28.3MB/s]
+
+runs_new-20250706_044111.jsonl:   0%|          | 0.00/1.71k [00:00<?, ?B/s]
+runs_new-20250706_044111.jsonl: 100%|██████████| 1.71k/1.71k [00:00<00:00, 14.4MB/s]
+
+runs_new-20250706_044113.jsonl:   0%|          | 0.00/1.79k [00:00<?, ?B/s]
+runs_new-20250706_044113.jsonl: 100%|██████████| 1.79k/1.79k [00:00<00:00, 17.2MB/s]
+
+runs_new-20250706_044116.jsonl:   0%|          | 0.00/3.62k [00:00<?, ?B/s]
+runs_new-20250706_044116.jsonl: 100%|██████████| 3.62k/3.62k [00:00<00:00, 24.6MB/s]
+
+runs_new-20250706_044114.jsonl:   0%|          | 0.00/2.14k [00:00<?, ?B/s]
+runs_new-20250706_044114.jsonl: 100%|██████████| 2.14k/2.14k [00:00<00:00, 21.8MB/s]
+
+runs_new-20250706_044117.jsonl:   0%|          | 0.00/1.78k [00:00<?, ?B/s]
+runs_new-20250706_044117.jsonl: 100%|██████████| 1.78k/1.78k [00:00<00:00, 19.8MB/s]
+
+runs_new-20250706_044112.jsonl:   0%|          | 0.00/1.69k [00:00<?, ?B/s]
+runs_new-20250706_044112.jsonl: 100%|██████████| 1.69k/1.69k [00:00<00:00, 11.2MB/s]
+
+runs_new-20250706_044115.jsonl:   0%|          | 0.00/1.77k [00:00<?, ?B/s]
+runs_new-20250706_044115.jsonl: 100%|██████████| 1.77k/1.77k [00:00<00:00, 11.5MB/s]
+
+runs_new-20250706_044118.jsonl:   0%|          | 0.00/1.84k [00:00<?, ?B/s]
+runs_new-20250706_044118.jsonl: 100%|██████████| 1.84k/1.84k [00:00<00:00, 12.0MB/s]
+
+runs_new-20250706_044109.jsonl:   0%|          | 0.00/3.75k [00:00<?, ?B/s]
+runs_new-20250706_044109.jsonl: 100%|██████████| 3.75k/3.75k [00:00<00:00, 27.5MB/s]
+
+runs_new-20250706_130758.jsonl:   0%|          | 0.00/1.75k [00:00<?, ?B/s]
+runs_new-20250706_130758.jsonl: 100%|██████████| 1.75k/1.75k [00:00<00:00, 13.1MB/s]
+
+runs_new-20250706_130800.jsonl:   0%|          | 0.00/2.19k [00:00<?, ?B/s]
+runs_new-20250706_130800.jsonl: 100%|██████████| 2.19k/2.19k [00:00<00:00, 19.1MB/s]
+
+runs_new-20250706_044119.jsonl:   0%|          | 0.00/2.12k [00:00<?, ?B/s]
+runs_new-20250706_044119.jsonl: 100%|██████████| 2.12k/2.12k [00:00<00:00, 16.0MB/s]
+
+runs_new-20250706_130803.jsonl:   0%|          | 0.00/1.83k [00:00<?, ?B/s]
+runs_new-20250706_130803.jsonl: 100%|██████████| 1.83k/1.83k [00:00<00:00, 14.3MB/s]
+
+runs_new-20250706_044122.jsonl:   0%|          | 0.00/1.90k [00:00<?, ?B/s]
+runs_new-20250706_044122.jsonl: 100%|██████████| 1.90k/1.90k [00:00<00:00, 17.4MB/s]
+
+runs_new-20250706_130804.jsonl:   0%|          | 0.00/1.89k [00:00<?, ?B/s]
+runs_new-20250706_130804.jsonl: 100%|██████████| 1.89k/1.89k [00:00<00:00, 17.1MB/s]
+
+runs_new-20250706_044120.jsonl:   0%|          | 0.00/1.94k [00:00<?, ?B/s]
+runs_new-20250706_044120.jsonl: 100%|██████████| 1.94k/1.94k [00:00<00:00, 16.8MB/s]
+
+runs_new-20250706_130807.jsonl:   0%|          | 0.00/1.98k [00:00<?, ?B/s]
+runs_new-20250706_130807.jsonl: 100%|██████████| 1.98k/1.98k [00:00<00:00, 15.2MB/s]
+
+runs_new-20250706_044121.jsonl:   0%|          | 0.00/1.83k [00:00<?, ?B/s]
+runs_new-20250706_044121.jsonl: 100%|██████████| 1.83k/1.83k [00:00<00:00, 13.3MB/s]
+
+runs_new-20250705_212643.jsonl:   0%|          | 0.00/20.2k [00:00<?, ?B/s]
+runs_new-20250705_212643.jsonl: 100%|██████████| 20.2k/20.2k [00:00<00:00, 105MB/s]
+Downloading data:   2%|▏         | 1/61 [00:01<01:08,  1.15s/files]
+runs_new-20250706_130808.jsonl:   0%|          | 0.00/2.11k [00:00<?, ?B/s]
+runs_new-20250706_130808.jsonl: 100%|██████████| 2.11k/2.11k [00:00<00:00, 22.5MB/s]
+
+runs_new-20250706_130802.jsonl:   0%|          | 0.00/1.78k [00:00<?, ?B/s]
+runs_new-20250706_130802.jsonl: 100%|██████████| 1.78k/1.78k [00:00<00:00, 18.3MB/s]
+
+runs_new-20250706_130813.jsonl:   0%|          | 0.00/3.60k [00:00<?, ?B/s]
+runs_new-20250706_130813.jsonl: 100%|██████████| 3.60k/3.60k [00:00<00:00, 31.0MB/s]
+
+runs_new-20250706_130809.jsonl:   0%|          | 0.00/55.7k [00:00<?, ?B/s]
+runs_new-20250706_130809.jsonl: 100%|██████████| 55.7k/55.7k [00:00<00:00, 135MB/s]
+
+runs_new-20250706_130841.jsonl:   0%|          | 0.00/1.77k [00:00<?, ?B/s]
+runs_new-20250706_130841.jsonl: 100%|██████████| 1.77k/1.77k [00:00<00:00, 12.1MB/s]
+
+runs_new-20250706_130801.jsonl:   0%|          | 0.00/1.81k [00:00<?, ?B/s]
+runs_new-20250706_130801.jsonl: 100%|██████████| 1.81k/1.81k [00:00<00:00, 12.9MB/s]
+
+runs_new-20250706_130839.jsonl:   0%|          | 0.00/1.88k [00:00<?, ?B/s]
+runs_new-20250706_130839.jsonl: 100%|██████████| 1.88k/1.88k [00:00<00:00, 16.4MB/s]
+
+runs_new-20250706_130843.jsonl:   0%|          | 0.00/2.21k [00:00<?, ?B/s]
+runs_new-20250706_130843.jsonl: 100%|██████████| 2.21k/2.21k [00:00<00:00, 19.5MB/s]
+
+runs_new-20250706_130830.jsonl:   0%|          | 0.00/1.67k [00:00<?, ?B/s]
+runs_new-20250706_130830.jsonl: 100%|██████████| 1.67k/1.67k [00:00<00:00, 12.3MB/s]
+
+runs_new-20250706_130805.jsonl:   0%|          | 0.00/1.73k [00:00<?, ?B/s]
+runs_new-20250706_130805.jsonl: 100%|██████████| 1.73k/1.73k [00:00<00:00, 18.4MB/s]
+
+runs_new-20250706_130806.jsonl:   0%|          | 0.00/2.25k [00:00<?, ?B/s]
+runs_new-20250706_130806.jsonl: 100%|██████████| 2.25k/2.25k [00:00<00:00, 25.0MB/s]
+
+runs_new-20250706_130844.jsonl:   0%|          | 0.00/2.94k [00:00<?, ?B/s]
+runs_new-20250706_130844.jsonl: 100%|██████████| 2.94k/2.94k [00:00<00:00, 35.2MB/s]
+
+runs_new-20250706_130847.jsonl:   0%|          | 0.00/1.70k [00:00<?, ?B/s]
+runs_new-20250706_130847.jsonl: 100%|██████████| 1.70k/1.70k [00:00<00:00, 11.4MB/s]
+
+runs_new-20250706_130826.jsonl:   0%|          | 0.00/1.77k [00:00<?, ?B/s]
+runs_new-20250706_130826.jsonl: 100%|██████████| 1.77k/1.77k [00:00<00:00, 20.3MB/s]
+
+runs_new-20250706_130816.jsonl:   0%|          | 0.00/2.12k [00:00<?, ?B/s]
+runs_new-20250706_130816.jsonl: 100%|██████████| 2.12k/2.12k [00:00<00:00, 17.7MB/s]
+
+runs_new-20250706_130848.jsonl:   0%|          | 0.00/1.85k [00:00<?, ?B/s]
+runs_new-20250706_130848.jsonl: 100%|██████████| 1.85k/1.85k [00:00<00:00, 13.5MB/s]
+
+runs_new-20250706_130824.jsonl:   0%|          | 0.00/1.76k [00:00<?, ?B/s]
+runs_new-20250706_130824.jsonl: 100%|██████████| 1.76k/1.76k [00:00<00:00, 14.7MB/s]
+
+runs_new-20250706_130901.jsonl:   0%|          | 0.00/2.00k [00:00<?, ?B/s]
+runs_new-20250706_130901.jsonl: 100%|██████████| 2.00k/2.00k [00:00<00:00, 19.8MB/s]
+
+runs_new-20250706_130854.jsonl:   0%|          | 0.00/1.91k [00:00<?, ?B/s]
+runs_new-20250706_130854.jsonl: 100%|██████████| 1.91k/1.91k [00:00<00:00, 17.3MB/s]
+
+runs_new-20250706_130859.jsonl:   0%|          | 0.00/1.75k [00:00<?, ?B/s]
+runs_new-20250706_130859.jsonl: 100%|██████████| 1.75k/1.75k [00:00<00:00, 14.1MB/s]
+
+runs_new-20250706_044056.jsonl:   0%|          | 0.00/3.73k [00:00<?, ?B/s]
+runs_new-20250706_044056.jsonl: 100%|██████████| 3.73k/3.73k [00:00<00:00, 41.7MB/s]
+
+runs_new-20250706_130820.jsonl:   0%|          | 0.00/3.76k [00:00<?, ?B/s]
+runs_new-20250706_130820.jsonl: 100%|██████████| 3.76k/3.76k [00:00<00:00, 45.5MB/s]
+
+runs_new-20250706_130902.jsonl:   0%|          | 0.00/2.13k [00:00<?, ?B/s]
+runs_new-20250706_130902.jsonl: 100%|██████████| 2.13k/2.13k [00:00<00:00, 20.5MB/s]
+
+runs_new-20250706_130903.jsonl:   0%|          | 0.00/3.62k [00:00<?, ?B/s]
+runs_new-20250706_130903.jsonl: 100%|██████████| 3.62k/3.62k [00:00<00:00, 24.3MB/s]
+
+runs_new-20250706_130845.jsonl:   0%|          | 0.00/1.83k [00:00<?, ?B/s]
+runs_new-20250706_130845.jsonl: 100%|██████████| 1.83k/1.83k [00:00<00:00, 17.4MB/s]
+
+runs_new-20250706_130907.jsonl:   0%|          | 0.00/1.69k [00:00<?, ?B/s]
+runs_new-20250706_130907.jsonl: 100%|██████████| 1.69k/1.69k [00:00<00:00, 16.2MB/s]
+
+runs_new-20250706_130906.jsonl:   0%|          | 0.00/1.78k [00:00<?, ?B/s]
+runs_new-20250706_130906.jsonl: 100%|██████████| 1.78k/1.78k [00:00<00:00, 20.5MB/s]
+
+runs_new-20250706_130904.jsonl:   0%|          | 0.00/2.14k [00:00<?, ?B/s]
+runs_new-20250706_130904.jsonl: 100%|██████████| 2.14k/2.14k [00:00<00:00, 28.2MB/s]
+
+runs_new-20250706_145002.jsonl:   0%|          | 0.00/532 [00:00<?, ?B/s]
+runs_new-20250706_145002.jsonl: 100%|██████████| 532/532 [00:00<00:00, 2.80MB/s]
+
+runs_new-20250706_130905.jsonl:   0%|          | 0.00/3.78k [00:00<?, ?B/s]
+runs_new-20250706_130905.jsonl: 100%|██████████| 3.78k/3.78k [00:00<00:00, 32.1MB/s]
+Downloading data: 100%|██████████| 61/61 [00:02<00:00, 30.06files/s]
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 80 examples [00:00, 565.28 examples/s]
+
+------------------------------ App Starting ------------------------------
+✅ SPACE_HOST found: arterm-sedov-agent-course-final-assignment.hf.space
+   Runtime URL should be: https://arterm-sedov-agent-course-final-assignment.hf.space.hf.space
+✅ SPACE_ID found: arterm-sedov/agent-course-final-assignment
+   Repo URL: https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment
+   Repo Tree URL: https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main
+--------------------------------------------------------------------------
+
+Launching Gradio Interface for GAIA Unit 4 Agent Evaluation...
+* Running on local URL:  http://0.0.0.0:7860, with SSR ⚡ (experimental, to disable set `ssr_mode=False` in `launch()`)
+* To create a public link, set `share=True` in `launch()`.
