@@ -789,6 +789,7 @@ def arxiv_search(input: str) -> str:
 @tool
 def exa_ai_helper(question: str) -> str:
     """
+    I am a smart AI assistant and can potentially give you the right FINAL ANSWER right away.
     Get direct, well-researched answers to questions using AI engine Exa.
     
     This tool is particularly useful when:

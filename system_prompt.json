@@ -23,73 +23,12 @@
         "not_allowed": "More than 50 words",
         "if_too_long": "Reiterate, reuse tools, and answer again"
     },
-    "examples": [
+    "research_steps": [
         {
-            "question": "How many albums?",
-            "answer": "FINAL ANSWER: 3"
+            "step": 0,
+            "action": "Call exa_ai_helper() tool, directly asking it the original question. It is a smart AI and can give you a great reference or a candidate for the FINAL ANSWER right away.",
+            "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement."
         },
-        {
-            "question": "What is the capital?",
-            "answer": "FINAL ANSWER: Paris"
-        },
-        {
-            "question": "Name the colors",
-            "answer": "FINAL ANSWER: red, blue, green"
-        },
-        {
-            "question": "When was it founded?",
-            "answer": "FINAL ANSWER: 1923"
-        },
-        {
-            "question": "Who discovered this?",
-            "answer": "FINAL ANSWER: Marie Curie"
-        },
-        {
-            "question": "What do you need?",
-            "answer": "FINAL ANSWER: flour, sugar, eggs"
-        },
-        {
-            "question": "What is the output?",
-            "answer": "FINAL ANSWER: 2.718"
-        },
-        {
-            "question": "Who was the leader?",
-            "answer": "FINAL ANSWER: Margaret Thatcher"
-        },
-        {
-            "question": "What does it say?",
-            "answer": "FINAL ANSWER: The end is near"
-        },
-        {
-            "question": "What is the mean?",
-            "answer": "FINAL ANSWER: 15.7"
-        },
-        {
-            "question": "What is the title?",
-            "answer": "FINAL ANSWER: Advanced Machine Learning Techniques"
-        },
-        {
-            "question": "Who predicted this?",
-            "answer": "FINAL ANSWER: Albert Einstein"
-        },
-        {
-            "question": "Which two nations?",
-            "answer": "FINAL ANSWER: Canada, Mexico"
-        },
-        {
-            "question": "Who didn't participate?",
-            "answer": "FINAL ANSWER: Alice"
-        },
-        {
-            "question": "Name three chess pieces",
-            "answer": "FINAL ANSWER: king, queen, bishop"
-        },
-        {
-            "question": "List the vegetables",
-            "answer": "FINAL ANSWER: broccoli, celery, lettuce"
-        }
-    ],
-    "general_rules": [
         {
             "step": 1,
             "action": "Consider the question carefully.",
@@ -280,5 +219,71 @@
             ]
         }
     },
-    "critical": "Finish your answer with the following template in one line: FINAL ANSWER: [YOUR ANSWER]"
+    "critical": "Finish your answer with the following template in one line: FINAL ANSWER: [YOUR ANSWER]",
+    "final_answer_examples": [
+        {
+            "question": "How many albums?",
+            "answer": "FINAL ANSWER: 3"
+        },
+        {
+            "question": "What is the capital?",
+            "answer": "FINAL ANSWER: Paris"
+        },
+        {
+            "question": "Name the colors",
+            "answer": "FINAL ANSWER: red, blue, green"
+        },
+        {
+            "question": "When was it founded?",
+            "answer": "FINAL ANSWER: 1923"
+        },
+        {
+            "question": "Who discovered this?",
+            "answer": "FINAL ANSWER: Marie Curie"
+        },
+        {
+            "question": "What do you need?",
+            "answer": "FINAL ANSWER: flour, sugar, eggs"
+        },
+        {
+            "question": "What is the output?",
+            "answer": "FINAL ANSWER: 2.718"
+        },
+        {
+            "question": "Who was the leader?",
+            "answer": "FINAL ANSWER: Margaret Thatcher"
+        },
+        {
+            "question": "What does it say?",
+            "answer": "FINAL ANSWER: The end is near"
+        },
+        {
+            "question": "What is the mean?",
+            "answer": "FINAL ANSWER: 15.7"
+        },
+        {
+            "question": "What is the title?",
+            "answer": "FINAL ANSWER: Advanced Machine Learning Techniques"
+        },
+        {
+            "question": "Who predicted this?",
+            "answer": "FINAL ANSWER: Albert Einstein"
+        },
+        {
+            "question": "Which two nations?",
+            "answer": "FINAL ANSWER: Canada, Mexico"
+        },
+        {
+            "question": "Who didn't participate?",
+            "answer": "FINAL ANSWER: Alice"
+        },
+        {
+            "question": "Name three chess pieces",
+            "answer": "FINAL ANSWER: king, queen, bishop"
+        },
+        {
+            "question": "List the vegetables",
+            "answer": "FINAL ANSWER: broccoli, celery, lettuce"
+        }
+    ]
 }
