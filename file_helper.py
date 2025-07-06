@@ -50,7 +50,10 @@ def get_dataset_features(split: str) -> Optional[Dict]:
     """
     schema = load_dataset_schema()
     if schema and "features" in schema and split in schema["features"]:
-        return schema["features"][split]
+        features = schema["features"][split]
+        print(f"🔍 Loaded schema for {split}: {list(features.keys())}")
+        return features
+    print(f"❌ No schema found for {split}")
     return None
 
 def validate_data_structure(data: Dict, split: str) -> bool:
@@ -68,6 +71,11 @@ def validate_data_structure(data: Dict, split: str) -> bool:
     if not features:
         print(f"Warning: No schema found for split '{split}', skipping validation")
         return True
+        
+    # Debug: Print what we're checking
+    print(f"🔍 Validating {split} split:")
+    print(f"   Expected fields: {list(features.keys())}")
+    print(f"   Actual fields: {list(data.keys())}")
         
     # Check that all required fields are present
     required_fields = set(features.keys())
@@ -143,10 +151,11 @@ def upload_to_dataset(
         else:
             data_list = data
             
-        # Validate data structure against schema
+        # Validate data structure against local schema only
+        # Note: HuggingFace may show warnings about remote schema mismatch, but uploads still work
         for i, item in enumerate(data_list):
             if not validate_data_structure(item, split):
-                print(f"Warning: Data item {i} does not match schema for split '{split}'")
+                print(f"Warning: Data item {i} does not match local schema for split '{split}'")
                 # Continue anyway, but log the warning
             
         # Convert to JSONL format with proper serialization

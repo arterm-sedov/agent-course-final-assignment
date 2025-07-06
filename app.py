@@ -323,50 +323,47 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     print(status_update)
 
     # 5. Submit
+    total_score = "N/A (not evaluated)"
     print(f"Submitting {len(answers_payload)} answers to: {submit_url}")
     try:
         response = requests.post(submit_url, json=submission_data, timeout=60)
         response.raise_for_status()
         result_data = response.json()
-        final_status = (
+        status_message = (
             f"Submission Successful!\n"
             f"User: {result_data.get('username')}\n"
             f"Overall Score: {result_data.get('score', 'N/A')}% "
             f"({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)\n"
             f"Message: {result_data.get('message', 'No message received.')}"
         )
+        print(status_message)
         print("Submission successful.")
         # Extract just the score percentage from the result data
         total_score = f"{result_data.get('score', 'N/A')}% ({result_data.get('correct_count', '?')}/{result_data.get('total_attempted', '?')} correct)"
-        
-        # Upload all questions with final results
-        successful_uploads = upload_questions_with_results(results_log, timestamp, username, total_score, "final")
-        
-        # Log complete evaluation run status
-        if successful_uploads == len(results_log):
-            print(f"✅ Complete evaluation run uploaded with final evaluated results: {timestamp}")
-        else:
-            print(f"⚠️ Failed to upload complete evaluation run: {successful_uploads}/{len(results_log)} questions uploaded")
             
-        return final_status, results_df
     except Exception as e:
         status_message = f"Submission Failed: {e}"
         print(status_message)
         # Set error score result
         total_score = "N/A (Submission Failed)"
         
-        # Upload all questions with error results
-        successful_uploads = upload_questions_with_results(results_log, timestamp, username, total_score, "error")
-        
-        # Log complete evaluation run status
-        if successful_uploads == len(results_log):
-            print(f"✅ Complete evaluation run uploaded with unevaluated results: {timestamp}")
-        else:
-            print(f"⚠️ Failed to upload complete evaluation run: {successful_uploads}/{len(results_log)} questions uploaded")
-        
         print(f"⚠️ Submission failed: {e}")
             
-        return status_message, results_df
+    # Upload questions once after submission attempt (success or failure)
+    try:
+        if len(results_log) > 0:
+            print(f"✅ Uploading all questions with results: {timestamp}")
+            successful_uploads = upload_questions_with_results(results_log, timestamp, username, total_score, "final")
+            
+            # Log complete evaluation run status
+            if successful_uploads == len(results_log):
+                print(f"✅ All evaluation runs uploaded with results: {timestamp}")
+            else:
+                print(f"⚠️ Failed to upload some evaluation runs: {successful_uploads}/{len(results_log)} questions uploaded")
+    except Exception as e:
+        print(f"⚠️ Upload failed: {e}")
+        
+    return status_message, results_df
 
 def get_dataset_stats_html():
     """
