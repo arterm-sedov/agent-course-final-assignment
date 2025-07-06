@@ -1924,22 +1924,22 @@ class GaiaAgent:
             # Display comprehensive stats
             self.print_llm_stats_table()
             
-            # Return structured result
-            result = {
+            # # Return structured result
+            final_answer = {
                 "submitted_answer": answer,  # Consistent field name
                 "similarity_score": similarity_score,
                 "llm_used": llm_used,
                 "reference": reference if reference else "Reference answer not found",
-                "question": question,
-                "file_name": file_name
+                "question": question
             }
             
             # Finalize trace with success result
-            self._trace_finalize_question(result)
+            self._trace_finalize_question(final_answer)
             
             # Add trace to the result
-            result["trace"] = self._trace_get_full()
-            
+            # result["trace"] = self._trace_get_full()
+            # Return trace as the result
+            result = self._trace_get_full()
             return result
             
         except Exception as e:
@@ -1953,7 +1953,6 @@ class GaiaAgent:
                 "llm_used": "none",
                 "reference": reference if reference else "Reference answer not found",
                 "question": question,
-                "file_name": file_name,
                 "error": str(e)
             }
             
@@ -1961,7 +1960,7 @@ class GaiaAgent:
             self._trace_finalize_question(error_result)
             
             # Add trace to the result
-            error_result["trace"] = self._trace_get_full()
+            error_result = self._trace_get_full()
             
             return error_result
 
