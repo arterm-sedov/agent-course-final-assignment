@@ -85,6 +85,30 @@ def validate_data_structure(data: Dict, split: str) -> bool:
     if missing_fields:
         print(f"Warning: Missing required fields for {split} split: {missing_fields}")
         return False
+    
+    # Enhanced validation: Check nullable fields and data types
+    for field_name, field_spec in features.items():
+        if field_name in data:
+            value = data[field_name]
+            
+            # Check nullable fields
+            is_nullable = field_spec.get("nullable", False)
+            if value is None and not is_nullable:
+                print(f"Warning: Field '{field_name}' is not nullable but contains None")
+                return False
+            
+            # Check data types for non-null values
+            if value is not None:
+                expected_dtype = field_spec.get("dtype", "string")
+                if expected_dtype == "float64" and not isinstance(value, (int, float)):
+                    print(f"Warning: Field '{field_name}' should be float64 but got {type(value)}")
+                    return False
+                elif expected_dtype == "int64" and not isinstance(value, int):
+                    print(f"Warning: Field '{field_name}' should be int64 but got {type(value)}")
+                    return False
+                elif expected_dtype == "string" and not isinstance(value, str):
+                    print(f"Warning: Field '{field_name}' should be string but got {type(value)}")
+                    return False
         
     return True
 
@@ -276,4 +300,48 @@ def ensure_valid_answer(answer: Any) -> str:
     elif answer.strip() == "":
         return "No answer provided"
     else:
-        return answer 
+        return answer
+
+def get_nullable_field_value(value: Any, field_name: str, default: Any = None) -> Any:
+    """
+    Get a value for a nullable field, handling None values appropriately.
+    
+    Args:
+        value (Any): The value to process
+        field_name (str): Name of the field for logging
+        default (Any): Default value if None
+        
+    Returns:
+        Any: The processed value or default
+    """
+    if value is None:
+        print(f"📝 Field '{field_name}' is None, using default: {default}")
+        return default
+    return value
+
+def validate_nullable_field(value: Any, field_name: str, expected_type: str) -> bool:
+    """
+    Validate a nullable field against expected type.
+    
+    Args:
+        value (Any): The value to validate
+        field_name (str): Name of the field
+        expected_type (str): Expected data type (string, float64, int64)
+        
+    Returns:
+        bool: True if valid
+    """
+    if value is None:
+        return True  # Null is always valid for nullable fields
+    
+    if expected_type == "float64" and not isinstance(value, (int, float)):
+        print(f"❌ Field '{field_name}' should be float64 but got {type(value)}")
+        return False
+    elif expected_type == "int64" and not isinstance(value, int):
+        print(f"❌ Field '{field_name}' should be int64 but got {type(value)}")
+        return False
+    elif expected_type == "string" and not isinstance(value, str):
+        print(f"❌ Field '{field_name}' should be string but got {type(value)}")
+        return False
+    
+    return True 

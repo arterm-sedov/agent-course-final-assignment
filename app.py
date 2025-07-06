@@ -145,28 +145,28 @@ def create_run_data_for_runs_new(
         "questions_count": f"{idx+1}/{total_questions}",
         "input_data": json.dumps([{
             "task_id": result.get("task_id", f"task_{idx+1:03d}"),
-            "question": question,
-            "file_name": file_name
+            "question": question or "N/A",
+            "file_name": file_name or "N/A"
         }]),
-        "reference_answer": final_result.get("reference", "Reference answer not found"),  # Reference answer found by agent
-        "final_answer": final_result.get("submitted_answer", ""),  # Use consistent field name
-        "reference_similarity": final_result.get("similarity_score", 0.0),  # Use similarity score from agent
-        "question": question,  # Question text
-        "file_name": file_name,
-        "file_size": trace.get("file_size"),
-        "llm_used": final_result.get("llm_used", "unknown"),  # LLM used
+        "reference_answer": final_result.get("reference", "N/A"),
+        "final_answer": final_result.get("submitted_answer", "N/A"),
+        "reference_similarity": float(final_result.get("similarity_score", 0.0)),
+        "question": question or "N/A",
+        "file_name": file_name or "N/A",
+        "file_size": trace.get("file_size", 0),
+        "llm_used": final_result.get("llm_used", "N/A"),  # LLM used
         "llm_stats_json": json.dumps(llm_stats_json),  # LLM statistics JSON
-        "total_score": total_score,  # Overall score for the complete evaluation run
-        "start_time": trace.get("start_time"),
-        "end_time": trace.get("end_time"),
-        "total_execution_time": trace.get("total_execution_time"),
-        "tokens_total": trace.get("tokens_total", 0),
+        "total_score": total_score or "N/A",  # Overall score for the complete evaluation run
+        "start_time": trace.get("start_time") or "N/A",  # Start time with fallback
+        "end_time": trace.get("end_time") or "N/A",  # End time with fallback
+        "total_execution_time": float(trace.get("total_execution_time", 0.0)),  # Total execution time with fallback, ensure float
+        "tokens_total": int(trace.get("tokens_total", 0)),  # Tokens total with fallback, ensure int
         "llm_traces_json": json.dumps(trace.get("llm_traces", {})),
         "logs_json": json.dumps(trace.get("logs", [])),
         "per_llm_stdout_json": json.dumps(trace.get("per_llm_stdout", [])),
-        "full_debug": "N/A",
-        "error": final_result.get("error", ""),  # Error information
-        "username": username.strip() if username else "unknown"
+        "full_debug": trace.get("debug_output", "N/A"),
+        "error": final_result.get("error", "N/A"),  # Error information
+        "username": username.strip() if username else "N/A"
     }
 
 def run_and_submit_all(profile: gr.OAuthProfile | None):
@@ -262,14 +262,14 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             # Extract data from the trace structure
             trace = agent_result  # The entire trace is now the result
             final_result = trace.get("final_result", {})
-            submitted_answer = final_result.get("submitted_answer", "No answer provided")
+            submitted_answer = final_result.get("submitted_answer", "N/A")
             
             # Use helper function to ensure valid answer
             submitted_answer = ensure_valid_answer(submitted_answer)
             
             reference_similarity = final_result.get("similarity_score", 0.0)
             llm_used = final_result.get("llm_used", "unknown")
-            reference_answer = final_result.get("reference", "Reference answer not found")
+            reference_answer = final_result.get("reference", "N/A")
             question_text = trace.get("question", "")
             file_name = trace.get("file_name", "")
         
@@ -309,7 +309,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
                 "question": question_text, 
                 "file_name": file_name, 
                 "submitted_answer": f"AGENT ERROR: {e}",
-                "reference_answer": "Reference answer not found",
+                "reference_answer": "N/A",
                 "reference_similarity": 0.0,
                 "llm_used": "none"
             })

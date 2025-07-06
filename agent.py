@@ -3154,9 +3154,158 @@ class GaiaAgent:
         if hasattr(self, 'current_llm_stdout_buffer') and self.current_llm_stdout_buffer:
             self._trace_capture_llm_stdout(self.current_llm_type, self.current_llm_call_id)
         
+        # Capture all debug output as comprehensive text
+        debug_output = self._capture_all_debug_output()
+        self.question_trace["debug_output"] = debug_output
+        
         print(f"📊 Question trace finalized. Total execution time: {total_time:.2f}s")
         print(f"📝 Captured stdout for {len(self.question_trace.get('per_llm_stdout', []))} LLM attempts")
         print(f"🔢 Total tokens used: {total_tokens}")
+        print(f"📄 Debug output captured: {len(debug_output)} characters")
+
+    def _capture_all_debug_output(self) -> str:
+        """
+        Capture all debug output as comprehensive text, including:
+        - All logs from the question trace
+        - All LLM traces with their details
+        - All tool executions
+        - All stdout captures
+        - Error information
+        - Performance metrics
+        
+        Returns:
+            str: Comprehensive debug output as text
+        """
+        if not self.question_trace:
+            return "No trace available"
+        
+        debug_lines = []
+        debug_lines.append("=" * 80)
+        debug_lines.append("COMPREHENSIVE DEBUG OUTPUT")
+        debug_lines.append("=" * 80)
+        
+        # Question metadata
+        debug_lines.append(f"Question: {self.question_trace.get('question', 'N/A')}")
+        debug_lines.append(f"File: {self.question_trace.get('file_name', 'N/A')}")
+        debug_lines.append(f"File Size: {self.question_trace.get('file_size', 0)} chars")
+        debug_lines.append(f"Start Time: {self.question_trace.get('start_time', 'N/A')}")
+        debug_lines.append(f"End Time: {self.question_trace.get('end_time', 'N/A')}")
+        debug_lines.append(f"Total Execution Time: {self.question_trace.get('total_execution_time', 0):.2f}s")
+        debug_lines.append(f"Total Tokens: {self.question_trace.get('tokens_total', 0)}")
+        debug_lines.append("")
+        
+        # Final result
+        debug_lines.append("-" * 40)
+        final_result = self.question_trace.get('final_result', {})
+        if final_result:
+            debug_lines.append("FINAL RESULT:")
+            debug_lines.append("-" * 40)
+            for key, value in final_result.items():
+                debug_lines.append(f"{key}: {value}")
+            debug_lines.append("")
+        
+        
+        # Per-LLM stdout captures
+        debug_lines.append("-" * 40)
+        per_llm_stdout = self.question_trace.get('per_llm_stdout', [])
+        if per_llm_stdout:
+            debug_lines.append("PER-LLM STDOUT CAPTURES:")
+            for i, stdout_entry in enumerate(per_llm_stdout, 1):
+                debug_lines.append("-" * 40)
+                debug_lines.append(f"LLM Attempt {i}:")
+                debug_lines.append("-" * 40)
+                debug_lines.append(f"  LLM Type: {stdout_entry.get('llm_type', 'N/A')}")
+                debug_lines.append(f"  LLM Name: {stdout_entry.get('llm_name', 'N/A')}")
+                debug_lines.append(f"  Call ID: {stdout_entry.get('call_id', 'N/A')}")
+                debug_lines.append(f"  Timestamp: {stdout_entry.get('timestamp', 'N/A')}")
+                stdout_content = stdout_entry.get('stdout', '')
+                debug_lines.append(f"  Stdout Length: {len(stdout_content)} characters")
+                if stdout_content:
+                    debug_lines.append(f"  Stdout: {stdout_content}")
+                    # CAN BE SHORTENED debug_lines.append(f"  Stdout Preview: {stdout_content[:self.MAX_PRINT_LEN]}...")
+                debug_lines.append("")
+        
+        # All logs
+        debug_lines.append("-" * 40)
+        logs = self.question_trace.get('logs', [])
+        if logs:
+            debug_lines.append("GENERAL LOGS:")
+            debug_lines.append("-" * 40)
+            for log in logs:
+                timestamp = log.get('timestamp', 'N/A')
+                message = log.get('message', 'N/A')
+                function = log.get('function', 'N/A')
+                debug_lines.append(f"[{timestamp}] [{function}] {message}")
+            debug_lines.append("")
+        
+        # LLM traces
+        debug_lines.append("-" * 40)
+        llm_traces = self.question_trace.get('llm_traces', {})
+        if llm_traces:
+            debug_lines.append("LLM TRACES:")
+            debug_lines.append("-" * 40)
+            for llm_type, calls in llm_traces.items():
+                debug_lines.append(f"LLM Type: {llm_type}")
+                debug_lines.append("-" * 30)
+                for i, call in enumerate(calls, 1):
+                    debug_lines.append(f"  Call {i}: {call.get('call_id', 'N/A')}")
+                    debug_lines.append(f"    LLM Name: {call.get('llm_name', 'N/A')}")
+                    debug_lines.append(f"    Timestamp: {call.get('timestamp', 'N/A')}")
+                    debug_lines.append(f"    Execution Time: {call.get('execution_time', 'N/A')}")
+                    
+                    # Input details
+                    input_data = call.get('input', {})
+                    if input_data:
+                        debug_lines.append(f"    Input Messages: {len(input_data.get('messages', []))}")
+                        debug_lines.append(f"    Use Tools: {input_data.get('use_tools', False)}")
+                    
+                    # Output details
+                    output_data = call.get('output', {})
+                    if output_data:
+                        content = output_data.get('content', '')
+                        if content:
+                            debug_lines.append(f"    Output Content: {content[:200]}...")
+                        tool_calls = output_data.get('tool_calls', [])
+                        if tool_calls:
+                            debug_lines.append(f"    Tool Calls: {len(tool_calls)}")
+                    
+                    # Token usage
+                    token_usage = call.get('token_usage', {})
+                    if token_usage:
+                        debug_lines.append(f"    Tokens: {token_usage.get('total_tokens', 0)}")
+                    
+                    # Tool executions
+                    tool_executions = call.get('tool_executions', [])
+                    if tool_executions:
+                        debug_lines.append(f"    Tool Executions: {len(tool_executions)}")
+                        for j, tool_exec in enumerate(tool_executions, 1):
+                            tool_name = tool_exec.get('tool_name', 'N/A')
+                            exec_time = tool_exec.get('execution_time', 0)
+                            debug_lines.append(f"      Tool {j}: {tool_name} ({exec_time:.2f}s)")
+                    
+                    # Tool loop data
+                    tool_loop_data = call.get('tool_loop_data', [])
+                    if tool_loop_data:
+                        debug_lines.append(f"    Tool Loop Steps: {len(tool_loop_data)}")
+                    
+                    # Error information
+                    error = call.get('error', {})
+                    if error:
+                        debug_lines.append(f"    Error: {error.get('type', 'N/A')} - {error.get('message', 'N/A')}")
+                    
+                    # Call-specific logs
+                    call_logs = call.get('logs', [])
+                    if call_logs:
+                        debug_lines.append(f"    Logs: {len(call_logs)} entries")
+                    
+                    debug_lines.append("")
+                debug_lines.append("")
+        
+        debug_lines.append("=" * 80)
+        debug_lines.append("END DEBUG OUTPUT")
+        debug_lines.append("=" * 80)
+        
+        return "\n".join(debug_lines)
 
     def _trace_get_full(self) -> dict:
         """
