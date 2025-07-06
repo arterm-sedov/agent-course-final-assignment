@@ -791,7 +791,7 @@ def exa_ai_helper(question: str) -> str:
     """
     I am a smart AI assistant and can potentially give you the right FINAL ANSWER right away.
     Get direct, well-researched answers to questions using AI engine Exa.
-    
+        
     This tool is particularly useful when:
     - You need authoritative, up-to-date information on a topic
     - You want to double-check your own knowledge or reasoning
@@ -802,6 +802,8 @@ def exa_ai_helper(question: str) -> str:
     The tool performs an Exa search and uses an LLM to generate either:
     - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
     - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
+    
+    WARNING: EXA can return wrong answers. Always judge yourself and use additional tools for research.
     
     Args:
         question (str): The question to get an answer for. Can be specific or open-ended.
