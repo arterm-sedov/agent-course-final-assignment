@@ -789,11 +789,10 @@ def arxiv_search(input: str) -> str:
 @tool
 def exa_ai_helper(question: str) -> str:
     """
-    Prefer exa_research_tool(). It is smarter.
-    I am a smart AI assistant and can potentially give you the right FINAL ANSWER right away.
-    Get direct, well-researched answers to questions using AI engine Exa.
+    Prefer exa_research_tool. It is smarter, but give more verbose answers.
+    I am a smart AI web-search engine and could give you a very good web reference.
+    Get direct answers to questions using AI engine Exa.
     Do not ask me about attached files or video/audio analysis.
-    But I could potentially answer about well-known video mems and citations.
         
     This tool is particularly useful when:
     - You need authoritative, up-to-date information on a topic
@@ -806,7 +805,7 @@ def exa_ai_helper(question: str) -> str:
     - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
     - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
     
-    WARNING: EXA can return inaccurate or plain wrong answers Always judge yourself and use additional tools for research.
+    WARNING: Always judge yourself and use additional tools for research.
     
     Args:
         question (str): The question to get an answer for. Can be specific or open-ended.
@@ -2353,13 +2352,13 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
 def exa_research_tool(instructions: str) -> str:
     """
     I am a smart AI DEEP RESEARCH assistant and can potentially give you the right FINAL ANSWER right away.
+    I can research a topic, verify facts and output a structured answer.
     Call me to get a well-researched answer to your question.
-    I am much smarter than exa_ai_helper as I crawl the Web to find the answer.
-    Ask me direct text-only questions.
-    Use Exa's research API to create and poll a research task for complex, multi-step questions.
+    I crawl and search the Web to find the right answer.
+    Ask me direct questions.
     This tool is ideal for research tasks that require structured, schema-based answers or deeper reasoning.
-    Do not ask me about attached files or video/audio analysis. But I can potentially answer about well-known video mems and citations.
-    WARNING: Exa can give inacurate or wrong answers. Always use your judgement and research with other tools.
+    I can potentially answer about well-known movies, books, mems and citations, but I can't directly analyse files, audios or videos.
+    WARNING: Always use your judgement and do additional research with other tools.
     
     The tool creates a research task with schema inference enabled, allowing for structured responses
     to complex queries that require multi-step reasoning and factual verification.

@@ -26,8 +26,8 @@
     "research_steps": [
         {
             "step": 0,
-            "action": "Call exa_research_tool() (only once), directly asking it the original question. It is a smart AI DEEP RESEARCH agent and can give you a great reference or a candidate for the FINAL ANSWER right away.",
-            "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement. WARNING: EXA can return inaccurate or plain wrong answers. Always judge yourself and use additional tools for research."
+            "action": "Call exa_research_tool directly asking it the original question.  WARNING: Always judge yourself and use additional tools for more research and verification (call this tool once, then call other tools).",
+            "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement. exa_research_tool is a DEEP RESEARCH agent and can give you a great reference or a candidate for the FINAL ANSWER right away."
         },
         {
             "step": 1,
