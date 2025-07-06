@@ -26,7 +26,7 @@
     "research_steps": [
         {
             "step": 0,
-            "action": "Call exa_ai_helper() tool, directly asking it the original question. It is a smart AI and can give you a great reference or a candidate for the FINAL ANSWER right away.",
+            "action": "Call exa_ai_helper() tool (only once), directly asking it the original question. It is a smart AI and can give you a great reference or a candidate for the FINAL ANSWER right away.",
             "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement. WARNING: EXA can return inaccurate or plain wrong answers. Always judge yourself and use additional tools for research."
         },
         {
