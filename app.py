@@ -621,7 +621,9 @@ with gr.Blocks() as demo:
 
             ### 📊 **What You'll Find Here**
             
-            - **Live Evaluation**: Test the agent against GAIA Unit 4 questions. See the **Evaluation** tab. NOTE: LLM availability is subject to my inference limits with each provider
+            - **Live Evaluation**: Test the agent against GAIA Unit 4 questions. See the **Evaluation** tab. 
+                - When starting, the agent talks to LLMs and initializes them and outputs some interesting debugging logs. Select **Logs** at the top to vew the init log.
+                - NOTE: LLM availability is subject to my inference limits with each provider
             - **Dataset Tracking**: All runs are uploaded to the HuggingFace dataset for analysis. See the the **Dataset** tab
             - **Performance Metrics**: Detailed timing, token usage, and success rates. See the the **Dataset** tab
             - **Complete Traces**: See exactly how the agent thinks and uses tools. See the **Log files** tab
