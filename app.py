@@ -219,8 +219,8 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     print(f"Running GaiaAgent on {len(questions_data)} questions...")
     
     # DEBUG: Select one random task instead of all
-    #questions_data = random.sample(questions_data, len(questions_data))
-    questions_data = random.sample(questions_data, 1)
+    questions_data = random.sample(questions_data, len(questions_data))
+    #questions_data = random.sample(questions_data, 1)
     #questions_data = [questions_data[0]]
     
     for item in questions_data:
@@ -649,11 +649,11 @@ with gr.Blocks() as demo:
             )
             
             # Embed the dataset viewer
-            vew_params = "sort%5Bcolumn%5D=run_id&sort%5Bdirection%5D=asc&sort%5Btransform%5D=length&views%5B%5D=runs_new&sql=--+The+SQL+console+is+powered+by+DuckDB+WASM+and+runs+entirely+in+the+browser.%0A--+Get+started+by+typing+a+query+or+selecting+a+view+from+the+options+below.%0ASELECT+*+FROM+runs_new+ORDER+BY++per_llm_stdout_json+DESC%2C+run_id+DESC%2C+username+ASC%3B"
+            vew_params = ""
             dataset_viewer_html = f"""
             <div style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
                 <iframe
-                  src="https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/embed/viewer/init/train?{vew_params}"
+                  src="https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/embed/viewer/run/train?{vew_params}"
                   frameborder="0"
                   width="100%"
                   height="560px"
