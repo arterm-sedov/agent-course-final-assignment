@@ -217,7 +217,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     
     # DEBUG: Select one random task instead of all
     #questions_data = random.sample(questions_data, len(questions_data))
-    questions_data = random.sample(questions_data)
+    questions_data = random.sample(questions_data, 1)
     #questions_data = [questions_data[0]]
     
     for item in questions_data:
@@ -259,6 +259,13 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             trace = agent_result  # The entire trace is now the result
             final_result = trace.get("final_result", {})
             submitted_answer = final_result.get("submitted_answer", "No answer provided")
+            
+            # Handle None/null submitted_answer to prevent 422 errors
+            if submitted_answer is None:
+                submitted_answer = "No answer provided"
+            elif not isinstance(submitted_answer, str):
+                submitted_answer = str(submitted_answer)
+            
             reference_similarity = final_result.get("similarity_score", 0.0)
             llm_used = final_result.get("llm_used", "unknown")
             reference_answer = final_result.get("reference", "Reference answer not found")
