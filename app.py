@@ -653,7 +653,7 @@ with gr.Blocks() as demo:
             dataset_viewer_html = f"""
             <div style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
                 <iframe
-                  src="https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/embed/viewer/run/train?{vew_params}"
+                  src="https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/embed/viewer/runs_new/train{vew_params}"
                   frameborder="0"
                   width="100%"
                   height="560px"
