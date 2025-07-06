@@ -633,12 +633,11 @@ with gr.Blocks() as demo:
                 outputs=[status_output, results_table]
             )
         with gr.TabItem("Results dataset"):
-            gr.Markdown("## Dataset statistics")
             
-            gr.Markdown("## dataset viewer")
             gr.Markdown(
                 """
-                ### Live Dataset viewer
+                ## Live Dataset viewer
+                
                 View the latest evaluation runs uploaded to the HuggingFace dataset.
                 
                 **Dataset URL:** [arterm-sedov/agent-course-final-assignment](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
@@ -648,9 +647,7 @@ with gr.Blocks() as demo:
                 > **Note:** The dataset viewer may show schema conflicts between different splits (init, runs, runs_new). This is expected as each split has different schemas. The `runs_new` split contains the latest granular evaluation data.
                 """
             )
-            dataset_stats_output = gr.HTML(get_dataset_stats_html())
-            refresh_stats_btn = gr.Button("🔄 Refresh Dataset Statistics")
-            refresh_stats_btn.click(fn=get_dataset_stats_html, outputs=dataset_stats_output)
+            
             # Embed the dataset viewer
             vew_params = "sort%5Bcolumn%5D=run_id&sort%5Bdirection%5D=asc&sort%5Btransform%5D=length&views%5B%5D=runs_new&sql=--+The+SQL+console+is+powered+by+DuckDB+WASM+and+runs+entirely+in+the+browser.%0A--+Get+started+by+typing+a+query+or+selecting+a+view+from+the+options+below.%0ASELECT+*+FROM+runs_new+ORDER+BY++per_llm_stdout_json+DESC%2C+run_id+DESC%2C+username+ASC%3B"
             dataset_viewer_html = f"""
@@ -664,6 +661,9 @@ with gr.Blocks() as demo:
             </div>
             """
             gr.HTML(dataset_viewer_html)
+            dataset_stats_output = gr.HTML(get_dataset_stats_html())
+            refresh_stats_btn = gr.Button("🔄 Refresh Dataset Statistics")
+            refresh_stats_btn.click(fn=get_dataset_stats_html, outputs=dataset_stats_output)
         with gr.TabItem("Logs"):
             gr.Markdown("## Logs download links")
             gr.HTML(get_logs_html())
