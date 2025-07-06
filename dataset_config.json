@@ -31,26 +31,36 @@
     "init": {
       "timestamp": {"dtype": "string", "_type": "Value"},
       "init_summary": {"dtype": "string", "_type": "Value"},
+      "init_summary_json": {"dtype": "string", "_type": "Value"},
       "debug_output": {"dtype": "string", "_type": "Value"},
       "llm_config": {"dtype": "string", "_type": "Value"},
       "available_models": {"dtype": "string", "_type": "Value"},
-      "tool_support": {"dtype": "string", "_type": "Value"},
-      "init_summary_json": {"dtype": "string", "_type": "Value"}
+      "tool_support": {"dtype": "string", "_type": "Value"}
     },
     "runs_new": {
-      "run_id": {"dtype": "string", "_type": "Value"},
-      "questions_count": {"dtype": "string", "_type": "Value"},
-      "input_data": {"dtype": "string", "_type": "Value"},
-      "reference_answer": {"dtype": "string", "_type": "Value"},
-      "final_answer": {"dtype": "string", "_type": "Value"},
-      "reference_similarity": {"dtype": "float64", "_type": "Value"},
-      "question": {"dtype": "string", "_type": "Value"},
-      "file_name": {"dtype": "string", "_type": "Value"},
-      "llm_used": {"dtype": "string", "_type": "Value"},
-      "llm_stats_json": {"dtype": "string", "_type": "Value"},
-      "total_score": {"dtype": "string", "_type": "Value"},
-      "error": {"dtype": "string", "_type": "Value"},
-      "username": {"dtype": "string", "_type": "Value"}
+      "features": {
+        "run_id": {"dtype": "string", "_type": "Value"},
+        "questions_count": {"dtype": "string", "_type": "Value"},
+        "input_data": {"dtype": "string", "_type": "Value"},
+        "reference_answer": {"dtype": "string", "_type": "Value"},
+        "final_answer": {"dtype": "string", "_type": "Value"},
+        "reference_similarity": {"dtype": "float64", "_type": "Value"},
+        "question": {"dtype": "string", "_type": "Value"},
+        "file_name": {"dtype": "string", "_type": "Value"},
+        "file_size": {"dtype": "int64", "_type": "Value"},
+        "llm_used": {"dtype": "string", "_type": "Value"},
+        "llm_stats_json": {"dtype": "string", "_type": "Value"},
+        "total_score": {"dtype": "string", "_type": "Value"},
+        "start_time": {"dtype": "string", "_type": "Value"},
+        "end_time": {"dtype": "string", "_type": "Value"},
+        "total_execution_time": {"dtype": "float64", "_type": "Value"},
+        "tokens_total": {"dtype": "int64", "_type": "Value"},
+        "llm_traces_json": {"dtype": "string", "_type": "Value"},
+        "logs_json": {"dtype": "string", "_type": "Value"},
+        "per_llm_stdout_json": {"dtype": "string", "_type": "Value"},
+        "error": {"dtype": "string", "_type": "Value"},
+        "username": {"dtype": "string", "_type": "Value"}
+      }
     }
   }
 } 

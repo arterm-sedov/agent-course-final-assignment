@@ -85,6 +85,9 @@ def create_run_data_for_runs_new(
     Returns:
         dict: Run data for upload to runs_new split
     """
+    # Extract trace data from agent result
+    trace = result.get("trace", {})
+    
     return {
         "run_id": run_id,
         "questions_count": f"{idx+1}/{total_questions}",
@@ -94,14 +97,22 @@ def create_run_data_for_runs_new(
             "file_name": result.get("file_name", "")
         }]),
         "reference_answer": result.get("reference_answer", "Reference answer not found"),  # Reference answer found by agent
-        "final_answer": result.get("submitted_answer", ""),  # Keep actual answer
+        "final_answer": result.get("submitted_answer", ""),  # Use consistent field name
         "reference_similarity": result.get("similarity_score", 0.0),  # Use similarity score from agent
         "question": result.get("question", ""),  # Question text
         "file_name": result.get("file_name", ""),  # File name
+        "file_size": trace.get("file_size"),
         "llm_used": result.get("llm_used", "unknown"),  # LLM used
-        "error": result.get("error", ""),  # Error information
         "llm_stats_json": json.dumps(llm_stats_json),  # LLM statistics JSON
         "total_score": total_score,  # Overall score for the complete evaluation run
+        "start_time": trace.get("start_time"),
+        "end_time": trace.get("end_time"),
+        "total_execution_time": trace.get("total_execution_time"),
+        "tokens_total": trace.get("tokens_total", 0),
+        "llm_traces_json": json.dumps(trace.get("llm_traces", {})),
+        "logs_json": json.dumps(trace.get("logs", [])),
+        "per_llm_stdout_json": json.dumps(trace.get("per_llm_stdout", [])),
+        "error": result.get("error", ""),  # Error information
         "username": username.strip() if username else "unknown"
     }
 
@@ -193,7 +204,7 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
                 agent_result = agent(question_text)
             
             # Extract answer and additional info from agent result
-            submitted_answer = agent_result.get("answer", "No answer provided")
+            submitted_answer = agent_result.get("submitted_answer", "No answer provided")
             reference_similarity = agent_result.get("similarity_score", 0.0)
             llm_used = agent_result.get("llm_used", "unknown")
             reference_answer = agent_result.get("reference", "Reference answer not found")
@@ -595,7 +606,6 @@ def save_results_log(results_log: list) -> str:
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
-    gr.Markdown(open("README.md", "r", encoding="utf-8").read())
     gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner")
     gr.Markdown(
         """
@@ -619,6 +629,8 @@ with gr.Blocks() as demo:
     )
 
     with gr.Tabs():
+        with gr.TabItem("Readme"):
+            gr.Markdown(open("README.md", "r", encoding="utf-8").read())
         with gr.TabItem("Evaluation"):
             gr.LoginButton()
             run_button = gr.Button("Run Evaluation & Submit All Answers")

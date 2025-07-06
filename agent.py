@@ -30,6 +30,7 @@ import base64
 import tiktoken
 import io
 import sys
+from io import StringIO
 from typing import List, Dict, Any, Optional
 from tools import *
 # Import tools module to get its functions
@@ -47,6 +48,106 @@ from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
 # Import the file helper
 from file_helper import TRACES_DIR, upload_init_summary
+
+def trace_prints_with_context(context_type: str):
+    """
+    Decorator that traces all print calls in a function and attaches them to specific execution contexts.
+    Automatically captures print output and adds it to the appropriate context in the agent's trace.
+    """
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            # Store original print
+            original_print = print
+            
+            # Store current context
+            old_context = getattr(self, '_current_trace_context', None)
+            self._current_trace_context = context_type
+            
+            def trace_print(*print_args, **print_kwargs):
+                # Original print functionality
+                original_print(*print_args, **print_kwargs)
+                
+                # Write to current LLM's stdout buffer if available
+                if hasattr(self, 'current_llm_stdout_buffer') and self.current_llm_stdout_buffer:
+                    try:
+                        message = " ".join(str(arg) for arg in print_args)
+                        self.current_llm_stdout_buffer.write(message + "\n")
+                    except Exception as e:
+                        # Fallback if buffer write fails
+                        original_print(f"[Buffer Error] Failed to write to stdout buffer: {e}")
+                
+                # Add to appropriate context
+                if hasattr(self, 'question_trace') and self.question_trace is not None:
+                    try:
+                        self._add_log_to_context(" ".join(str(arg) for arg in print_args), func.__name__)
+                    except Exception as e:
+                        # Fallback to basic logging if trace fails
+                        original_print(f"[Trace Error] Failed to add log entry: {e}")
+            
+            # Override print for this function call
+            import builtins
+            builtins.print = trace_print
+            
+            try:
+                result = func(self, *args, **kwargs)
+            finally:
+                # Restore original print
+                builtins.print = original_print
+                # Restore previous context
+                self._current_trace_context = old_context
+            
+            return result
+        return wrapper
+    return decorator
+
+def trace_prints(func):
+    """
+    Decorator that traces all print calls in a function.
+    Automatically captures print output and adds it to the agent's trace.
+    """
+    def wrapper(self, *args, **kwargs):
+        # Store original print
+        original_print = print
+        
+        def trace_print(*print_args, **print_kwargs):
+            # Original print functionality
+            original_print(*print_args, **print_kwargs)
+            
+            # Write to current LLM's stdout buffer if available
+            if hasattr(self, 'current_llm_stdout_buffer') and self.current_llm_stdout_buffer:
+                try:
+                    message = " ".join(str(arg) for arg in print_args)
+                    self.current_llm_stdout_buffer.write(message + "\n")
+                except Exception as e:
+                    # Fallback if buffer write fails
+                    original_print(f"[Buffer Error] Failed to write to stdout buffer: {e}")
+            
+            # Add to trace
+            if hasattr(self, 'question_trace') and self.question_trace is not None:
+                try:
+                    log_entry = {
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        "level": "info",
+                        "message": " ".join(str(arg) for arg in print_args),
+                        "function": func.__name__
+                    }
+                    self.question_trace.setdefault("logs", []).append(log_entry)
+                except Exception as e:
+                    # Fallback to basic logging if trace fails
+                    original_print(f"[Trace Error] Failed to add log entry: {e}")
+        
+        # Override print for this function call
+        import builtins
+        builtins.print = trace_print
+        
+        try:
+            result = func(self, *args, **kwargs)
+        finally:
+            # Restore original print
+            builtins.print = original_print
+        
+        return result
+    return wrapper
 
 class Tee:
     """
@@ -152,7 +253,7 @@ class GaiaAgent:
             "force_tools": False,
             "models": [
                 {
-                    "repo_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+                    "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
                     "task": "text-generation",
                     "token_limit": 1000,
                     "max_new_tokens": 1024,
@@ -160,7 +261,7 @@ class GaiaAgent:
                     "temperature": 0
                 },
                 {
-                    "repo_id": "microsoft/DialoGPT-medium",
+                    "model": "microsoft/DialoGPT-medium",
                     "task": "text-generation",
                     "token_limit": 1000,
                     "max_new_tokens": 512,
@@ -168,7 +269,7 @@ class GaiaAgent:
                     "temperature": 0
                 },
                 {
-                    "repo_id": "gpt2",
+                    "model": "gpt2",
                     "task": "text-generation",
                     "token_limit": 1000,
                     "max_new_tokens": 256,
@@ -267,6 +368,10 @@ class GaiaAgent:
                     "total_attempts": 0
                 }
             self.total_questions = 0
+            
+            # Initialize tracing system
+            self.question_trace = None
+            self.current_llm_call_id = None
 
             # Set up embeddings and supabase retriever
             self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
@@ -308,7 +413,7 @@ class GaiaAgent:
                 config = self.LLM_CONFIG[llm_type]
                 llm_name = config["name"]
                 for model_config in config["models"]:
-                    model_id = model_config.get("model", model_config.get("repo_id", ""))
+                    model_id = model_config.get("model", "")
                     print(f"🔄 Initializing LLM {llm_name} (model: {model_id}) ({idx+1} of {len(llm_types_to_init)})")
                     llm_instance = None
                     model_config_used = None
@@ -526,7 +631,8 @@ class GaiaAgent:
         
         return truncated_messages
 
-    def _execute_tool(self, tool_name: str, tool_args: dict, tool_registry: dict) -> str:
+    @trace_prints_with_context("tool_execution")
+    def _execute_tool(self, tool_name: str, tool_args: dict, tool_registry: dict, call_id: str = None) -> str:
         """
         Execute a tool with the given name and arguments.
         
@@ -542,7 +648,13 @@ class GaiaAgent:
         if isinstance(tool_args, dict):
             tool_args = self._inject_file_data_to_tool_args(tool_name, tool_args)
         
-        print(f"[Tool Loop] Running tool: {tool_name} with args: {tool_args}")
+        # Create truncated copy for logging only
+        truncated_args = self._deep_trim_dict_max_length(tool_args)
+        print(f"[Tool Loop] Running tool: {tool_name} with args: {truncated_args}")
+        
+        # Start timing for trace
+        start_time = time.time()
+        
         tool_func = tool_registry.get(tool_name)
         
         if not tool_func:
@@ -574,6 +686,12 @@ class GaiaAgent:
                 tool_result = f"Error running tool '{tool_name}': {e}"
                 print(f"[Tool Loop] Error running tool '{tool_name}': {e}")
         
+        # Add tool execution to trace if call_id is provided
+        if call_id and self.question_trace:
+            execution_time = time.time() - start_time
+            llm_type = self.current_llm_type
+            self._add_tool_execution_trace(llm_type, call_id, tool_name, tool_args, tool_result, execution_time)
+        
         return str(tool_result)
 
     def _has_tool_messages(self, messages: List) -> bool:
@@ -591,6 +709,7 @@ class GaiaAgent:
             for msg in messages
         )
 
+    @trace_prints_with_context("final_answer")
     def _force_final_answer(self, messages, tool_results_history, llm):
         """
         Handle duplicate tool calls by forcing final answer using LangChain's native mechanisms.
@@ -693,7 +812,8 @@ class GaiaAgent:
                 print(f"[Tool Loop] ❌ Gemini failed to extract final answer: {e}")
                 return AIMessage(content=f"RESULT: {tool_result}")
 
-    def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown", model_index: int = 0):
+    @trace_prints_with_context("tool_loop")
+    def _run_tool_calling_loop(self, llm, messages, tool_registry, llm_type="unknown", model_index: int = 0, call_id: str = None):
         """
         Run a tool-calling loop: repeatedly invoke the LLM, detect tool calls, execute tools, and feed results back until a final answer is produced.
         - Uses adaptive step limits based on LLM type (Gemini: 25, Groq: 15, HuggingFace: 20, unknown: 20).
@@ -903,6 +1023,10 @@ class GaiaAgent:
             if tool_calls:
                 print(f"[Tool Loop] Detected {len(tool_calls)} tool call(s)")
                 
+                # Add tool loop data to trace
+                if call_id and self.question_trace:
+                    self._add_tool_loop_data(llm_type, call_id, step + 1, tool_calls, consecutive_no_progress)
+                
                 # Limit the number of tool calls per step to prevent token overflow
                 if len(tool_calls) > max_tool_calls_per_step:
                     print(f"[Tool Loop] Too many tool calls on a single step ({len(tool_calls)}). Limiting to first {max_tool_calls_per_step}.")
@@ -955,8 +1079,8 @@ class GaiaAgent:
                     tool_name = tool_call.get('name')
                     tool_args = tool_call.get('args', {})
                     
-                    # Execute tool using helper method
-                    tool_result = self._execute_tool(tool_name, tool_args, tool_registry)
+                    # Execute tool using helper method with call_id for tracing
+                    tool_result = self._execute_tool(tool_name, tool_args, tool_registry, call_id)
                     
                     # Store the raw result for this step
                     current_step_tool_results.append(tool_result)
@@ -1014,8 +1138,8 @@ class GaiaAgent:
                 if tool_name in tool_usage_count:
                     tool_usage_count[tool_name] += 1
                 
-                # Execute tool using helper method
-                tool_result = self._execute_tool(tool_name, tool_args, tool_registry)
+                # Execute tool using helper method with call_id for tracing
+                tool_result = self._execute_tool(tool_name, tool_args, tool_registry, call_id)
                 
                 # Store the raw result for this step
                 current_step_tool_results.append(tool_result)
@@ -1059,6 +1183,7 @@ class GaiaAgent:
         llm_type_str = self.LLM_CONFIG[llm_type]["type_str"]
         return llm, llm_name, llm_type_str
 
+    @trace_prints_with_context("llm_call")
     def _make_llm_request(self, messages, use_tools=True, llm_type=None):
         """
         Make an LLM request with rate limiting.
@@ -1080,11 +1205,20 @@ class GaiaAgent:
                     f"llm_type must be specified for _make_llm_request(). "
                     f"Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}"
                 )
+        
+        # Start LLM trace
+        call_id = self._trace_start_llm(llm_type)
+        start_time = time.time()
+        
         # Set the current LLM type for rate limiting
         self.current_llm_type = llm_type
         # ENFORCE: Never use tools for providers that do not support them
         if not self._provider_supports_tools(llm_type):
             use_tools = False
+        
+        # Add input to trace
+        self._trace_add_llm_call_input(llm_type, call_id, messages, use_tools)
+        
         llm, llm_name, llm_type_str = self._select_llm(llm_type, use_tools)
         if llm is None:
             raise Exception(f"{llm_name} LLM not available")
@@ -1097,7 +1231,7 @@ class GaiaAgent:
                 self._print_message_components(msg, i)
             tool_registry = {self._get_tool_name(tool): tool for tool in self.tools}
             if use_tools:
-                response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str)
+                response = self._run_tool_calling_loop(llm, messages, tool_registry, llm_type_str, call_id)
                 if not hasattr(response, 'content') or not response.content:
                     print(f"⚠️ {llm_name} tool calling returned empty content, trying without tools...")
                     llm_no_tools, _, _ = self._select_llm(llm_type, False)
@@ -1132,8 +1266,17 @@ class GaiaAgent:
             else:
                 response = llm.invoke(messages)
             print(f"--- Raw response from {llm_name} ---")
+            
+            # Add output to trace
+            execution_time = time.time() - start_time
+            self._trace_add_llm_call_output(llm_type, call_id, response, execution_time)
+            
             return response
         except Exception as e:
+            # Add error to trace
+            execution_time = time.time() - start_time
+            self._trace_add_llm_error(llm_type, call_id, e)
+            
             handled, result = self._handle_llm_error(e, llm_name, llm_type, phase="request", messages=messages, llm=llm)
             if handled:
                 return result
@@ -1297,6 +1440,11 @@ class GaiaAgent:
                 answer = self._extract_final_answer(response)
                 print(f"✅ {llm_name} answered: {answer}")
                 print(f"✅ Reference: {reference}")
+                
+                # Capture stdout for this LLM attempt
+                if hasattr(self, 'current_llm_call_id'):
+                    self._trace_capture_llm_stdout(llm_type, self.current_llm_call_id)
+                
                 if reference is None:
                     print(f"✅ {llm_name} succeeded (no reference to compare)")
                     self._update_llm_tracking(llm_type, "success")
@@ -1317,6 +1465,11 @@ class GaiaAgent:
                     print(f"🔄 All LLMs tried, all failed")
             except Exception as e:
                 print(f"❌ {llm_name} failed: {e}")
+                
+                # Capture stdout for this failed LLM attempt
+                if hasattr(self, 'current_llm_call_id'):
+                    self._trace_capture_llm_stdout(llm_type, self.current_llm_call_id)
+                
                 self._update_llm_tracking(llm_type, "failure")
                 if llm_type == available_llms[-1][0]:
                     raise Exception(f"All available LLMs failed. Last error from {llm_name}: {e}")
@@ -1465,7 +1618,7 @@ class GaiaAgent:
         for llm_type in self.llm_tracking.keys():
             model_id = None
             if llm_type in self.active_model_config:
-                model_id = self.active_model_config[llm_type].get("model", self.active_model_config[llm_type].get("repo_id", ""))
+                model_id = self.active_model_config[llm_type].get("model", "")
             used_models[llm_type] = model_id
         llm_types = list(self.llm_tracking.keys())
         total_submitted = 0
@@ -1539,7 +1692,7 @@ class GaiaAgent:
             config = self.LLM_CONFIG.get(r['llm_type'], {})
             model_force_tools = False
             for m in config.get('models', []):
-                if m.get('model', m.get('repo_id', '')) == r['model']:
+                if m.get('model', '') == r['model']:
                     model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
                     break
             if r['tools_ok'] is None:
@@ -1573,7 +1726,7 @@ class GaiaAgent:
             config = self.LLM_CONFIG.get(r['llm_type'], {})
             model_force_tools = False
             for m in config.get('models', []):
-                if m.get('model', m.get('repo_id', '')) == r['model']:
+                if m.get('model', '') == r['model']:
                     model_force_tools = config.get('force_tools', False) or m.get('force_tools', False)
                     break
             
@@ -1708,6 +1861,7 @@ class GaiaAgent:
             if self.llm_tracking[llm_type]["total_attempts"] == 0:
                 self.llm_tracking[llm_type]["total_attempts"] += increment
 
+    @trace_prints_with_context("question")
     def __call__(self, question: str, file_data: str = None, file_name: str = None) -> dict:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
@@ -1733,6 +1887,9 @@ class GaiaAgent:
             3. Use LLM sequence with similarity checking against reference.
             4. If no similar answer found, fall back to reference answer.
         """
+        # Initialize trace for this question
+        self._trace_init_question(question, file_data, file_name)
+        
         print(f"\n🔎 Processing question: {question}\n")
         
         # Increment total questions counter
@@ -1769,13 +1926,19 @@ class GaiaAgent:
             
             # Return structured result
             result = {
-                "answer": answer,
+                "submitted_answer": answer,  # Consistent field name
                 "similarity_score": similarity_score,
                 "llm_used": llm_used,
                 "reference": reference if reference else "Reference answer not found",
                 "question": question,
                 "file_name": file_name
             }
+            
+            # Finalize trace with success result
+            self._trace_finalize_question(result)
+            
+            # Add trace to the result
+            result["trace"] = self._trace_get_full()
             
             return result
             
@@ -1785,7 +1948,7 @@ class GaiaAgent:
             
             # Return error result
             error_result = {
-                "answer": f"Error: {e}",
+                "submitted_answer": f"Error: {e}",  # Consistent field name
                 "similarity_score": 0.0,
                 "llm_used": "none",
                 "reference": reference if reference else "Reference answer not found",
@@ -1793,6 +1956,12 @@ class GaiaAgent:
                 "file_name": file_name,
                 "error": str(e)
             }
+            
+            # Finalize trace with error result
+            self._trace_finalize_question(error_result)
+            
+            # Add trace to the result
+            error_result["trace"] = self._trace_get_full()
             
             return error_result
 
@@ -2061,8 +2230,13 @@ class GaiaAgent:
 
     def _init_huggingface_llm(self, config, model_config):
         from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+        # Convert model to repo_id for HuggingFace
+        model_config_with_repo = model_config.copy()
+        model_config_with_repo['repo_id'] = model_config['model']
+        del model_config_with_repo['model']
+        
         allowed_fields = {'repo_id', 'task', 'max_new_tokens', 'do_sample', 'temperature'}
-        filtered_config = {k: v for k, v in model_config.items() if k in allowed_fields}
+        filtered_config = {k: v for k, v in model_config_with_repo.items() if k in allowed_fields}
         try:
             endpoint = HuggingFaceEndpoint(**filtered_config)
             return ChatHuggingFace(
@@ -2197,6 +2371,7 @@ class GaiaAgent:
             max_len = self.MAX_PRINT_LEN
         s = str(obj)
         orig_len = len(s)
+        
         if orig_len > max_len:
             return f"Truncated. Original length: {orig_len}\n{s[:max_len]}"
         return s
@@ -2204,18 +2379,20 @@ class GaiaAgent:
     def _format_value_for_print(self, value):
         """
         Smart value formatter that handles JSON serialization, fallback, and trimming.
+        ENHANCED: Now uses _deep_trim_dict_max_length() for dicts/lists for consistent base64 and length handling.
         Returns a formatted string ready for printing.
         """
         if isinstance(value, str):
             return self._trim_for_print(value)
         elif isinstance(value, (dict, list)):
+            # Use _deep_trim_dict_max_length() for print statements with both base64 and length truncation
+            trimmed = self._deep_trim_dict_max_length(value)
             try:
-                # Use JSON for complex objects, with smart formatting
-                json_str = json.dumps(value, indent=2, ensure_ascii=False, default=str)
-                return self._trim_for_print(json_str)
+                # Convert back to JSON string for display
+                return json.dumps(trimmed, indent=2, ensure_ascii=False, default=str)
             except (TypeError, ValueError):
                 # Fallback to string representation
-                return self._trim_for_print(str(value))
+                return str(trimmed)
         else:
             return self._trim_for_print(str(value))
 
@@ -2285,17 +2462,61 @@ class GaiaAgent:
         
         print(separator)
 
-    def _deep_trim_dict(self, obj, max_len=None):
+    def _is_base64_data(self, data: str) -> bool:
         """
-        Recursively trim all string fields in a dict or list to max_len characters.
+        Check if string is likely base64 data using Python's built-in validation.
+        Fast and reliable detection for logging purposes.
+        """
+        if len(data) < 50:  # Too short to be meaningful base64
+            return False
+        try:
+            # Check if it's valid base64 by attempting to decode first 100 chars
+            base64.b64decode(data[:100])
+            # Additional check for base64 character pattern
+            if re.match(r'^[A-Za-z0-9+/=]+$', data):
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _deep_trim_dict_base64(self, obj, max_len=None):
+        """
+        Recursively traverse JSON structure and ONLY truncate base64 data.
+        Keep all other text fields intact for complete trace visibility.
+        """
+        if max_len is None:
+            max_len = 100  # Shorter for base64 placeholders
+        
+        if isinstance(obj, dict):
+            return {k: self._deep_trim_dict_base64(v, max_len) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._deep_trim_dict_base64(v, max_len) for v in obj]
+        elif isinstance(obj, str):
+            # ONLY check for base64, leave everything else intact
+            if self._is_base64_data(obj):
+                return f"[BASE64_DATA] Length: {len(obj)} chars"
+            return obj  # ← Keep all non-base64 text intact
+        else:
+            return obj
+
+    def _deep_trim_dict_max_length(self, obj, max_len=None):
+        """
+        First truncate base64 data, then check remaining text for max length.
+        This ensures base64 is always handled properly before length checks.
         """
         if max_len is None:
             max_len = self.MAX_PRINT_LEN
+        
+        # Step 1: Handle base64 first
+        obj = self._deep_trim_dict_base64(obj)
+        
+        # Step 2: Now check remaining text for max length
         if isinstance(obj, dict):
-            return {k: self._deep_trim_dict(v, max_len) for k, v in obj.items()}
+            return {k: self._deep_trim_dict_max_length(v, max_len) for k, v in obj.items()}
         elif isinstance(obj, list):
-            return [self._deep_trim_dict(v, max_len) for v in obj]
+            return [self._deep_trim_dict_max_length(v, max_len) for v in obj]
         elif isinstance(obj, str):
+            # Base64 is already handled, now check length
             if len(obj) > max_len:
                 return f"Truncated. Original length: {len(obj)}\n{obj[:max_len]}"
             return obj
@@ -2308,7 +2529,7 @@ class GaiaAgent:
         For dict/list results, deeply trim all string fields. For other types, use _trim_for_print.
         """
         if isinstance(tool_result, (dict, list)):
-            trimmed = self._deep_trim_dict(tool_result)
+            trimmed = self._deep_trim_dict_max_length(tool_result)
             print(f"[Tool Loop] Tool result for '{tool_name}': {trimmed}")
         else:
             print(f"[Tool Loop] Tool result for '{tool_name}': {self._trim_for_print(tool_result)}")
@@ -2614,3 +2835,497 @@ class GaiaAgent:
                 "force_tools": config.get("force_tools", False)
             }
         return tool_status
+
+    # ===== TRACING SYSTEM METHODS =====
+    
+    def _trace_init_question(self, question: str, file_data: str = None, file_name: str = None):
+        """
+        Initialize trace for a new question.
+        
+        Args:
+            question: The question being processed
+            file_data: Base64 file data if attached
+            file_name: Name of attached file
+        """
+        self.question_trace = {
+            "question": question,
+            "file_name": file_name,
+            "file_size": len(file_data) if file_data else None,
+            "start_time": datetime.datetime.now().isoformat(),
+            "llm_traces": {},
+            "logs": [],
+            "final_result": None,
+            "per_llm_stdout": []  # Array to store stdout for each LLM attempt
+        }
+        self.current_llm_call_id = None
+        self.current_llm_stdout_buffer = None  # Buffer for current LLM's stdout
+        print(f"🔍 Initialized trace for question: {question[:100]}...")
+
+    def _get_llm_name(self, llm_type: str) -> str:
+        """
+        Get the LLM name for a given LLM type.
+        
+        Args:
+            llm_type: Type of LLM
+            
+        Returns:
+            str: LLM name (model ID if available, otherwise provider name)
+        """
+        model_id = ""
+        if llm_type in self.active_model_config:
+            model_id = self.active_model_config[llm_type].get("model", "")
+        
+        return f"{model_id}" if model_id else self.LLM_CONFIG[llm_type]["name"]
+
+    def _trace_start_llm(self, llm_type: str) -> str:
+        """
+        Start a new LLM call trace and return call_id.
+        
+        Args:
+            llm_type: Type of LLM being called
+            
+        Returns:
+            str: Unique call ID for this LLM call
+        """
+        if not self.question_trace:
+            return None
+            
+        call_id = f"{llm_type}_call_{len(self.question_trace['llm_traces'].get(llm_type, [])) + 1}"
+        self.current_llm_call_id = call_id
+        
+        # Initialize LLM trace if not exists
+        if llm_type not in self.question_trace["llm_traces"]:
+            self.question_trace["llm_traces"][llm_type] = []
+        
+        # Create descriptive LLM name with model info
+        llm_name = self._get_llm_name(llm_type)
+        
+        # Create new call trace
+        call_trace = {
+            "call_id": call_id,
+            "llm_name": llm_name,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "input": {},
+            "output": {},
+            "tool_executions": [],
+            "tool_loop_data": [],
+            "execution_time": None,
+            "total_tokens": None,
+            "error": None
+        }
+        
+        self.question_trace["llm_traces"][llm_type].append(call_trace)
+        
+        # Start new stdout buffer for this LLM attempt
+        self.current_llm_stdout_buffer = StringIO()
+        
+        print(f"🤖 Started LLM trace: {call_id} ({llm_type})")
+        return call_id
+
+    def _trace_capture_llm_stdout(self, llm_type: str, call_id: str):
+        """
+        Capture stdout for the current LLM attempt and add it to the trace.
+        This should be called when an LLM attempt is complete.
+        
+        Args:
+            llm_type: Type of LLM that just completed
+            call_id: Call ID of the completed LLM attempt
+        """
+        if not self.question_trace or not self.current_llm_stdout_buffer:
+            return
+            
+        # Get the captured stdout
+        stdout_content = self.current_llm_stdout_buffer.getvalue()
+        
+        # Create descriptive LLM name with model info
+        llm_name = self._get_llm_name(llm_type)
+        
+        # Add to per-LLM stdout array
+        llm_stdout_entry = {
+            "llm_type": llm_type,
+            "llm_name": llm_name,
+            "call_id": call_id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "stdout": stdout_content
+        }
+        
+        self.question_trace["per_llm_stdout"].append(llm_stdout_entry)
+        
+        # Clear the buffer for next LLM
+        self.current_llm_stdout_buffer = None
+        
+        print(f"📝 Captured stdout for {llm_type} ({call_id}): {len(stdout_content)} chars")
+
+    def _trace_add_llm_call_input(self, llm_type: str, call_id: str, messages: List, use_tools: bool):
+        """
+        Add input data to current LLM call trace.
+        
+        Args:
+            llm_type: Type of LLM
+            call_id: Call ID
+            messages: Input messages
+            use_tools: Whether tools are being used
+        """
+        if not self.question_trace or not call_id:
+            return
+            
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                # Use _deep_trim_dict_base64 to preserve all text data in trace JSON
+                trimmed_messages = self._deep_trim_dict_base64(messages)
+                call_trace["input"] = {
+                    "messages": trimmed_messages,
+                    "use_tools": use_tools,
+                    "llm_type": llm_type
+                }
+                break
+
+    def _trace_add_llm_call_output(self, llm_type: str, call_id: str, response: Any, execution_time: float):
+        """
+        Add output data to current LLM call trace.
+        
+        Args:
+            llm_type: Type of LLM
+            call_id: Call ID
+            response: LLM response
+            execution_time: Time taken for the call
+        """
+        if not self.question_trace or not call_id:
+            return
+            
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                # Use _deep_trim_dict_base64 to preserve all text data in trace JSON
+                trimmed_response = self._deep_trim_dict_base64(response)
+                call_trace["output"] = {
+                    "content": getattr(response, 'content', None),
+                    "tool_calls": getattr(response, 'tool_calls', None),
+                    "response_metadata": getattr(response, 'response_metadata', None),
+                    "raw_response": trimmed_response
+                }
+                call_trace["execution_time"] = execution_time
+                
+                # Extract and accumulate token usage
+                token_data = self._extract_token_usage(response, llm_type)
+                if token_data:
+                    # Initialize token usage if not exists
+                    if "token_usage" not in call_trace:
+                        call_trace["token_usage"] = {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                            "call_count": 0,
+                            "calls": []
+                        }
+                    
+                    # Add current call data
+                    call_data = {
+                        "call_id": call_id,
+                        "timestamp": datetime.datetime.now().isoformat(),
+                        **token_data
+                    }
+                    call_trace["token_usage"]["calls"].append(call_data)
+                    
+                    # Accumulate totals
+                    call_trace["token_usage"]["prompt_tokens"] += token_data.get("prompt_tokens", 0)
+                    call_trace["token_usage"]["completion_tokens"] += token_data.get("completion_tokens", 0)
+                    call_trace["token_usage"]["total_tokens"] += token_data.get("total_tokens", 0)
+                    call_trace["token_usage"]["call_count"] += 1
+                
+                # Fallback to estimated tokens if no token data available
+                if not token_data or not any([token_data.get("prompt_tokens"), token_data.get("completion_tokens"), token_data.get("total_tokens")]):
+                    call_trace["total_tokens"] = self._estimate_tokens(str(response)) if response else None
+                
+                break
+
+    def _add_tool_execution_trace(self, llm_type: str, call_id: str, tool_name: str, tool_args: dict, tool_result: str, execution_time: float):
+        """
+        Add tool execution trace to current LLM call.
+        
+        Args:
+            llm_type: Type of LLM
+            call_id: Call ID
+            tool_name: Name of the tool
+            tool_args: Tool arguments
+            tool_result: Tool result
+            execution_time: Time taken for tool execution
+        """
+        if not self.question_trace or not call_id:
+            return
+            
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                # Use _deep_trim_dict_base64 to preserve all text data in trace JSON
+                trimmed_args = self._deep_trim_dict_base64(tool_args)
+                trimmed_result = self._deep_trim_dict_base64(tool_result)
+                
+                tool_execution = {
+                    "tool_name": tool_name,
+                    "args": trimmed_args,
+                    "result": trimmed_result,
+                    "execution_time": execution_time,
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                call_trace["tool_executions"].append(tool_execution)
+                break
+
+    def _add_tool_loop_data(self, llm_type: str, call_id: str, step: int, tool_calls: List, consecutive_no_progress: int):
+        """
+        Add tool loop data to current LLM call trace.
+        
+        Args:
+            llm_type: Type of LLM
+            call_id: Call ID
+            step: Current step number
+            tool_calls: List of tool calls detected
+            consecutive_no_progress: Number of consecutive steps without progress
+        """
+        if not self.question_trace or not call_id:
+            return
+            
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                loop_data = {
+                    "step": step,
+                    "tool_calls_detected": len(tool_calls) if tool_calls else 0,
+                    "consecutive_no_progress": consecutive_no_progress,
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                call_trace["tool_loop_data"].append(loop_data)
+                break
+
+    def _trace_add_llm_error(self, llm_type: str, call_id: str, error: Exception):
+        """
+        Add error information to current LLM call trace.
+        
+        Args:
+            llm_type: Type of LLM
+            call_id: Call ID
+            error: Exception that occurred
+        """
+        if not self.question_trace or not call_id:
+            return
+            
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                call_trace["error"] = {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                break
+
+    def _trace_finalize_question(self, final_result: dict):
+        """
+        Finalize the question trace with final results.
+        
+        Args:
+            final_result: Final result dictionary
+        """
+        if not self.question_trace:
+            return
+            
+        self.question_trace["final_result"] = final_result
+        self.question_trace["end_time"] = datetime.datetime.now().isoformat()
+        
+        # Calculate total execution time
+        start_time = datetime.datetime.fromisoformat(self.question_trace["start_time"])
+        end_time = datetime.datetime.fromisoformat(self.question_trace["end_time"])
+        total_time = (end_time - start_time).total_seconds()
+        self.question_trace["total_execution_time"] = total_time
+        
+        # Calculate total tokens across all LLM calls
+        total_tokens = 0
+        for llm_type, calls in self.question_trace["llm_traces"].items():
+            for call in calls:
+                if "token_usage" in call:
+                    total_tokens += call["token_usage"].get("total_tokens", 0)
+        
+        self.question_trace["tokens_total"] = total_tokens
+        
+        # Capture any remaining stdout from current LLM attempt
+        if hasattr(self, 'current_llm_stdout_buffer') and self.current_llm_stdout_buffer:
+            self._trace_capture_llm_stdout(self.current_llm_type, self.current_llm_call_id)
+        
+        print(f"📊 Question trace finalized. Total execution time: {total_time:.2f}s")
+        print(f"📝 Captured stdout for {len(self.question_trace.get('per_llm_stdout', []))} LLM attempts")
+        print(f"🔢 Total tokens used: {total_tokens}")
+
+    def _trace_get_full(self) -> dict:
+        """
+        Get the complete trace for the current question.
+        
+        Returns:
+            dict: Complete trace data or None if no trace exists
+        """
+        return self.question_trace
+
+    def _trace_clear(self):
+        """
+        Clear the current question trace.
+        """
+        self.question_trace = None
+        self.current_llm_call_id = None
+        self.current_llm_stdout_buffer = None
+
+    def _add_log_to_context(self, message: str, function: str):
+        """
+        Add log to the appropriate context based on current execution.
+        
+        Args:
+            message: The log message
+            function: The function name that generated the log
+        """
+        log_entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "message": message,
+            "function": function
+        }
+        
+        if not self.question_trace:
+            return
+        
+        context = getattr(self, '_current_trace_context', None)
+        
+        if context == "llm_call" and self.current_llm_call_id:
+            # Add to current LLM call
+            self._add_log_to_llm_call(log_entry)
+        elif context == "tool_execution":
+            # Add to current tool execution
+            self._add_log_to_tool_execution(log_entry)
+        elif context == "tool_loop":
+            # Add to current tool loop step
+            self._add_log_to_tool_loop(log_entry)
+        elif context == "final_answer":
+            # Add to current LLM call's final answer enforcement
+            self._add_log_to_llm_call(log_entry)
+        else:
+            # Add to question-level logs
+            self.question_trace.setdefault("logs", []).append(log_entry)
+
+    def _add_log_to_llm_call(self, log_entry: dict):
+        """
+        Add log entry to the current LLM call.
+        
+        Args:
+            log_entry: The log entry to add
+        """
+        if not self.question_trace or not self.current_llm_call_id:
+            return
+            
+        llm_type = self.current_llm_type
+        call_id = self.current_llm_call_id
+        
+        # Find the call trace
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                # Check if this is a final answer enforcement log
+                if log_entry.get("function") == "_force_final_answer":
+                    call_trace.setdefault("final_answer_enforcement", []).append(log_entry)
+                else:
+                    call_trace.setdefault("logs", []).append(log_entry)
+                break
+
+    def _add_log_to_tool_execution(self, log_entry: dict):
+        """
+        Add log entry to the current tool execution.
+        
+        Args:
+            log_entry: The log entry to add
+        """
+        if not self.question_trace or not self.current_llm_call_id:
+            return
+            
+        llm_type = self.current_llm_type
+        call_id = self.current_llm_call_id
+        
+        # Find the call trace and add to the last tool execution
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                tool_executions = call_trace.get("tool_executions", [])
+                if tool_executions:
+                    tool_executions[-1].setdefault("logs", []).append(log_entry)
+                break
+
+    def _add_log_to_tool_loop(self, log_entry: dict):
+        """
+        Add log entry to the current tool loop step.
+        
+        Args:
+            log_entry: The log entry to add
+        """
+        if not self.question_trace or not self.current_llm_call_id:
+            return
+            
+        llm_type = self.current_llm_type
+        call_id = self.current_llm_call_id
+        
+        # Find the call trace and add to the last tool loop step
+        for call_trace in self.question_trace["llm_traces"].get(llm_type, []):
+            if call_trace["call_id"] == call_id:
+                tool_loop_data = call_trace.get("tool_loop_data", [])
+                if tool_loop_data:
+                    tool_loop_data[-1].setdefault("logs", []).append(log_entry)
+                break
+
+    def _extract_token_usage(self, response, llm_type: str) -> dict:
+        """
+        Extract token usage data from LLM response.
+        
+        Args:
+            response: The LLM response object
+            llm_type: Type of LLM provider
+            
+        Returns:
+            dict: Token usage data with available fields
+        """
+        token_data = {
+            "prompt_tokens": None,
+            "completion_tokens": None,
+            "total_tokens": None,
+            "finish_reason": None,
+            "system_fingerprint": None,
+            "input_token_details": {},
+            "output_token_details": {}
+        }
+        
+        try:
+            # Extract from response_metadata (OpenRouter, HuggingFace)
+            if hasattr(response, 'response_metadata') and response.response_metadata:
+                metadata = response.response_metadata
+                if 'token_usage' in metadata:
+                    usage = metadata['token_usage']
+                    token_data.update({
+                        "prompt_tokens": usage.get('prompt_tokens'),
+                        "completion_tokens": usage.get('completion_tokens'),
+                        "total_tokens": usage.get('total_tokens')
+                    })
+                
+                token_data["finish_reason"] = metadata.get('finish_reason')
+                token_data["system_fingerprint"] = metadata.get('system_fingerprint')
+            
+            # Extract from usage_metadata (Groq, some others)
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                usage = response.usage_metadata
+                token_data.update({
+                    "prompt_tokens": usage.get('input_tokens'),
+                    "completion_tokens": usage.get('output_tokens'),
+                    "total_tokens": usage.get('total_tokens')
+                })
+                
+                # Extract detailed token breakdowns
+                token_data["input_token_details"] = usage.get('input_token_details', {})
+                token_data["output_token_details"] = usage.get('output_token_details', {})
+            
+            # Clean up None values
+            token_data = {k: v for k, v in token_data.items() if v is not None}
+            
+        except Exception as e:
+            self._add_log_to_context(f"Error extracting token usage: {str(e)}", "_extract_token_usage")
+        
+        return token_data
