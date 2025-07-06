@@ -570,26 +570,6 @@ def save_results_log(results_log: list) -> str:
         log_content = json.dumps(results_log, indent=2, ensure_ascii=False)
         log_path = f"{TRACES_DIR}/{timestamp}_llm_trace.log"
         
-        # Upload via API
-        # try:
-        #     success = save_and_commit_file(
-        #         file_path=log_path,
-        #         content=log_content,
-        #         commit_message=f"Add LLM trace log {timestamp}"
-        #     )
-        #     if success:
-        #         print(f"✅ LLM trace log uploaded successfully: {log_path}")
-        #     else:
-        #         print(f"⚠️ LLM trace log upload failed, saved locally only: {log_path}")
-        #         # Fallback to local save
-        #         with open(log_path, "w", encoding="utf-8") as f:
-        #             f.write(log_content)
-        # except Exception as e:
-        #     print(f"⚠️ LLM trace log upload error: {e}, saving locally only")
-        #     # Fallback to local save
-        #     with open(log_path, "w", encoding="utf-8") as f:
-        #         f.write(log_content)
-        
         return log_path
         
     except Exception as e:
@@ -601,26 +581,7 @@ def save_results_log(results_log: list) -> str:
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
     gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner")
-    gr.Markdown(
-        """
-       
-        **Instructions:**
-        **If you want to test the agent**
-        
-        1.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
-        
-        **If you want to copy the agent**
-        
-        1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
-        2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
-        3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
-
-        ---
-        **Disclaimers:**
-        Once clicking on the "submit" button, it can take quite some time (this is the time for the agent to go through all the questions).
-        This space provides a basic setup and is intentionally sub-optimal to encourage you to develop your own, more robust solution. For instance for the delay process of the submit button, a solution could be to cache the answers and submit in a separate action or even to answer the questions in async.
-        """
-    )
+    
 
     with gr.Tabs():
         with gr.TabItem("Readme"):
@@ -636,6 +597,27 @@ with gr.Blocks() as demo:
             except Exception as e:
                 gr.Markdown(f"## Error reading README.md\n\nAn error occurred while reading the README.md file: {str(e)}")
         with gr.TabItem("Evaluation"):
+            gr.Markdown(
+            """
+        
+            **Instructions:**
+            
+            **If you want to test the agent**
+            
+            1.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
+            
+            **If you want to copy the agent**
+            
+            1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
+            2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
+            3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
+
+            ---
+            **Disclaimers:**
+            Once clicking on the "submit" button, it can take quite some time (this is the time for the agent to go through all the questions).
+            This space provides a basic setup and is intentionally sub-optimal to encourage you to develop your own, more robust solution. For instance for the delay process of the submit button, a solution could be to cache the answers and submit in a separate action or even to answer the questions in async.
+            """
+            )
             gr.LoginButton()
             run_button = gr.Button("Run Evaluation & Submit All Answers")
             status_output = gr.Textbox(label="Run Status / Submission Result", lines=5, interactive=False)
