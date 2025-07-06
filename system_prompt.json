@@ -26,7 +26,7 @@
     "research_steps": [
         {
             "step": 0,
-            "action": "Call exa_ai_helper() tool (only once), directly asking it the original question. It is a smart AI and can give you a great reference or a candidate for the FINAL ANSWER right away.",
+            "action": "Call exa_research_tool() (only once), directly asking it the original question. It is a smart AI DEEP RESEARCH agent and can give you a great reference or a candidate for the FINAL ANSWER right away.",
             "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement. WARNING: EXA can return inaccurate or plain wrong answers. Always judge yourself and use additional tools for research."
         },
         {
@@ -115,7 +115,7 @@
             "purpose": "Retrieve up-to-date or external information from the web, Wikipedia, Arxiv, or AI-powered search.",
             "when_to_use": [
                 "Use when the answer depends on current events, facts, or knowledge not available internally.",
-                "Follow the preferred order: exa_ai_helper → web_search → arxiv_search/wiki_search.",
+                "Follow the preferred order: exa_research_tool → web_search → arxiv_search/wiki_search.",
                 "Use each search tool only once per question and analyze results before proceeding."
             ]
         },
@@ -161,7 +161,7 @@
         "tool_usage_order": [
             {
                 "order": 1,
-                "tool": "exa_ai_helper",
+                "tool": "exa_research_tool",
                 "instruction": "Ask to answer the original question."
             },
             {

@@ -789,8 +789,11 @@ def arxiv_search(input: str) -> str:
 @tool
 def exa_ai_helper(question: str) -> str:
     """
+    Prefer exa_research_tool(). It is smarter.
     I am a smart AI assistant and can potentially give you the right FINAL ANSWER right away.
     Get direct, well-researched answers to questions using AI engine Exa.
+    Do not ask me about attached files or video/audio analysis.
+    But I could potentially answer about well-known video mems and citations.
         
     This tool is particularly useful when:
     - You need authoritative, up-to-date information on a topic
@@ -2345,5 +2348,62 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
         "tool_name": "get_chess_board_fen",
         "result": _fen_normalize(fen, default_side='b' if player_turn.lower().startswith('b') else 'w')
     })
+
+@tool
+def exa_research_tool(instructions: str) -> str:
+    """
+    I am a smart AI DEEP RESEARCH assistant and can potentially give you the right FINAL ANSWER right away.
+    Call me to get a well-researched answer to your question.
+    I am much smarter than exa_ai_helper as I crawl the Web to find the answer.
+    Ask me direct text-only questions.
+    Use Exa's research API to create and poll a research task for complex, multi-step questions.
+    This tool is ideal for research tasks that require structured, schema-based answers or deeper reasoning.
+    Do not ask me about attached files or video/audio analysis. But I can potentially answer about well-known video mems and citations.
+    WARNING: Exa can give inacurate or wrong answers. Always use your judgement and research with other tools.
+    
+    The tool creates a research task with schema inference enabled, allowing for structured responses
+    to complex queries that require multi-step reasoning and factual verification.
+
+    Args:
+        instructions (str): The research instructions/question for Exa.
+
+    Returns:
+        str: The research result as a string, or an error message.
+
+    Note:
+        Requires EXA_API_KEY environment variable to be set.
+        Install with: pip install exa-py
+    """
+    if not EXA_AVAILABLE:
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_research_tool",
+            "error": "Exa not available. Install with: pip install exa-py"
+        })
+    try:
+        exa_api_key = os.environ.get("EXA_API_KEY")
+        if not exa_api_key:
+            return json.dumps({
+                "type": "tool_response",
+                "tool_name": "exa_research_tool",
+                "error": "EXA_API_KEY not found in environment variables. Please set it in your .env file."
+            })
+        exa = Exa(exa_api_key)
+        task_stub = exa.research.create_task(
+            instructions=instructions,
+            model="exa-research"
+        )
+        task = exa.research.poll_task(task_stub.id)
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_research_tool",
+            "result": str(task)
+        })
+    except Exception as e:
+        return json.dumps({
+            "type": "tool_response",
+            "tool_name": "exa_research_tool",
+            "error": f"Error in Exa research: {str(e)}"
+        })
 
 # ========== END OF TOOLS.PY ========== 
