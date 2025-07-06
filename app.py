@@ -583,22 +583,56 @@ def save_results_log(results_log: list) -> str:
 
 # --- Build Gradio Interface using Blocks ---
 with gr.Blocks() as demo:
-    gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner")
+    gr.Markdown("# GAIA Unit 4 Agent Evaluation Runner by Arte(r)m Sedov")
     
 
     with gr.Tabs():
         with gr.TabItem("Readme"):
-            # Robust README file reading with error handling
-            try:
-                with open("README.md", "r", encoding="utf-8") as f:
-                    readme_content = f.read()
-                gr.Markdown(readme_content)
-            except FileNotFoundError:
-                gr.Markdown("## README.md not found\n\nThe README.md file could not be found. Please ensure it exists in the project root.")
-            except UnicodeDecodeError:
-                gr.Markdown("## README.md encoding error\n\nThe README.md file could not be read due to encoding issues.")
-            except Exception as e:
-                gr.Markdown(f"## Error reading README.md\n\nAn error occurred while reading the README.md file: {str(e)}")
+            gr.Markdown("""
+            ## 🕵🏻‍♂️ GAIA Unit 4 Agent - Experimental Project
+
+            **Welcome to my graduation project for the HuggingFace Agents Course!**
+            
+            ### 🚀 **What is this project**:
+            
+            - **Input**: HuggingFace supplies a set of curated GAIA questions
+            - **Challenge**: Create an agent that gets a score of at least 30% on the GAIA questions
+            - **Solution**: The agent tries to get the right answers: it cycles through several LLMs and tools to get the best answer
+            - **Results**: The agent can get up to 80% score depending on the available LLMs. Typically it gets 50-65% score because I often run out of inference limits
+            
+            This is an experimental multi-LLM agent system that demonstrates advanced AI agent capabilities. I created this project to explore and showcase:
+
+            ### 🎯 **Project Goals**
+            
+            - **Multi-LLM Orchestration**: Dynamically switches between Google Gemini, Groq, OpenRouter, and HuggingFace models
+            - **Comprehensive Tool Suite**: Math, code execution, web search, file analysis, chess, and more
+            - **Robust Fallback System**: Automatic model switching when one fails
+            - **Complete Transparency**: Full trace logging of reasoning and tool usage
+            - **Real-world Reliability**: Battle-tested for the GAIA Unit 4 benchmark
+
+            ### 🔬 **Why This Project?**
+            
+            This project represents what I learned at HuggingFace Agents Course, eg. to build sophisticated AI agents. The experimental nature comes from:
+
+            - **Multi-Provider Testing**: Exploring different LLM providers and their capabilities, all providers are free of charge and thus may fail
+            - **Tool Integration**: Creating a modular system where tools can chain together
+            - **Performance Optimization**: Balancing speed, accuracy, logging verbosity and cost across multiple models
+            - **Transparency**: Making AI reasoning visible and debuggable
+
+            ### 📊 **What You'll Find Here**
+            
+            - **Live Evaluation**: Test the agent against GAIA Unit 4 questions. See the **Evaluation** tab. NOTE: LLM availability is subject to my inference limits with each provider
+            - **Dataset Tracking**: All runs are uploaded to the HuggingFace dataset for analysis. See the the **Dataset** tab
+            - **Performance Metrics**: Detailed timing, token usage, and success rates. See the the **Dataset** tab
+            - **Complete Traces**: See exactly how the agent thinks and uses tools. See the **Log files** tab
+
+            This course project is a demonstration of what's possible when you combine multiple AI models with intelligent tool orchestration.
+
+            **Dataset Results**: [View Live Results](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
+            
+            **For more project details**, see the [README.md](https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/blob/main/README.md)
+            """)
+        
         with gr.TabItem("Evaluation"):
             gr.Markdown(
             """
@@ -607,18 +641,19 @@ with gr.Blocks() as demo:
             
             **If you want to test the agent**
             
-            1.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
+            1. Click **Run Evaluation & Submit All Answers** to fetch questions, run your agent, submit answers, and see the score.
+            2. Once you clicked **Run Evaluation & Submit All Answers**, it can take quite some time (this is the time for the agent to go through all the questions). This space provides a basic setup and is sub-optimal.
+            3. Select **Logs** at the top of the screen and watch the action unfold in real time while the agent cycles through the questions and LLMs.
+            4. While the agent runs, from the **Log files** download some sample agent traces.
+            5. When the run completes, the agent should upload all the results to the **Dataset** tab.
             
             **If you want to copy the agent**
             
-            1.  Please clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc ...
-            2.  Log in to your Hugging Face account using the button below. This uses your HF username for submission.
-            3.  Click 'Run Evaluation & Submit All Answers' to fetch questions, run your agent, submit answers, and see the score.
-
-            ---
-            **Disclaimers:**
-            Once clicking on the "submit" button, it can take quite some time (this is the time for the agent to go through all the questions).
-            This space provides a basic setup and is intentionally sub-optimal to encourage you to develop your own, more robust solution. For instance for the delay process of the submit button, a solution could be to cache the answers and submit in a separate action or even to answer the questions in async.
+            1. Clone this space, then modify the code to define your agent's logic, the tools, the necessary packages, etc...
+            2. Complete the HuggingFace Agents Course: <https://huggingface.co/learn/agents-course/en/unit0/introduction>.
+            2. Log in to your HuggingFace account using the button below. This uses your HF username for submission.
+            3. Click **Run Evaluation & Submit All Answers** to fetch questions, run your agent, submit answers, and see the score.
+            
             """
             )
             gr.LoginButton()
@@ -645,7 +680,7 @@ with gr.Blocks() as demo:
                 
                 **Dataset URL:** [arterm-sedov/agent-course-final-assignment](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
                 
-                **Runs New Split:** [View Latest Runs](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/runs_new)
+                **Runs dataset:** [View and query latest runs in Data Studio with SQL](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/runs_new)
                 
                 > **Note:** The dataset viewer may show schema conflicts between different splits (init, runs, runs_new). This is expected as each split has different schemas. The `runs_new` split contains the latest granular evaluation data.
                 """
