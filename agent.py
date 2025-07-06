@@ -2851,8 +2851,8 @@ class GaiaAgent:
         """
         self.question_trace = {
             "question": question,
-            "file_name": file_name,
-            "file_size": len(file_data) if file_data else None,
+            "file_name": file_name if file_name is not None else "N/A",
+            "file_size": len(file_data) if file_data else 0,
             "start_time": datetime.datetime.now().isoformat(),
             "llm_traces": {},
             "logs": [],

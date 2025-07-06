@@ -649,7 +649,7 @@ with gr.Blocks() as demo:
             )
             
             # Embed the dataset viewer
-            vew_params = ""
+            vew_params = "?sort[column]=start_time&sort[direction]=desc"
             dataset_viewer_html = f"""
             <div style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px; overflow: hidden;">
                 <iframe
