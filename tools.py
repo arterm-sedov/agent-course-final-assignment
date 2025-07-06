@@ -803,7 +803,7 @@ def exa_ai_helper(question: str) -> str:
     - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
     - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
     
-    WARNING: EXA can return wrong answers. Always judge yourself and use additional tools for research.
+    WARNING: EXA can return inaccurate or plain wrong answers Always judge yourself and use additional tools for research.
     
     Args:
         question (str): The question to get an answer for. Can be specific or open-ended.
