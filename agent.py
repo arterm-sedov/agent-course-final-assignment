@@ -1937,9 +1937,6 @@ class GaiaAgent:
             # Finalize trace with success result
             self._trace_finalize_question(final_answer)
             
-            # Add trace to the result
-            # result["trace"] = self._trace_get_full()
-            # Return trace as the result
             result = self._trace_get_full()
             return result
             
@@ -3168,7 +3165,52 @@ class GaiaAgent:
         Returns:
             dict: Complete trace data or None if no trace exists
         """
-        return self.question_trace
+        if not self.question_trace:
+            return None
+            
+        # Serialize the trace data to ensure it's JSON-serializable
+        return self._serialize_trace_data(self.question_trace)
+
+    def _serialize_trace_data(self, obj):
+        """
+        Recursively serialize trace data, converting LangChain message objects and other
+        non-JSON-serializable objects to dictionaries.
+        
+        Args:
+            obj: Object to serialize
+            
+        Returns:
+            Serialized object that can be JSON serialized
+        """
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, float, bool)):
+            return obj
+        elif isinstance(obj, list):
+            return [self._serialize_trace_data(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: self._serialize_trace_data(value) for key, value in obj.items()}
+        elif hasattr(obj, 'type') and hasattr(obj, 'content'):
+            # This is likely a LangChain message object
+            return {
+                "type": getattr(obj, 'type', 'unknown'),
+                "content": self._serialize_trace_data(getattr(obj, 'content', '')),
+                "additional_kwargs": self._serialize_trace_data(getattr(obj, 'additional_kwargs', {})),
+                "response_metadata": self._serialize_trace_data(getattr(obj, 'response_metadata', {})),
+                "tool_calls": self._serialize_trace_data(getattr(obj, 'tool_calls', [])),
+                "function_call": self._serialize_trace_data(getattr(obj, 'function_call', None)),
+                "name": getattr(obj, 'name', None),
+                "tool_call_id": getattr(obj, 'tool_call_id', None),
+                "id": getattr(obj, 'id', None),
+                "timestamp": getattr(obj, 'timestamp', None),
+                "metadata": self._serialize_trace_data(getattr(obj, 'metadata', {}))
+            }
+        else:
+            # For any other object, try to convert to string
+            try:
+                return str(obj)
+            except:
+                return f"<non-serializable object of type {type(obj).__name__}>"
 
     def _trace_clear(self):
         """

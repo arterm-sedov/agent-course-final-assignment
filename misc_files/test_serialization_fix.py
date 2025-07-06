@@ -4,7 +4,35 @@ Test script to verify that the serialization fix works for LangChain message obj
 """
 
 import json
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+
+# Mock LangChain message objects for testing
+class MockSystemMessage:
+    def __init__(self, content):
+        self.type = "system"
+        self.content = content
+        self.additional_kwargs = {}
+        self.response_metadata = {}
+        self.tool_calls = []
+        self.function_call = None
+        self.name = None
+        self.tool_call_id = None
+        self.id = None
+        self.timestamp = None
+        self.metadata = {}
+
+class MockHumanMessage:
+    def __init__(self, content):
+        self.type = "human"
+        self.content = content
+        self.additional_kwargs = {}
+        self.response_metadata = {}
+        self.tool_calls = []
+        self.function_call = None
+        self.name = None
+        self.tool_call_id = None
+        self.id = None
+        self.timestamp = None
+        self.metadata = {}
 
 def serialize_trace_data(obj):
     """
@@ -48,9 +76,9 @@ def serialize_trace_data(obj):
             return f"<non-serializable object of type {type(obj).__name__}>"
 
 def test_serialization():
-    """Test the serialization function with LangChain message objects."""
+    """Test the serialization function with mock LangChain message objects."""
     
-    # Create sample trace data with LangChain message objects
+    # Create sample trace data with mock LangChain message objects
     trace_data = {
         "llm_traces": {
             "gemini": [
@@ -58,8 +86,8 @@ def test_serialization():
                     "call_id": "gemini_call_1",
                     "input": {
                         "messages": [
-                            SystemMessage(content="You are a helpful assistant."),
-                            HumanMessage(content="What is 2+2?")
+                            MockSystemMessage("You are a helpful assistant."),
+                            MockHumanMessage("What is 2+2?")
                         ],
                         "use_tools": True
                     },
@@ -86,7 +114,7 @@ def test_serialization():
         ]
     }
     
-    print("Testing serialization of trace data with LangChain message objects...")
+    print("Testing serialization of trace data with mock LangChain message objects...")
     
     try:
         # Test serialization
