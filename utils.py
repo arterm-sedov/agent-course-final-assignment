@@ -257,4 +257,23 @@ def print_dataset_schema():
         for split_name, features in schema.get('features', {}).items():
             print(f"   {split_name} split fields: {list(features.keys())}")
     else:
-        print("❌ No dataset schema found") 
+        print("❌ No dataset schema found")
+
+def ensure_valid_answer(answer: Any) -> str:
+    """
+    Ensure the answer is a valid string, never None or empty.
+    
+    Args:
+        answer (Any): The answer to validate
+        
+    Returns:
+        str: A valid string answer, defaulting to "No answer provided" if invalid
+    """
+    if answer is None:
+        return "No answer provided"
+    elif not isinstance(answer, str):
+        return str(answer)
+    elif answer.strip() == "":
+        return "No answer provided"
+    else:
+        return answer 

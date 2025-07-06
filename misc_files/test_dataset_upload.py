@@ -15,7 +15,7 @@ import sys
 import os
 # Add parent directory to path to import file_helper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from file_helper import upload_init_summary, upload_run_data, TRACES_DIR
+from utils import upload_init_summary, upload_run_data, TRACES_DIR
 from dotenv import load_dotenv
 load_dotenv()
 

@@ -12,7 +12,7 @@ from datetime import datetime
 
 # Add parent directory to path to import file_helper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from file_helper import validate_data_structure
+from utils import validate_data_structure
 
 LOG_PATH = "../logs/20250704_035108.llm_trace.log"
 SCORE_CSV_PATH = "../logs/20250702_202757.Score.csv"

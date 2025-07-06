@@ -15,7 +15,7 @@ from datetime import datetime
 
 # Add parent directory to path to import file_helper
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from file_helper import validate_data_structure, upload_init_summary, get_dataset_features
+from utils import validate_data_structure, upload_init_summary, get_dataset_features
 
 def sanitize_text(text: str, max_length: int = 100000) -> str:
     """Sanitize text content to prevent issues."""

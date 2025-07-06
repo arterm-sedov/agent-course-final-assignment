@@ -9,8 +9,9 @@ import subprocess
 import json
 import re
 import base64
+from typing import Any
 from agent import GaiaAgent
-from file_helper import TRACES_DIR, upload_run_data
+from utils import TRACES_DIR, upload_run_data, ensure_valid_answer
 
 # (Keep Constants as is)
 # --- Constants ---
@@ -24,6 +25,8 @@ try:
 except Exception as e:
     agent = None
     print(f"Error initializing GaiaAgent: {e}")
+
+
 
 # Helper to save DataFrame as CSV and upload via API
 def save_df_to_csv(df, path):
@@ -260,11 +263,8 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
             final_result = trace.get("final_result", {})
             submitted_answer = final_result.get("submitted_answer", "No answer provided")
             
-            # Handle None/null submitted_answer to prevent 422 errors
-            if submitted_answer is None:
-                submitted_answer = "No answer provided"
-            elif not isinstance(submitted_answer, str):
-                submitted_answer = str(submitted_answer)
+            # Use helper function to ensure valid answer
+            submitted_answer = ensure_valid_answer(submitted_answer)
             
             reference_similarity = final_result.get("similarity_score", 0.0)
             llm_used = final_result.get("llm_used", "unknown")

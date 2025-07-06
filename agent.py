@@ -46,8 +46,8 @@ from langchain_core.tools import tool
 from langchain.tools.retriever import create_retriever_tool
 from supabase.client import create_client
 from langchain_openai import ChatOpenAI  # Add at the top with other imports
-# Import the file helper
-from file_helper import TRACES_DIR, upload_init_summary
+# Import the utils helper
+from utils import TRACES_DIR, upload_init_summary, ensure_valid_answer
 
 def trace_prints_with_context(context_type: str):
     """
@@ -1925,8 +1925,9 @@ class GaiaAgent:
             self.print_llm_stats_table()
             
             # # Return structured result
+            # Use helper function to ensure valid answer
             final_answer = {
-                "submitted_answer": answer,  # Consistent field name
+                "submitted_answer": ensure_valid_answer(answer),  # Consistent field name
                 "similarity_score": similarity_score,
                 "llm_used": llm_used,
                 "reference": reference if reference else "Reference answer not found",
@@ -1948,7 +1949,7 @@ class GaiaAgent:
             
             # Return error result
             error_result = {
-                "submitted_answer": f"Error: {e}",  # Consistent field name
+                "submitted_answer": f"Error: {e}",  # Consistent field name - never None
                 "similarity_score": 0.0,
                 "llm_used": "none",
                 "reference": reference if reference else "Reference answer not found",
@@ -2003,6 +2004,8 @@ class GaiaAgent:
                 return True
         return False
 
+
+
     def _extract_final_answer(self, response: Any) -> str:
         """
         Extract the final answer from the LLM response, removing the "FINAL ANSWER:" prefix.
@@ -2013,15 +2016,18 @@ class GaiaAgent:
             response (Any): The LLM response object.
 
         Returns:
-            str: The extracted final answer string with "FINAL ANSWER:" prefix removed, or None if not found.
+            str: The extracted final answer string with "FINAL ANSWER:" prefix removed, or default string if not found.
         """
         # First check if there's a final answer marker
         if not self._has_final_answer_marker(response):
-            return None
+            return "No answer provided"
         
         # Extract text from response and clean it using the existing regex logic
         text = self._extract_text_from_response(response)
-        return self._clean_final_answer_text(text)
+        cleaned_answer = self._clean_final_answer_text(text)
+        
+        # Use helper function to ensure valid answer
+        return ensure_valid_answer(cleaned_answer)
 
     def _llm_answers_match(self, answer: str, reference: str) -> bool:
         """

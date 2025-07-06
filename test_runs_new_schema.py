@@ -5,7 +5,7 @@ Test script to validate runs_new dataset schema
 
 import json
 import sys
-from file_helper import load_dataset_schema, validate_data_structure
+from utils import load_dataset_schema, validate_data_structure
 
 def test_runs_new_schema():
     """Test the runs_new schema with mock data"""
@@ -92,7 +92,7 @@ def test_runs_new_schema():
 
 def test_file_upload():
     """Test uploading the mock data to the dataset"""
-    from file_helper import upload_run_data
+    from utils import upload_run_data
     
     mock_data = {
         "run_id": "20250705_180645_q01",
