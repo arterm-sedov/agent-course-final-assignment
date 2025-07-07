@@ -2163,7 +2163,6 @@ class GaiaAgent:
         # Add specific tools that might be missed
         specific_tools = [
             # List of specific tool names to ensure inclusion (grouped by category for clarity)
-            [
                 # Math tools
                 'multiply', 'add', 'subtract', 'divide', 'modulus', 'power', 'square_root',
                 # File and data tools
@@ -2179,7 +2178,6 @@ class GaiaAgent:
                 # Research and search tools
                 'web_search_deep_research_exa_ai', 'exa_ai_helper', 
                 'wiki_search', 'arxiv_search', 'web_search',
-            ]
         ]
         
         # Build a set of tool names for deduplication (handle both __name__ and .name attributes)
