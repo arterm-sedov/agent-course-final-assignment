@@ -862,7 +862,7 @@ class GaiaAgent:
             'analyze_image': 2,
             'extract_text_from_image': 2,
             'exa_ai_helper': 1,
-            web_search_deep_research_exa_ai: 1
+            'web_search_deep_research_exa_ai': 1
         }
         tool_usage_count = {tool_name: 0 for tool_name in tool_usage_limits}
         
