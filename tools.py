@@ -696,9 +696,6 @@ def web_search(input: str) -> str:
         str: Formatted search results from Tavily with source URLs and content snippets.
              Returns an error message if Tavily is not available or if the search fails.
 
-    Note:
-        Requires TAVILY_API_KEY environment variable to be set.
-        Install with: pip install langchain-tavily
     """
     if not TAVILY_AVAILABLE:
         return json.dumps({
@@ -789,9 +786,9 @@ def arxiv_search(input: str) -> str:
 @tool
 def exa_ai_helper(question: str) -> str:
     """
-    Prefer exa_research_tool. It is smarter, but give more verbose answers.
-    I am a smart AI web-search engine and could give you a very good web reference.
-    Get direct answers to questions using AI engine Exa.
+    Prefer exa_research_tool. It is smarter, and gives more researched results.
+    Smart AI web-search engine. Gives web references.
+    Get direct answers + web references.
     Do not ask me about attached files or video/audio analysis.
         
     This tool is particularly useful when:
@@ -808,14 +805,11 @@ def exa_ai_helper(question: str) -> str:
     WARNING: Always judge yourself and use additional tools for research.
     
     Args:
-        question (str): The question to get an answer for. Can be specific or open-ended.
+        question (str): The question to get an answer for and search results. Can be specific or open-ended.
     
     Returns:
         str: A well-researched answer with citations and sources, or an error message.
     
-    Note:
-        Requires EXA_API_KEY environment variable to be set.
-        Install with: pip install exa-py
     """
     if not EXA_AVAILABLE:
         return json.dumps({
@@ -1437,10 +1431,6 @@ def understand_video(youtube_url: str, prompt: str, system_prompt: str = None) -
     
     Returns:
         str: Analysis of the video content based on the prompt, or error message.
-    
-    Note:
-        Requires GEMINI_KEY environment variable to be set.
-        Install with: pip install google-genai
     """
     try:
         client = _get_gemini_client()
@@ -1489,10 +1479,6 @@ def understand_audio(file_path: str, prompt: str, system_prompt: str = None) -> 
     
     Returns:
         str: Analysis of the audio content based on the prompt, or error message.
-    
-    Note:
-        Requires GEMINI_KEY environment variable to be set.
-        Install with: pip install google-genai
     """
     try:
         client = _get_gemini_client()
@@ -1593,10 +1579,6 @@ def convert_chess_move(piece_placement: str, move: str) -> str:
 
     Returns:
         str: The move in algebraic notation, or error message.
-    
-    Note:
-        Requires GEMINI_KEY environment variable to be set.
-        Install with: pip install google-genai
     """
     move_message = (
         f"Convert this chess move from coordinate notation to algebraic "
@@ -2351,11 +2333,10 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
 @tool
 def exa_research_tool(instructions: str) -> str:
     """
-    I am a smart AI DEEP RESEARCH assistant and can potentially give you the right FINAL ANSWER right away.
-    I can research a topic, verify facts and output a structured answer.
-    Call me to get a well-researched answer to your question.
-    I crawl and search the Web to find the right answer.
-    Ask me direct questions.
+    Search web with AI DEEP RESEARCH tool for direct question.
+    Get the FINAL ANSWER reference and supporting web search results.
+    This tool researches a topic, verifies facts and outputs a structured answer.
+    The tool deeply crawls the Web to find the right answer and results.
     This tool is ideal for research tasks that require structured, schema-based answers or deeper reasoning.
     I can potentially answer about well-known movies, books, mems and citations, but I can't directly analyse files, audios or videos.
     WARNING: Always use your judgement and do additional research with other tools.
@@ -2364,14 +2345,10 @@ def exa_research_tool(instructions: str) -> str:
     to complex queries that require multi-step reasoning and factual verification.
 
     Args:
-        instructions (str): The research instructions/question for Exa.
+        instructions (str): Direct question or research instructions.
 
     Returns:
         str: The research result as a string, or an error message.
-
-    Note:
-        Requires EXA_API_KEY environment variable to be set.
-        Install with: pip install exa-py
     """
     if not EXA_AVAILABLE:
         return json.dumps({

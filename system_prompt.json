@@ -26,23 +26,23 @@
     "research_steps": [
         {
             "step": 0,
-            "action": "Call exa_research_tool directly asking it the original question.  WARNING: Always judge yourself and use additional tools for more research and verification (call this tool once, then call other tools).",
-            "criteria": "If the question is text-only, first get an opinion from a fellow AI and then use it in your further judgement. exa_research_tool is a DEEP RESEARCH agent and can give you a great reference or a candidate for the FINAL ANSWER right away."
+            "action": "Ask exa_research_tool directly the original question and get the answer + supporting references.",
+            "criteria": "If the question is text-only, first get an opinion from a deep research tool and then use it in your further judgement."
         },
         {
             "step": 1,
             "action": "Consider the question carefully.",
-            "criteria": "If you can answer with your own judgement, do so."
+            "criteria": "If you can answer with your own judgement."
         },
         {
             "step": 2,
             "action": "Do not output your thoughts.",
-            "note": "Think silently."
+            "note": "Think deeply and silently."
         },
         {
             "step": 3,
-            "action": "Consider using tools as needed.",
-            "criteria": "Contemplate which tools to use before using."
+            "action": "Consider using additional tools as needed.",
+            "criteria": "Contemplate which tools to select before using."
         },
         {
             "step": 4,
@@ -51,7 +51,8 @@
         },
         {
             "step": 5,
-            "action": "Call each tool only once per question."
+            "action": "Call each tool once per question. Then call other tools. Change tool arguments if you call it twice.",
+            "criteria": "Calling different tools with different arguments will give you broader perspective."
         },
         {
             "step": 6,
@@ -60,11 +61,13 @@
         },
         {
             "step": 7,
-            "action": "If you need multiple tools, call each one once, then analyze the results."
+            "action": "If you need multiple tools, call each one once, then analyze the results.",
+            "criteria": "Different search and reference tools give various results for better overview."
         },
         {
             "step": 8,
-            "action": "After getting tool results, analyze them thoroughly and provide your FINAL ANSWER."
+            "action": "After getting tool results, analyze them thoroughly and provide your FINAL ANSWER.",
+            "criteria": "Use your judgement to condense the tool results into the FINAL ANSWER."
         },
         {
             "step": 9,
@@ -77,7 +80,8 @@
         },
         {
             "step": 11,
-            "action": "Do not call the same tool with the same or similar query more than once per question."
+            "action": "Do not call the same tool with the same or similar query more than once per question.",
+            "criteria": "Repetitive calls with same arguments will give the no new information."
         },
         {
             "step": 12,
@@ -162,20 +166,20 @@
             {
                 "order": 1,
                 "tool": "exa_research_tool",
-                "instruction": "Ask to answer the original question."
+                "instruction": "Ask original question and get the answer + references."
             },
             {
                 "order": 2,
                 "tool": "web_search",
-                "instruction": "Request a single brief summary on the original question."
+                "instruction": "Ask original question and get relevant search results."
             },
             {
                 "order": 3,
                 "tools": [
-                    "arxiv_search",
-                    "wiki_search"
+                    "wiki_search",
+                    "arxiv_search"
                 ],
-                "instruction": "Use for specific, targeted queries to get reference materials."
+                "instruction": "Ask targeted queries to get reference materials."
             }
         ],
         "rule": "Use each tool only once per question, in the specified order."
