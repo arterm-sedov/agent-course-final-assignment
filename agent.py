@@ -882,12 +882,12 @@ class GaiaAgent:
             print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
             current_step_tool_results = []  # Reset for this step
             
-            # --- Reference tool injection for text-only questions, first tool call only ---
-            if is_text_only_question and step == 0:
-                # Get tool calls from LLM response (simulate as if LLM just responded)
-                # We'll need to get tool_calls after the LLM response below, so move this logic after LLM response
-                pass  # Placeholder, see below
-            # ... existing code ...
+            # # --- Reference tool injection for text-only questions, first tool call only ---
+            # if is_text_only_question and step == 0:
+            #     # Get tool calls from LLM response (simulate as if LLM just responded)
+            #     # We'll need to get tool_calls after the LLM response below, so move this logic after LLM response
+            #     pass  # Placeholder, see below
+            # # ... existing code ...
             try:
                 response = llm.invoke(messages)
             except Exception as e:
@@ -897,51 +897,51 @@ class GaiaAgent:
                     return result
                 else:
                     raise
-            # --- Reference tool injection for text-only questions, first tool call only ---
-            if is_text_only_question and step == 0:
-                tool_calls = getattr(response, 'tool_calls', []) or []
-                if tool_calls:
-                    first_tool_call = tool_calls[0]
-                    requested_tool_name = first_tool_call.get('name')
-                    requested_tool_args = first_tool_call.get('args', {})
-                    # Always call reference tool
-                    reference_tool_name = 'web_search_deep_research_exa_ai'
-                    reference_tool_args = {'instructions': original_question}
-                    reference_result = self._execute_tool(reference_tool_name, reference_tool_args, tool_registry, call_id)
-                    # If LLM also requested reference tool, just inject its result
-                    if requested_tool_name == reference_tool_name:
-                        messages.append(ToolMessage(
-                            content=reference_result,
-                            name=reference_tool_name,
-                            tool_call_id=reference_tool_name
-                        ))
-                        # Continue as normal (do not call twice)
-                    else:
-                        # Call requested tool as well
-                        requested_result = self._execute_tool(requested_tool_name, requested_tool_args, tool_registry, call_id)
-                        # Inject both ToolMessages
-                        messages.append(ToolMessage(
-                            content=reference_result,
-                            name=reference_tool_name,
-                            tool_call_id=reference_tool_name
-                        ))
-                        messages.append(ToolMessage(
-                            content=requested_result,
-                            name=requested_tool_name,
-                            tool_call_id=requested_tool_name
-                        ))
-                        # Inject the reference note
-                        messages.append(HumanMessage(
-                            content=(
-                                "REFERENCE NOTE: The `web_search_deep_research_exa_ai` tool was automatically called with the original question to provide reference material. "
-                                "You have both its result and your requested tool's result above. "
-                                "Do not call `web_search_deep_research_exa_ai` again. "
-                                "Use both results to answer the question as required."
-                            )
-                        ))
-                    # Skip the rest of this step and go to next LLM step
-                    continue
-            # ... existing code ...
+            # # --- Reference tool injection for text-only questions, first tool call only ---
+            # if is_text_only_question and step == 0:
+            #     tool_calls = getattr(response, 'tool_calls', []) or []
+            #     if tool_calls:
+            #         first_tool_call = tool_calls[0]
+            #         requested_tool_name = first_tool_call.get('name')
+            #         requested_tool_args = first_tool_call.get('args', {})
+            #         # Always call reference tool
+            #         reference_tool_name = 'web_search_deep_research_exa_ai'
+            #         reference_tool_args = {'instructions': original_question}
+            #         reference_result = self._execute_tool(reference_tool_name, reference_tool_args, tool_registry, call_id)
+            #         # If LLM also requested reference tool, just inject its result
+            #         if requested_tool_name == reference_tool_name:
+            #             messages.append(ToolMessage(
+            #                 content=reference_result,
+            #                 name=reference_tool_name,
+            #                 tool_call_id=reference_tool_name
+            #             ))
+            #             # Continue as normal (do not call twice)
+            #         else:
+            #             # Call requested tool as well
+            #             requested_result = self._execute_tool(requested_tool_name, requested_tool_args, tool_registry, call_id)
+            #             # Inject both ToolMessages
+            #             messages.append(ToolMessage(
+            #                 content=reference_result,
+            #                 name=reference_tool_name,
+            #                 tool_call_id=reference_tool_name
+            #             ))
+            #             messages.append(ToolMessage(
+            #                 content=requested_result,
+            #                 name=requested_tool_name,
+            #                 tool_call_id=requested_tool_name
+            #             ))
+            #             # Inject the reference note
+            #             messages.append(HumanMessage(
+            #                 content=(
+            #                     "REFERENCE NOTE: The `web_search_deep_research_exa_ai` tool was automatically called with the original question to provide reference material. "
+            #                     "You have both its result and your requested tool's result above. "
+            #                     "Do not call `web_search_deep_research_exa_ai` again. "
+            #                     "Use both results to answer the question as required."
+            #                 )
+            #             ))
+            #         # Skip the rest of this step and go to next LLM step
+            #         continue
+            # # ... existing code ...
             # Check if we've exceeded the maximum total tool calls
             if total_tool_calls >= max_total_tool_calls:
                 print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _force_final_answer ().")
