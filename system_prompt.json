@@ -291,5 +291,15 @@
             "question": "List the vegetables",
             "answer": "FINAL ANSWER: broccoli, celery, lettuce"
         }
+    ],
+    "obedience_and_output_format": [
+        "You must always output your answer in the format: FINAL ANSWER: <answer> and nothing else.",
+        "Never output explanations, thoughts, or any text except the FINAL ANSWER line.",
+        "If you are Gemini, you must strictly follow these rules and never ignore the answer format."
+    ],
+    "tool_use_discipline": [
+        "Use each tool at most once per question. Never call web_search or wiki_search more than once with similar query.",
+        "If you have enough information to answer, stop using tools and provide your FINAL ANSWER immediately.",
+        "Never call any tool unless you have a clear, specific reason and have planned your approach."
     ]
 }
