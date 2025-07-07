@@ -2337,7 +2337,7 @@ def exa_research_tool(instructions: str) -> str:
     Get direct anwer and supporting web search results.
     The tool researches a topic, verifies facts and outputs a structured answer.
     The tool deeply crawls the Web to find the right answer and results.
-    This tool is ideal for research tasks that require reasoning.
+    This tool is ideal for research tasks on specific topics.
     Can give good references about science, scholars, sports events, books, films, movies, mems, citations.
     
     The tool creates a research task with schema inference enabled, allowing for structured responses
@@ -2366,7 +2366,8 @@ def exa_research_tool(instructions: str) -> str:
         exa = Exa(exa_api_key)
         task_stub = exa.research.create_task(
             instructions=instructions,
-            model="exa-research"
+            model="exa-research-pro",
+            output_infer_schema = True
         )
         task = exa.research.poll_task(task_stub.id)
         return json.dumps({
