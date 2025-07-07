@@ -5,8 +5,7 @@
         "answer_rules": [
             "Answer must start with 'FINAL ANSWER:' followed by the answer.",
             "Try to give the final answer as soon as possible.",
-            "Output no explanations, no extra text—just the answer.",
-            
+            "Output no explanations, no extra text—just the answer."
         ],
         "answer_types": [
             "A number (no commas, no units unless specified)",
