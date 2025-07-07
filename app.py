@@ -600,6 +600,10 @@ with gr.Blocks() as demo:
             - **Solution**: The agent tries to get the right answers: it cycles through several LLMs and tools to get the best answer
             - **Results**: The agent can get up to 80% score depending on the available LLMs. Typically it gets 50-65% score because I often run out of inference limits
             
+            **Dataset Results**: [View Live Results](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
+            
+            **For more project details**, see the [README.md](https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/blob/main/README.md)
+            
             This is an experimental multi-LLM agent system that demonstrates advanced AI agent capabilities. I created this project to explore and showcase:
 
             ### 🎯 **Project Goals**
@@ -629,10 +633,6 @@ with gr.Blocks() as demo:
             - **Complete Traces**: See exactly how the agent thinks and uses tools. See the **Log files** tab
 
             This course project is a demonstration of what's possible when you combine multiple AI models with intelligent tool orchestration.
-
-            **Dataset Results**: [View Live Results](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
-            
-            **For more project details**, see the [README.md](https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/blob/main/README.md)
             """)
         
         with gr.TabItem("Evaluation"):
