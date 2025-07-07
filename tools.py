@@ -786,7 +786,7 @@ def arxiv_search(input: str) -> str:
 # @tool
 # def exa_ai_helper(question: str) -> str:
 #     """
-#     Prefer exa_research_tool. It is smarter, and gives more researched results.
+#     Prefer web_search_deep_research_exa_ai. It is smarter, and gives more researched results.
 #     Smart AI web-search engine. Gives web references.
 #     Get direct answers + web references.
 #     Do not ask me about attached files or video/audio analysis.
@@ -2331,29 +2331,27 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
     })
 
 @tool
-def exa_research_tool(instructions: str) -> str:
+def web_search_deep_research_exa_ai(instructions: str) -> str:
     """
-    Can provide FINAL ANSWER candidate with refefences.
-    Ask question to search and crawl sites with deep research tool.
-    Get direct anwer and supporting web search results.
-    The tool researches a topic, verifies facts and outputs a structured answer.
-    The tool deeply crawls the Web to find the right answer and results.
-    This tool is ideal for research tasks on specific topics.
-    Can give good references about science, scholars, sports events, books, films, movies, mems, citations.
-    
-    The tool creates a research task with schema inference enabled, allowing for structured responses
-    to complex queries that require multi-step reasoning and factual verification.
+    Search the web and site content using deep research tool.
+    Ask a query and get a well-researched answer with references.
+    Can provide FINAL ANSWER candidate.
+    Ideal for research tasks on any topic that require fact searching.
+    Can find answers and reference about science, scholars, sports, events, books, films, movies, mems, citations, etc.
 
+    The tool researches a topic, verifies facts and outputs a structured answer.
+    It deeply crawls websites to find the right answer, results and links.
+    
     Args:
         instructions (str): Direct question or research instructions.
 
     Returns:
-        str: The research result as a string, or an error message.
+        str: The research result as a string (structured), or an error message.
     """
     if not EXA_AVAILABLE:
         return json.dumps({
             "type": "tool_response",
-            "tool_name": "exa_research_tool",
+            "tool_name": "web_search_deep_research_exa_ai",
             "error": "Exa not available. Install with: pip install exa-py"
         })
     try:
@@ -2361,7 +2359,7 @@ def exa_research_tool(instructions: str) -> str:
         if not exa_api_key:
             return json.dumps({
                 "type": "tool_response",
-                "tool_name": "exa_research_tool",
+                "tool_name": "web_search_deep_research_exa_ai",
                 "error": "EXA_API_KEY not found in environment variables. Please set it in your .env file."
             })
         exa = Exa(exa_api_key)
@@ -2373,13 +2371,13 @@ def exa_research_tool(instructions: str) -> str:
         task = exa.research.poll_task(task_stub.id)
         return json.dumps({
             "type": "tool_response",
-            "tool_name": "exa_research_tool",
+            "tool_name": "web_search_deep_research_exa_ai",
             "result": str(task)
         })
     except Exception as e:
         return json.dumps({
             "type": "tool_response",
-            "tool_name": "exa_research_tool",
+            "tool_name": "web_search_deep_research_exa_ai",
             "error": f"Error in Exa research: {str(e)}"
         })
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Test script for exa_research_tool from tools.py
+Test script for web_search_deep_research_exa_ai from tools.py
 
-This script allows you to interactively test the exa_research_tool function
+This script allows you to interactively test the web_search_deep_research_exa_ai function
 by prompting for research questions and displaying the results.
 
 Requirements:
@@ -51,25 +51,25 @@ def check_environment():
         return False
 
 def import_tools():
-    """Import the exa_research_tool function from tools.py."""
+    """Import the web_search_deep_research_exa_ai function from tools.py."""
     try:
         # Add current directory to path to import tools
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from tools import exa_research_tool
-        return exa_research_tool
+        from tools import web_search_deep_research_exa_ai
+        return web_search_deep_research_exa_ai
     except ImportError as e:
-        print(f"❌ Failed to import exa_research_tool: {e}")
+        print(f"❌ Failed to import web_search_deep_research_exa_ai: {e}")
         return None
 
 def parse_exa_response(response: str) -> dict:
-    """Parse the JSON response from exa_research_tool."""
+    """Parse the JSON response from web_search_deep_research_exa_ai."""
     try:
         return json.loads(response)
     except json.JSONDecodeError:
         # If it's not valid JSON, return as error
         return {
             "type": "tool_response",
-            "tool_name": "exa_research_tool",
+            "tool_name": "web_search_deep_research_exa_ai",
             "error": f"Invalid JSON response: {response}"
         }
 
@@ -99,12 +99,12 @@ def main():
         return
     
     # Import the function
-    exa_research_tool = import_tools()
-    if not exa_research_tool:
-        print("\n❌ Failed to import exa_research_tool function.")
+    web_search_deep_research_exa_ai = import_tools()
+    if not web_search_deep_research_exa_ai:
+        print("\n❌ Failed to import web_search_deep_research_exa_ai function.")
         return
     
-    print("\n✅ Ready to test exa_research_tool!")
+    print("\n✅ Ready to test web_search_deep_research_exa_ai!")
     print("💡 Type 'quit' or 'exit' to stop")
     print("💡 Type 'help' for example questions")
     print("💡 Type 'demo' to run the Olympics example")
@@ -139,7 +139,7 @@ def main():
             print("⏳ This may take a moment as Exa researches the web...")
             
             # Call the function
-            response = exa_research_tool(question)
+            response = web_search_deep_research_exa_ai(question)
             
             # Parse and display result
             result = parse_exa_response(response)

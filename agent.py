@@ -856,7 +856,7 @@ class GaiaAgent:
             'default': 3,
             'wiki_search': 2,
             'web_search': 3, 
-            'arxiv_search': 3,
+            'arxiv_search': 2,
             'analyze_excel_file': 2,
             'analyze_csv_file': 2,
             'analyze_image': 2,
