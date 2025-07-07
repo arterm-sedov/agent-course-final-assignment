@@ -847,9 +847,9 @@ class GaiaAgent:
         current_step_tool_results = []  # Track results from current step only
         consecutive_no_progress = 0  # Track consecutive steps without progress
         last_response_content = ""  # Track last response content for progress detection
-        max_total_tool_calls = 8  # Reduced from 15 to 8 to prevent excessive tool usage
-        max_tool_calls_per_step = 3  # Maximum tool calls allowed per step
-        total_tool_calls = 0  # Track total tool calls to prevent infinite loops
+        max_total_tool_calls = 10  # Reduced from 15 to 8 to prevent excessive tool usage
+        max_tool_calls_per_step = 5  # Maximum tool calls allowed per step
+        total_tool_calls = 2  # Track total tool calls to prevent infinite loops
         
         # Simplified tool usage tracking - no special handling for search tools
         tool_usage_limits = {

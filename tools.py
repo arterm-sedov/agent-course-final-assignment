@@ -2333,6 +2333,7 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
 @tool
 def exa_research_tool(instructions: str) -> str:
     """
+    Can provide FINAL ANSWER candidate with refefences.
     Ask question to search and crawl sites with deep research tool.
     Get direct anwer and supporting web search results.
     The tool researches a topic, verifies facts and outputs a structured answer.

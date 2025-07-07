@@ -26,8 +26,8 @@
     "research_steps": [
         {
             "step": 0,
-            "action": "Ask exa_research_tool directly the original question and get the answer + supporting references.",
-            "criteria": "If the question is text-only, first get an opinion from a deep research tool and then use it in your further judgement."
+            "action": "Use exa_research_tool — ask directly the original question. Get the FINAL ANSWER candidate + supporting references.",
+            "criteria": "If the question is text-only. Get reference from a deep research tool and then use it in your further judgement."
         },
         {
             "step": 1,
@@ -119,7 +119,7 @@
             "purpose": "Retrieve up-to-date or external information from the web, Wikipedia, Arxiv, or AI-powered search.",
             "when_to_use": [
                 "Use when the answer depends on current events, facts, or knowledge not available internally.",
-                "Follow the preferred order: exa_research_tool → web_search → arxiv_search/wiki_search.",
+                "Follow search tool priority: (1) exa_research_tool (2) web_search (3) arxiv_search/wiki_search.",
                 "Use each search tool only once per question and analyze results before proceeding."
             ]
         },
