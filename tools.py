@@ -783,74 +783,74 @@ def arxiv_search(input: str) -> str:
             "error": f"Error in Arxiv search: {str(e)}"
         })
 
-@tool
-def exa_ai_helper(question: str) -> str:
-    """
-    Prefer exa_research_tool. It is smarter, and gives more researched results.
-    Smart AI web-search engine. Gives web references.
-    Get direct answers + web references.
-    Do not ask me about attached files or video/audio analysis.
+# @tool
+# def exa_ai_helper(question: str) -> str:
+#     """
+#     Prefer exa_research_tool. It is smarter, and gives more researched results.
+#     Smart AI web-search engine. Gives web references.
+#     Get direct answers + web references.
+#     Do not ask me about attached files or video/audio analysis.
         
-    This tool is particularly useful when:
-    - You need authoritative, up-to-date information on a topic
-    - You want to double-check your own knowledge or reasoning
-    - You're dealing with complex questions that require multiple sources
-    - You need citations and sources to back up your answer
-    - You're unsure about the accuracy of your response
+#     This tool is particularly useful when:
+#     - You need authoritative, up-to-date information on a topic
+#     - You want to double-check your own knowledge or reasoning
+#     - You're dealing with complex questions that require multiple sources
+#     - You need citations and sources to back up your answer
+#     - You're unsure about the accuracy of your response
     
-    The tool performs an Exa search and uses an LLM to generate either:
-    - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
-    - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
+#     The tool performs an Exa search and uses an LLM to generate either:
+#     - A direct answer for specific queries (e.g., "What is the capital of France?" returns "Paris")
+#     - A detailed summary with citations for open-ended queries (e.g., "What is the state of AI in healthcare?")
     
-    WARNING: Always judge yourself and use additional tools for research.
+#     WARNING: Always judge yourself and use additional tools for research.
     
-    Args:
-        question (str): The question to get an answer for and search results. Can be specific or open-ended.
+#     Args:
+#         question (str): The question to get an answer for and search results. Can be specific or open-ended.
     
-    Returns:
-        str: A well-researched answer with citations and sources, or an error message.
+#     Returns:
+#         str: A well-researched answer with citations and sources, or an error message.
     
-    """
-    if not EXA_AVAILABLE:
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "exa_ai_helper",
-            "error": "Exa AI Helper not available. Install with: pip install exa-py"
-        })
-    try:
-        exa_api_key = os.environ.get("EXA_API_KEY")
-        if not exa_api_key:
-            return json.dumps({
-                "type": "tool_response",
-                "tool_name": "exa_ai_helper",
-                "error": "EXA_API_KEY not found in environment variables. Please set it in your .env file."
-            })
-        exa = Exa(exa_api_key)
-        result = exa.stream_answer(
-            question,
-            text=True,
-        )
-        answer_parts = []
-        for chunk in result:
-            # If chunk is a StreamChunk, extract its text/content
-            if hasattr(chunk, 'text'):
-                answer_parts.append(chunk.text)
-            elif isinstance(chunk, str):
-                answer_parts.append(chunk)
-            else:
-                answer_parts.append(str(chunk))
-        full_answer = ''.join(answer_parts)
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "exa_ai_helper",
-            "answer": full_answer
-        })
-    except Exception as e:
-        return json.dumps({
-            "type": "tool_response",
-            "tool_name": "exa_ai_helper",
-            "error": f"Error getting AI Helper answer: {str(e)}"
-        })
+#     """
+#     if not EXA_AVAILABLE:
+#         return json.dumps({
+#             "type": "tool_response",
+#             "tool_name": "exa_ai_helper",
+#             "error": "Exa AI Helper not available. Install with: pip install exa-py"
+#         })
+#     try:
+#         exa_api_key = os.environ.get("EXA_API_KEY")
+#         if not exa_api_key:
+#             return json.dumps({
+#                 "type": "tool_response",
+#                 "tool_name": "exa_ai_helper",
+#                 "error": "EXA_API_KEY not found in environment variables. Please set it in your .env file."
+#             })
+#         exa = Exa(exa_api_key)
+#         result = exa.stream_answer(
+#             question,
+#             text=True,
+#         )
+#         answer_parts = []
+#         for chunk in result:
+#             # If chunk is a StreamChunk, extract its text/content
+#             if hasattr(chunk, 'text'):
+#                 answer_parts.append(chunk.text)
+#             elif isinstance(chunk, str):
+#                 answer_parts.append(chunk)
+#             else:
+#                 answer_parts.append(str(chunk))
+#         full_answer = ''.join(answer_parts)
+#         return json.dumps({
+#             "type": "tool_response",
+#             "tool_name": "exa_ai_helper",
+#             "answer": full_answer
+#         })
+#     except Exception as e:
+#         return json.dumps({
+#             "type": "tool_response",
+#             "tool_name": "exa_ai_helper",
+#             "error": f"Error getting AI Helper answer: {str(e)}"
+#         })
 
 # ========== FILE/DATA TOOLS ==========
 @tool
@@ -2333,13 +2333,12 @@ def get_chess_board_fen(image_path: str, player_turn: str) -> str:
 @tool
 def exa_research_tool(instructions: str) -> str:
     """
-    Search web with AI DEEP RESEARCH tool for direct question.
-    Get the FINAL ANSWER reference and supporting web search results.
-    This tool researches a topic, verifies facts and outputs a structured answer.
+    Ask question to search and crawl sites with deep research tool.
+    Get direct anwer and supporting web search results.
+    The tool researches a topic, verifies facts and outputs a structured answer.
     The tool deeply crawls the Web to find the right answer and results.
-    This tool is ideal for research tasks that require structured, schema-based answers or deeper reasoning.
-    I can potentially answer about well-known movies, books, mems and citations, but I can't directly analyse files, audios or videos.
-    WARNING: Always use your judgement and do additional research with other tools.
+    This tool is ideal for research tasks that require reasoning.
+    Can give good references about science, scholars, sports events, books, films, movies, mems, citations.
     
     The tool creates a research task with schema inference enabled, allowing for structured responses
     to complex queries that require multi-step reasoning and factual verification.
