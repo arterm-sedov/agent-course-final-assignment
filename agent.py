@@ -882,12 +882,6 @@ class GaiaAgent:
             print(f"\n[Tool Loop] Step {step+1}/{max_steps} - Using LLM: {llm_type}")
             current_step_tool_results = []  # Reset for this step
             
-            # --- Reference tool injection for text-only questions, first tool call only ---
-            if is_text_only_question and step == 0:
-                # Get tool calls from LLM response (simulate as if LLM just responded)
-                # We'll need to get tool_calls after the LLM response below, so move this logic after LLM response
-                pass  # Placeholder, see below
-            # ... existing code ...
             try:
                 response = llm.invoke(messages)
             except Exception as e:
@@ -942,7 +936,7 @@ class GaiaAgent:
                     # Skip the rest of this step and go to next LLM step
                     continue
             # ... existing code ...
-            Check if we've exceeded the maximum total tool calls
+            # Check if we've exceeded the maximum total tool calls
             if total_tool_calls >= max_total_tool_calls:
                 print(f"[Tool Loop] Maximum total tool calls ({max_total_tool_calls}) reached. Calling _force_final_answer ().")
                 # Let the LLM generate the final answer from tool results (or lack thereof)
