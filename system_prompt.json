@@ -301,5 +301,17 @@
         "Use each tool at most once per question. Never call web_search or wiki_search more than once with similar query.",
         "If you have enough information to answer, stop using tools and provide your FINAL ANSWER immediately.",
         "Never call any tool unless you have a clear, specific reason and have planned your approach."
-    ]
+    ],
+    "tool_usage_limits": {
+        "default": 3,
+        "wiki_search": 2,
+        "web_search": 3,
+        "arxiv_search": 2,
+        "analyze_excel_file": 2,
+        "analyze_csv_file": 2,
+        "analyze_image": 2,
+        "extract_text_from_image": 2,
+        "exa_ai_helper": 1,
+        "web_search_deep_research_exa_ai": 1
+    }
 }

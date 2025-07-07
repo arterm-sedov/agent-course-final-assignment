@@ -1,0 +1,282 @@
+[
+  {
+    "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+    "question": "How many studio albums were published by Mercedes Sosa between 2000 and 2009 (included)? You can use the latest 2022 version of english wikipedia.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "3",
+    "annotator_metadata": {
+      "Steps": "1. I did a search for Mercedes Sosa\n2. I went to the Wikipedia page for her\n3. I scrolled down to \"Studio albums\"\n4. I counted the ones between 2000 and 2009",
+      "Number of steps": "4",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. web browser\n2. google search",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+    "question": "In the video https://www.youtube.com/watch?v=L1vXCYZAYYM, what is the highest number of bird species to be on camera simultaneously?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "3",
+    "annotator_metadata": {
+      "Steps": "1. Navigate to the YouTube link.\n2. Watch the video to see the highest number of bird species.\n3. Note the number.",
+      "Number of steps": "3",
+      "How long did this take?": "3 minutes",
+      "Tools": "1. Web browser\n2. Video parsing",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "2d83110e-a098-4ebb-9987-066c06fa42d0",
+    "question": ".rewsna eht sa \"tfel\" drow eht fo etisoppo eht etirw ,ecnetnes siht dnatsrednu uoy fI",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Right",
+    "annotator_metadata": {
+      "Steps": "1. Read the instructions in reverse",
+      "Number of steps": "1",
+      "How long did this take?": "1 minute",
+      "Tools": "1. A word reversal tool / script",
+      "Number of tools": "0"
+    }
+  },
+  {
+    "task_id": "cca530fc-4052-43b2-b130-b30968d8aa44",
+    "question": "Review the chess position provided in the image. It is black's turn. Provide the correct next move for black which guarantees a win. Please provide your response in algebraic notation.",
+    "Level": "1",
+    "file_name": "cca530fc-4052-43b2-b130-b30968d8aa44.png",
+    "reference_answer": "Rd5",
+    "annotator_metadata": {
+      "Steps": "Step 1: Evaluate the position of the pieces in the chess position\nStep 2: Report the best move available for black: \"Rd5\"",
+      "Number of steps": "2",
+      "How long did this take?": "10 minutes",
+      "Tools": "1. Image recognition tools",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "4fc2f1ae-8625-45b5-ab34-ad4433bc21f8",
+    "question": "Who nominated the only Featured Article on English Wikipedia about a dinosaur that was promoted in November 2016?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "FunkMonk",
+    "annotator_metadata": {
+      "Steps": "1. Search \"Wikipedia featured articles promoted in november 2016\"\n2. Click through to the appropriate page and find the person who nominated Giganotosaurus.",
+      "Number of steps": "2",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. web browser\n2. search engine",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "6f37996b-2ac7-44b0-8e68-6d28256631b4",
+    "question": "Given this table defining * on the set S = {a, b, c, d, e}\n\n|*|a|b|c|d|e|\n|---|---|---|---|---|---|\n|a|a|b|c|b|d|\n|b|b|c|a|e|c|\n|c|c|a|b|b|a|\n|d|b|e|b|e|d|\n|e|d|b|a|d|c|\n\nprovide the subset of S involved in any possible counter-examples that prove * is not commutative. Provide your answer as a comma separated list of the elements in the set in alphabetical order.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "b, e",
+    "annotator_metadata": {
+      "Steps": "1. Compile the markdown.\n2. Look at the table across the diagonal to see if any portions are not symmetrical.\n3. See that b * e != e * b, but all others are symmetrical.",
+      "Number of steps": "3",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. Markdown",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "9d191bce-651d-4746-be2d-7ef8ecadb9c2",
+    "question": "Examine the video at https://www.youtube.com/watch?v=1htKBjuUWec.\n\nWhat does Teal'c say in response to the question \"Isn't that hot?\"",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Extremely",
+    "annotator_metadata": {
+      "Steps": "1. Follow the link\n2. Watch the clip until the question \"Isn't that hot\" is asked\n3. Take note of the reply.",
+      "Number of steps": "3",
+      "How long did this take?": "2 minutes",
+      "Tools": "1. Web browser\n2. Video processing software\n3. Audio processing software",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "cabe07ed-9eca-40ea-8ead-410ef5e83f91",
+    "question": "What is the surname of the equine veterinarian mentioned in 1.E Exercises from the chemistry materials licensed by Marisa Alviar-Agnew & Henry Agnew under the CK-12 license in LibreText's Introductory Chemistry materials as compiled 08/21/2023?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Louvrier",
+    "annotator_metadata": {
+      "Steps": "1. Search for \"1.E Exercises LibreText Introductory Chemistry\"\n2. Read to see the horse doctor mentioned.",
+      "Number of steps": "2",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. Web browser\n2. Search engine",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "3cef3a44-215e-4aed-8e3b-b1e3f08063b7",
+    "question": "I'm making a grocery list for my mom, but she's a professor of botany and she's a real stickler when it comes to categorizing things. I need to add different foods to different categories on the grocery list, but if I make a mistake, she won't buy anything inserted in the wrong category. Here's the list I have so far:\n\nmilk, eggs, flour, whole bean coffee, Oreos, sweet potatoes, fresh basil, plums, green beans, rice, corn, bell pepper, whole allspice, acorns, broccoli, celery, zucchini, lettuce, peanuts\n\nI need to make headings for the fruits and vegetables. Could you please create a list of just the vegetables from my list? If you could do that, then I can figure out how to categorize the rest of the list into the appropriate categories. But remember that my mom is a real stickler, so make sure that no botanical fruits end up on the vegetable list, or she won't get them when she's at the store. Please alphabetize the list of vegetables, and place each item in a comma separated list.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "broccoli, celery, fresh basil, lettuce, sweet potatoes",
+    "annotator_metadata": {
+      "Steps": "Step 1: Evaluate the list provided by my user, eliminating objects which are neither fruits nor vegetables:\nsweet potatoes, fresh basil, plums, green beans, rice, corn, bell pepper, whole allspice, acorns, broccoli, celery, zucchini, lettuce, peanuts\nStep 2: Remove all items from the list which are botanical fruits, leaving a list of vegetables:\nsweet potatoes, fresh basil, broccoli, celery, lettuce\nStep 3: Alphabetize the remaining list as requested by my user:\nbroccoli, celery, fresh basil, lettuce, sweet potatoes\nStep 4: Provide the correct response in the requested format:\n\"broccoli\ncelery\nfresh basil\nlettuce\nsweet potatoes\"",
+      "Number of steps": "4",
+      "How long did this take?": "5 minutes",
+      "Tools": "No tools required",
+      "Number of tools": "0"
+    }
+  },
+  {
+    "task_id": "99c9cc74-fdc8-46c6-8f8d-3ce2d3bfeea3",
+    "question": "Hi, I'm making a pie but I could use some help with my shopping list. I have everything I need for the crust, but I'm not sure about the filling. I got the recipe from my friend Aditi, but she left it as a voice memo and the speaker on my phone is buzzing so I can't quite make out what she's saying. Could you please listen to the recipe and list all of the ingredients that my friend described? I only want the ingredients for the filling, as I have everything I need to make my favorite pie crust. I've attached the recipe as Strawberry pie.mp3.\n\nIn your response, please only list the ingredients, not any measurements. So if the recipe calls for \"a pinch of salt\" or \"two cups of ripe strawberries\" the ingredients on the list would be \"salt\" and \"ripe strawberries\".\n\nPlease format your response as a comma separated list of ingredients. Also, please alphabetize the ingredients.",
+    "Level": "1",
+    "file_name": "99c9cc74-fdc8-46c6-8f8d-3ce2d3bfeea3.mp3",
+    "reference_answer": "cornstarch, freshly squeezed lemon juice, granulated sugar, pure vanilla extract, ripe strawberries",
+    "annotator_metadata": {
+      "Steps": "Step 1: Load the file supplied to me by my user.\nStep 2: Using speech-to-text tools, convert the audio file to plain text and store it for the candidate word list:\n\n\"In a saucepan, combine ripe strawberries, granulated sugar, freshly squeezed lemon juice, and cornstarch. Cook the mixture over medium heat, stirring constantly, until it thickens to a smooth consistency. Remove from heat and stir in a dash of pure vanilla extract. Allow the strawberry pie filling to cool before using it as a delicious and fruity filling for your pie crust.\"\n\nStep 3: Evaluate the candidate word list and process it, stripping each ingredient encountered to a provisional response list:\n\nripe strawberries\ngranulated sugar\nfreshly squeezed lemon juice\ncornstarch\npure vanilla extract\n\nStep 4: Alphabetize the list of ingredients as requested by my user to create a finalized response:\n\ncornstarch\nfreshly squeezed lemon juice\ngranulated sugar\npure vanilla extract\nripe strawberries\n\nStep 5: Report the correct response to my user:\n\n\"cornstarch\nfreshly squeezed lemon juice\ngranulated sugar\npure vanilla extract\nripe strawberries\"",
+      "Number of steps": "5",
+      "How long did this take?": "3 minutes",
+      "Tools": "1. A file interface\n2. A speech-to-text tool",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "305ac316-eef6-4446-960a-92d80d542f82",
+    "question": "Who did the actor who played Ray in the Polish-language version of Everybody Loves Raymond play in Magda M.? Give only the first name.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Wojciech",
+    "annotator_metadata": {
+      "Steps": "1. Search \"Polish-language version of Everybody Loves Raymond\" and pull up the Wiki page for Wszyscy kochają Romana.\n2. See that Bartłomiej Kasprzykowski is marked as playing Ray and go to his Wiki page.\n3. See that he is stated to have played Wojciech Płaska in Magda M.",
+      "Number of steps": "3",
+      "How long did this take?": "5 minutes",
+      "Tools": "None",
+      "Number of tools": "0"
+    }
+  },
+  {
+    "task_id": "f918266a-b3e0-4914-865d-4faa564f1aef",
+    "question": "What is the final numeric output from the attached Python code?",
+    "Level": "1",
+    "file_name": "f918266a-b3e0-4914-865d-4faa564f1aef.py",
+    "reference_answer": "0",
+    "annotator_metadata": {
+      "Steps": "1. Run the attached Python code",
+      "Number of steps": "1",
+      "How long did this take?": "30 seconds",
+      "Tools": "1. Python",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "3f57289b-8c60-48be-bd80-01f8099ca449",
+    "question": "How many at bats did the Yankee with the most walks in the 1977 regular season have that same season?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "519",
+    "annotator_metadata": {
+      "Steps": "1. Search \"yankee stats\" to find their MLB stats page.\n2. Set the data to the 1977 regular season.\n3. Sort to find the most walks.\n4. See how many at bats the player had.",
+      "Number of steps": "4",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. web browser\n2. search engine",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "1f975693-876d-457b-a649-393859e79bf3",
+    "question": "Hi, I was out sick from my classes on Friday, so I'm trying to figure out what I need to study for my Calculus mid-term next week. My friend from class sent me an audio recording of Professor Willowbrook giving out the recommended reading for the test, but my headphones are broken :(\n\nCould you please listen to the recording for me and tell me the page numbers I'm supposed to go over? I've attached a file called Homework.mp3 that has the recording. Please provide just the page numbers as a comma-delimited list. And please provide the list in ascending order.",
+    "Level": "1",
+    "file_name": "1f975693-876d-457b-a649-393859e79bf3.mp3",
+    "reference_answer": "132, 133, 134, 197, 245",
+    "annotator_metadata": {
+      "Steps": "Step 1: Load the file supplied by my user.\nStep 2: Using audio processing tools, convert the text of the audio file to speech:\n\n\"Before you all go, I want to remind you that the midterm is next week. Here's a little hint; you should be familiar with the differential equations on page 245, problems that are very similar to problems 32, 33, and 44 from that page might be on the test. And also some of you might want to brush up on the last page in the integration section, page 197. I know some of you struggled on last week's quiz. I foresee problem 22 from page 197 being on your midterm. Oh, and don't forget to brush up on the section on related rates, on pages 132, 133, and 134.\"\n\nStep 3: Evaluate the converted audio, recording each instance of page numbers: 245, 197, 197, 132, 133, 134\nStep 4: Sort the page numbers in ascending order, omitting duplicates, and store this list as the correct answer to my user's request: 132, 133, 134, 197, 245\nStep 5: Report the correct response to my user: \"132, 133, 134, 197, 245\"",
+      "Number of steps": "5",
+      "How long did this take?": "2 minutes",
+      "Tools": "1. A file interface\n2. A speech-to-text audio processing tool",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "840bfca7-4f7b-481a-8794-c560c340185d",
+    "question": "On June 6, 2023, an article by Carolyn Collins Petersen was published in Universe Today. This article mentions a team that produced a paper about their observations, linked at the bottom of the article. Find this paper. Under what NASA award number was the work performed by R. G. Arendt supported by?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "80GSFC21M0002",
+    "annotator_metadata": {
+      "Steps": "1. Google \"June 6, 2023 Carolyn Collins Petersen Universe Today\"\n2. Find the relevant link to the scientific paper and follow that link\n3. Open the PDF. \n4. Search for NASA award number",
+      "Number of steps": "4",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. Web browser\n2. Search engine\n3. Access to academic journal websites",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "bda648d7-d618-4883-88f4-3466eabd860e",
+    "question": "Where were the Vietnamese specimens described by Kuznetzov in Nedoshivina's 2010 paper eventually deposited? Just give me the city name without abbreviations.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Saint Petersburg",
+    "annotator_metadata": {
+      "Steps": "1. Search \"Kuznetzov Nedoshivina 2010\"\n2. Find the 2010 paper \"A catalogue of type specimens of the Tortricidae described by V. I. Kuznetzov from Vietnam and deposited in the Zoological Institute, St. Petersburg\"",
+      "Number of steps": "2",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. search engine",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "cf106601-ab4f-4af9-b045-5295fe67b37d",
+    "question": "What country had the least number of athletes at the 1928 Summer Olympics? If there's a tie for a number of athletes, return the first in alphabetical order. Give the IOC country code as your answer.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "CUB",
+    "annotator_metadata": {
+      "Steps": "1. Look up the 1928 Summer Olympics on Wikipedia\n2. Look at a table of athletes from countries.\n3. See that two countries had 1 and 2 athletes, so disregard those and choose the Cuba as CUB.",
+      "Number of steps": "3",
+      "How long did this take?": "5 minutes",
+      "Tools": "None",
+      "Number of tools": "0"
+    }
+  },
+  {
+    "task_id": "a0c07678-e491-4bbc-8f0b-07405144218f",
+    "question": "Who are the pitchers with the number before and after Taishō Tamai's number as of July 2023? Give them to me in the form Pitcher Before, Pitcher After, use their last names only, in Roman characters.",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Yoshida, Uehara",
+    "annotator_metadata": {
+      "Steps": "1. Look up Taishō Tamai on Wikipedia\n2. See the pitcher with the number 18 (before) is Kōsei Yoshida and number 20 (after) is Kenta Uehara",
+      "Number of steps": "2",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. Wikipedia",
+      "Number of tools": "1"
+    }
+  },
+  {
+    "task_id": "7bd855d8-463d-4ed5-93ca-5fe35145f733",
+    "question": "The attached Excel file contains the sales of menu items for a local fast-food chain. What were the total sales that the chain made from food (not including drinks)? Express your answer in USD with two decimal places.",
+    "Level": "1",
+    "file_name": "7bd855d8-463d-4ed5-93ca-5fe35145f733.xlsx",
+    "reference_answer": "89706.00",
+    "annotator_metadata": {
+      "Steps": "1. Open the attached file.\n2. Read the columns representing different menu items. Note that they all appear to be food except for the “soda” column.\n3. Write a function to sum the relevant columns.\n4. Ensure the answer follows the specified formatting.",
+      "Number of steps": "4",
+      "How long did this take?": "5 minutes",
+      "Tools": "1. Excel\n2. Calculator",
+      "Number of tools": "2"
+    }
+  },
+  {
+    "task_id": "5a0c1adf-205e-4841-a666-7c3ef95def9d",
+    "question": "What is the first name of the only Malko Competition recipient from the 20th Century (after 1977) whose nationality on record is a country that no longer exists?",
+    "Level": "1",
+    "file_name": "",
+    "reference_answer": "Claus",
+    "annotator_metadata": {
+      "Steps": "1. Look at the Malko Competition page on Wikipedia\n2. Scan the winners to see that the 1983 winner, Claus Peter Flor is stated to be from East Germany.",
+      "Number of steps": "2",
+      "How long did this take?": "5-10 minutes",
+      "Tools": "None",
+      "Number of tools": "0"
+    }
+  }
+]
