@@ -209,7 +209,8 @@ class GaiaAgent:
             "max_history": 15,
             "tool_support": False,
             "force_tools": False,
-            "models": []
+            "models": [],
+            "token_per_minute_limit": None
         },
         "gemini": {
             "name": "Google Gemini",
@@ -225,7 +226,8 @@ class GaiaAgent:
                     "max_tokens": 2000000,
                     "temperature": 0
                 }
-            ]
+            ],
+            "token_per_minute_limit": None
         },
         "groq": {
             "name": "Groq",
@@ -237,12 +239,13 @@ class GaiaAgent:
             "models": [
                 {
                     "model": "qwen-qwq-32b",
-                    "token_limit": 3000,
+                    "token_limit": 16000,
                     "max_tokens": 2048,
                     "temperature": 0,
                     "force_tools": True
                 }
-            ]
+            ],
+            "token_per_minute_limit": 5500
         },
         "huggingface": {
             "name": "HuggingFace",
@@ -255,7 +258,7 @@ class GaiaAgent:
                 {
                     "model": "Qwen/Qwen2.5-Coder-32B-Instruct",
                     "task": "text-generation",
-                    "token_limit": 1000,
+                    "token_limit": 3000,
                     "max_new_tokens": 1024,
                     "do_sample": False,
                     "temperature": 0
@@ -276,7 +279,8 @@ class GaiaAgent:
                     "do_sample": False,
                     "temperature": 0
                 }
-            ]
+            ],
+            "token_per_minute_limit": None
         },
         "openrouter": {
             "name": "OpenRouter",
@@ -306,7 +310,8 @@ class GaiaAgent:
                     "max_tokens": 2048,
                     "temperature": 0
                 }
-            ]
+            ],
+            "token_per_minute_limit": None
         },
     }
     
@@ -556,19 +561,42 @@ class GaiaAgent:
         """
         Implement rate limiting to avoid hitting API limits.
         Waits if necessary to maintain minimum interval between requests.
+        For providers with a token_per_minute_limit, throttle based on tokens sent in the last 60 seconds.
         """
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
         # Determine wait time based on current LLM type
-        if self.current_llm_type in ["groq", "huggingface"]:
-            min_interval = 30
-        else:
-            min_interval = 30
+        min_interval = 20
         if time_since_last < min_interval:
             sleep_time = min_interval - time_since_last
-            # Add small random jitter to avoid thundering herd
-            jitter = random.uniform(0, 0.2)
-            time.sleep(sleep_time + jitter)
+            time.sleep(sleep_time)
+        llm_type = self.current_llm_type
+        config = self.LLM_CONFIG.get(llm_type, {})
+        tpm_limit = config.get("token_per_minute_limit")
+        if tpm_limit:
+            # Initialize token usage tracker for this provider
+            if llm_type not in self._provider_token_usage:
+                self._provider_token_usage[llm_type] = []  # List of (timestamp, tokens)
+            # Remove entries older than 60 seconds
+            self._provider_token_usage[llm_type] = [
+                (ts, tok) for ts, tok in self._provider_token_usage[llm_type]
+                if current_time - ts < 60
+            ]
+            # Estimate tokens for the next request (should be set before _rate_limit is called)
+            next_tokens = getattr(self, '_next_request_tokens', None)
+            if next_tokens is None:
+                next_tokens = 0
+            # Calculate total tokens in the last 60 seconds
+            tokens_last_minute = sum(tok for ts, tok in self._provider_token_usage[llm_type])
+            # If sending now would exceed the TPM limit, wait
+            if tokens_last_minute + next_tokens > tpm_limit:
+                # Calculate how long to wait: find the soonest token batch to expire
+                oldest_ts = min(ts for ts, tok in self._provider_token_usage[llm_type]) if self._provider_token_usage[llm_type] else current_time
+                wait_time = 60 - (current_time - oldest_ts) + 60  # Add 1 min safety
+                print(f"⏳ [TPM Throttle] Waiting {wait_time:.1f}s to respect {tpm_limit} TPM for {llm_type}...")
+                time.sleep(wait_time)
+            # After waiting, add this request to the tracker
+            self._provider_token_usage[llm_type].append((time.time(), next_tokens))
         self.last_request_time = time.time()
 
     def _estimate_tokens(self, text: str) -> int:
@@ -1280,7 +1308,10 @@ class GaiaAgent:
                     f"llm_type must be specified for _make_llm_request(). "
                     f"Please specify a valid llm_type from {list(self.LLM_CONFIG.keys())}"
                 )
-        
+        # Estimate tokens for this request and set for _rate_limit
+        total_text = "".join(str(getattr(msg, 'content', '')) for msg in messages)
+        estimated_tokens = self._estimate_tokens(total_text)
+        self._next_request_tokens = estimated_tokens
         # Start LLM trace
         call_id = self._trace_start_llm(llm_type)
         start_time = time.time()
