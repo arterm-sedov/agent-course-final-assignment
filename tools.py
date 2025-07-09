@@ -2342,11 +2342,32 @@ def web_search_deep_research_exa_ai(instructions: str) -> str:
     The tool researches a topic, verifies facts and outputs a structured answer.
     It deeply crawls websites to find the right answer, results and links.
     
+    RESPONSE STRUCTURE:
+    The tool returns a structured response with the following format:
+    1. Task ID and Status
+    2. Original Instructions
+    3. Inferred Schema (JSON schema describing the response data structure)
+    4. Data (JSON object containing the answer according to the schema)
+    5. Citations (source references)
+    
+    SCHEMA INFERENCE:
+    The tool automatically infers the appropriate schema based on your question.
+    For example, a schema might include:
+    - Person data: {"firstName", "lastName", "nationality", "year", etc.}
+    - Event data: {"event", "date", "location", "participants", etc.}
+    - Fact data: {"fact", "source", "context", etc.}
+    
+    DATA EXTRACTION:
+    To extract the answer from the response:
+    1. Look for the "Data" section in the response
+    2. Parse the JSON object in the "Data" field  according to the schema
+    3. Extract the relevant fields based on your question
+    
     Args:
         instructions (str): Direct question or research instructions.
 
     Returns:
-        str: The research result as a string (structured), or an error message.
+        str: The research result as a structured JSON string with schema, data, and citations, or an error message.
     """
     if not EXA_AVAILABLE:
         return json.dumps({

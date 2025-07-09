@@ -1118,6 +1118,12 @@ class GaiaAgent:
                     if self._is_duplicate_tool_call(tool_name, tool_args, called_tools):
                         duplicate_count += 1
                         print(f"[Tool Loop] Duplicate tool call detected: {tool_name} with args: {tool_args}")
+                        reminder = self._get_reminder_prompt(
+                            reminder_type="tool_usage_issue",
+                            tool_name=tool_name,
+                            tool_args=tool_args
+                        )
+                        messages.append(HumanMessage(content=reminder))
                         continue
                     
                     # New tool call - add it (LAST)
@@ -2707,35 +2713,40 @@ class GaiaAgent:
             
         reminders = {
             "final_answer_prompt": (
-                (f"Please analyse any and all existing tool results, then provide your FINAL ANSWER.\n"
-                 f"Use any tools to gather missing information, then provide your FINAL ANSWER.\n"
-                 f"Available tools include: {tool_names or 'various tools'}." 
-                 if not tool_count or tool_count == 0 else "")
-                + (f"\n\nIMPORTANT: You have gathered information from {tool_count} tool calls. "
-                   f"The tool results are available in the message history above. "
-                   f"Please carefully analyze these results and provide your FINAL ANSWER to the original question. "
-                   f"Your answer must follow the system prompt. "
-                   f"Do not call any more tools - analyze the existing results and provide your answer now." 
-                   if tool_count and tool_count > 0 else "")
-                + f"\n\nPlease answer the following question in the required format:\n\n"
+                    "Analyse existing tool results, then provide your FINAL ANSWER.\n"
+                + (
+                    "Use VARIOUS tools to gather missing information, then provide your FINAL ANSWER.\n"
+                    f"Available tools include: {tool_names or 'various tools'}.\n"
+                    if not tool_count or tool_count == 0 else ""
+                  )
+                + (
+                    f"\n\nIMPORTANT: You have gathered information from {tool_count} tool calls.\n"
+                    "The tool results are available in the conversation.\n"
+                    "Carefully analyze tool results and provide your FINAL ANSWER to the ORIGINAL QUESTION.\n"
+                    "Follow the system prompt.\n"
+                    "Do not call any more tools - analyze the existing results and provide your answer now.\n"
+                    if tool_count and tool_count > 0 else ""
+                  )
+                + "\n\nPlease answer the following question in the required format:\n\n"
                 + f"ORIGINAL QUESTION:\n{original_question}\n\n"
-                + f"Your answer must start with 'FINAL ANSWER:' and follow the system prompt."
+                + "Your answer must start with 'FINAL ANSWER:' and follow the system prompt.\n"
             ),
             "tool_usage_issue": (
-                (
+                "Call a DIFFERENT TOOL.\n"
+                + (
                     f"You have already called '{tool_name or 'this tool'}'"
                     + (f" {count} times" if count is not None else "")
                     + (f" with arguments {tool_args}" if tool_args is not None else "")
                     + ". "
                     if (tool_name or count is not None or tool_args is not None) else ""
                 )
-                + "Do not call this tool again. "
-                + "Consider any results you have. If the result is empty, call a DIFFERENT TOOL. "
+                + "Do not call the tools repeately with the same arguments.\n"
+                + "Consider any results you have.\n"
                 + f"ORIGINAL QUESTION:\n{original_question}\n\n"
-                + "NOW provide your FINAL ANSWER based on the information you have."
+                + "Provide your FINAL ANSWER based on the information you have or call OTHER TOOLS.\n"
             ),
         }
-        return reminders.get(reminder_type, "Please provide your FINAL ANSWER.")
+        return reminders.get(reminder_type, "Please analyse the tool results and provide your FINAL ANSWER.")
 
     def _create_simple_chunk_prompt(self, messages, chunk_results, chunk_num, total_chunks):
         """Create a simple prompt for processing a chunk."""
