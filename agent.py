@@ -1420,11 +1420,10 @@ class GaiaAgent:
             if i > 0:
                 print(f"⏳ Waiting {wait_time} seconds...")
                 time.sleep(wait_time)
-            
-            # Create simple prompt for this chunk
-            chunk_prompt = self._create_simple_chunk_prompt(messages, chunk, i+1, len(chunks))
-            chunk_messages = [self.sys_msg, HumanMessage(content=chunk_prompt)]
-            
+            # Always use the same prompt for all chunks, now with original question
+            chunk_prompt = f"Question: {original_question}\n\nAnalyze these results and provide key findings."
+            chunk_content = "\n\n".join(chunk) if isinstance(chunk, list) else str(chunk)
+            chunk_messages = [self.sys_msg, HumanMessage(content=chunk_prompt + "\n\n" + chunk_content)]
             try:
                 response = llm.invoke(chunk_messages)
                 if hasattr(response, 'content') and response.content:
@@ -1436,11 +1435,13 @@ class GaiaAgent:
         
         if not all_responses:
             return AIMessage(content=f"Error: Failed to process any chunks for {llm_name}")
-        
-        # Simple final synthesis
-        final_prompt = f"Combine these analyses into a final answer:\n\n" + "\n\n".join(all_responses)
+        # Final synthesis step, now with original question
+        final_prompt = (
+            f"Question: {original_question}\n\nCombine these analyses into a final answer:\n\n"
+            + "\n\n".join(all_responses)
+            + "\n\nProvide your FINAL ANSWER based on all content, following the system prompt format."
+        )
         final_messages = [self.sys_msg, HumanMessage(content=final_prompt)]
-        
         try:
             final_response = llm.invoke(final_messages)
             return final_response
@@ -2770,7 +2771,7 @@ class GaiaAgent:
                 prompt += f"{i}. {result}\n\n"
         
         if chunk_num < total_chunks:
-            prompt += "Analyze these results and provide key findings. More content coming."
+            prompt += "Analyze these results and provide key findings."
         else:
             prompt += "Provide your FINAL ANSWER based on all content, when you receive it, following the system prompt format."
         
