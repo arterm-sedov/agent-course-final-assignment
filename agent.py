@@ -361,6 +361,9 @@ class GaiaAgent:
                     self.token_limits[provider_key] = [model.get("token_limit", self.LLM_CONFIG["default"]["token_limit"]) for model in models]
                 else:
                     self.token_limits[provider_key] = [self.LLM_CONFIG["default"]["token_limit"]]
+            
+            # Initialize token usage tracking for rate limiting
+            self._provider_token_usage = {}
             # Unified LLM tracking system
             self.llm_tracking = {}
             for llm_type in self.DEFAULT_LLM_SEQUENCE:
