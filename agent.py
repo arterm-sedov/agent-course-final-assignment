@@ -1439,8 +1439,17 @@ class GaiaAgent:
             safe_tokens = int(token_limit * 0.60)
             chunks = self._create_token_chunks(tool_results, safe_tokens)
             print(f"📦 Created {len(chunks)} chunks from tool results")
-        
-        # Process chunks with intervals (shorter for non-Groq LLMs)
+        # Ensure original_question is always defined
+        original_question = None
+        for msg in messages:
+            if hasattr(msg, 'type') and msg.type == 'human' and getattr(msg, 'content', None):
+                original_question = msg.content
+                break
+        if not original_question:
+            original_question = '[No original question provided]'
+        # Prepare LLM instances for chunking and synthesis
+        llm_chunk = self._select_llm(llm_type, use_tools=False)[0]
+        llm_final = self._select_llm(llm_type, use_tools=True)[0]
         all_responses = []
         wait_time = 60
         
@@ -1456,7 +1465,7 @@ class GaiaAgent:
             chunk_content = "\n\n".join(chunk) if isinstance(chunk, list) else str(chunk)
             chunk_messages = [self.sys_msg, HumanMessage(content=chunk_prompt + "\n\n" + chunk_content)]
             try:
-                response = llm.invoke(chunk_messages)
+                response = llm_chunk.invoke(chunk_messages)
                 if hasattr(response, 'content') and response.content:
                     all_responses.append(response.content)
                     print(f"✅ Chunk {i+1} processed")
@@ -1466,7 +1475,7 @@ class GaiaAgent:
         
         if not all_responses:
             return AIMessage(content=f"Error: Failed to process any chunks for {llm_name}")
-        # Final synthesis step, now with original question
+        # Final synthesis step, now with original question and tools enabled
         final_prompt = (
             f"Question: {original_question}\n\nCombine these analyses into a final answer:\n\n"
             + "\n\n".join(all_responses)
@@ -1474,7 +1483,7 @@ class GaiaAgent:
         )
         final_messages = [self.sys_msg, HumanMessage(content=final_prompt)]
         try:
-            final_response = llm.invoke(final_messages)
+            final_response = llm_final.invoke(final_messages)
             return final_response
         except Exception as e:
             print(f"❌ Final synthesis failed: {e}")
