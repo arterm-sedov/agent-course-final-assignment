@@ -526,10 +526,10 @@ class GaiaAgent:
             init_data = {
                 "timestamp": timestamp,
                 "init_summary": summary_table,
-                "init_summary_json": summary_json,
+                "init_summary_json": json.dumps(summary_json, ensure_ascii=False) if not isinstance(summary_json, str) else summary_json,
                 "debug_output": debug_output,
-                "llm_config": self.LLM_CONFIG,
-                "available_models": self._get_available_models(),
+                "llm_config": json.dumps(self.LLM_CONFIG, ensure_ascii=False) if not isinstance(self.LLM_CONFIG, str) else self.LLM_CONFIG,
+                "available_models": json.dumps(self._get_available_models(), ensure_ascii=False) if not isinstance(self._get_available_models(), str) else self._get_available_models(),
                 "tool_support": self._get_tool_support_status()
             }
             
@@ -1513,7 +1513,7 @@ class GaiaAgent:
         
         return chunks
 
-    def _try_llm_sequence(self, messages, use_tools=True, reference=None):
+    def _try_llm_sequence(self, messages, use_tools=True, reference=None, llm_sequence=None):
         """
         Try multiple LLMs in sequence, collect all results and their similarity scores, and pick the best one.
         Even if _vector_answers_match returns true, continue with the next models, 
@@ -1524,16 +1524,20 @@ class GaiaAgent:
             messages (list): The messages to send to the LLM.
             use_tools (bool): Whether to use tools.
             reference (str, optional): Reference answer to compare against.
-
+            llm_sequence (list, optional): List of LLM provider keys to use for this call.
         Returns:
             tuple: (answer, llm_used) where answer is the final answer and llm_used is the name of the LLM that succeeded.
 
         Raises:
             Exception: If all LLMs fail or none produce similar enough answers.
         """
-        # Use the arrays for cycling
+        # Use provided llm_sequence or default
+        llm_types_to_use = llm_sequence if llm_sequence is not None else self.DEFAULT_LLM_SEQUENCE
         available_llms = []
         for idx, llm_type in enumerate(self.llm_provider_names):
+            # Only use LLMs that are in the provided llm_sequence (if any)
+            if llm_type not in llm_types_to_use:
+                continue
             # ENFORCE: Never use tools for providers that do not support them
             llm_use_tools = use_tools and self._provider_supports_tools(llm_type)
             llm, llm_name, _ = self._select_llm(llm_type, llm_use_tools)
@@ -1978,7 +1982,7 @@ class GaiaAgent:
                 self.llm_tracking[llm_type]["total_attempts"] += increment
 
     @trace_prints_with_context("question")
-    def __call__(self, question: str, file_data: str = None, file_name: str = None) -> dict:
+    def __call__(self, question: str, file_data: str = None, file_name: str = None, llm_sequence: list = None) -> dict:
         """
         Run the agent on a single question, using step-by-step reasoning and tools.
 
@@ -1986,7 +1990,7 @@ class GaiaAgent:
             question (str): The question to answer.
             file_data (str, optional): Base64 encoded file data if a file is attached.
             file_name (str, optional): Name of the attached file.
-
+            llm_sequence (list, optional): List of LLM provider keys to use for this call.
         Returns:
             dict: Dictionary containing:
                 - answer: The agent's final answer, formatted per system_prompt
@@ -2027,7 +2031,7 @@ class GaiaAgent:
         # 2. Step-by-step reasoning with LLM sequence and similarity checking
         messages = self._format_messages(question)
         try:
-            answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference)
+            answer, llm_used = self._try_llm_sequence(messages, use_tools=True, reference=reference, llm_sequence=llm_sequence)
             print(f"🎯 Final answer from {llm_used}")
             
             # Calculate similarity score if reference exists
