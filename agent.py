@@ -3653,3 +3653,14 @@ class GaiaAgent:
             self._add_log_to_context(f"Error extracting token usage: {str(e)}", "_extract_token_usage")
         
         return token_data
+
+    def get_available_model_choices(self):
+        """
+        Return a flat list of available models in 'provider: model' format, only for successfully initialized models.
+        """
+        choices = ["ALL"]
+        for provider, model_config in self.active_model_config.items():
+            model_name = model_config.get("model")
+            if model_name:
+                choices.append(f"{provider}: {model_name}")
+        return choices
