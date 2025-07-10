@@ -220,8 +220,8 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     print(f"Running GaiaAgent on {len(questions_data)} questions...")
     
     # DEBUG: Select one random task instead of all
-    questions_data = random.sample(questions_data, len(questions_data))
-    #questions_data = random.sample(questions_data, 1)
+    # questions_data = random.sample(questions_data, len(questions_data))
+    questions_data = random.sample(questions_data, 2)
     #questions_data = [questions_data[0]]
     
     for item in questions_data:
