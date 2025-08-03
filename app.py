@@ -218,10 +218,10 @@ def run_and_submit_all(profile: gr.OAuthProfile | None):
     results_log_df = []
     answers_payload = []
     print(f"Running GaiaAgent on {len(questions_data)} questions...")
-    
+    # Select all questions randomly
+    questions_data = random.sample(questions_data, len(questions_data))
     # DEBUG: Select one random task instead of all
-    # questions_data = random.sample(questions_data, len(questions_data))
-    questions_data = random.sample(questions_data, 2)
+    # questions_data = random.sample(questions_data, 1)
     #questions_data = [questions_data[0]]
     
     for item in questions_data:
@@ -598,9 +598,9 @@ with gr.Blocks() as demo:
             - **Input**: HuggingFace supplies a set of curated GAIA questions
             - **Challenge**: Create an agent that gets a score of at least 30% on the GAIA questions
             - **Solution**: The agent tries to get the right answers: it cycles through several LLMs and tools to get the best answer
-            - **Results**: The agent can get up to 80% score depending on the available LLMs. Typically it gets 50-65% score because I often run out of inference limits
+            - **Results**: The agent can get up to 80% score depending on the available LLMs. Typically it gets 50-65% score (because I often run out of LLM providers inference limits on the free tiers)
             
-            **Dataset Results**: [View Live Results](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment)
+            **Dataset Results**: [View live results](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment/viewer/runs_new)
             
             **For more project details**, see the [README.md](https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/blob/main/README.md)
             

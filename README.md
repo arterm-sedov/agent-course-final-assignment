@@ -16,10 +16,11 @@ hf_oauth_expiration_minutes: 480
 
 **Author:** Arte(r)m Sedov
 **Github:** <https://github.com/arterm-sedov/>
+**This repo:** <https://github.com/arterm-sedov/agent-course-final-assignment>
 
 ## 🚀 Arterm Sedov's Ultimate Multi-LLM GAIA Agent
 
-Behold Arte(r)m's GAIA Unit 4 Agent — a robust and extensible system designed for real-world reliability and benchmark performance.
+Behold the GAIA Unit 4 Agent by Arte(r)m Sedov — a robust and extensible system designed for real-world reliability and benchmark performance.
 
 This project represents what I learned at HuggingFace Agents Course, eg. to build sophisticated AI agents.
 
@@ -31,7 +32,15 @@ This is Arterm's graduation work for The Agents Course:
 
 <https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment>
 
-Arterm's github <https://github.com/arterm-sedov/>
+## The agent to play with
+
+> [!NOTE]
+> The interesting things happen in the **Logs** section in the HuggingFace space.
+> The agent works under the hood so you can only see its behavior in the logs.
+
+HuggingFace space:
+
+<https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment>
 
 > **For agent setup, installation, and troubleshooting, see [SETUP_INSTRUCTIONS.md](./SETUP_INSTRUCTIONS.md).**
 
@@ -72,8 +81,8 @@ tools, and any errors—so you always know your agent's capabilities.
 
 ## 📊 What You'll Find Here
 
-- **Live Demo**: Interactive Gradio interface for testing the agent against the GAIA Unit 4 questions
-- **Complete Source Code**: Full implementation with detailed comments
+- **Live Demo**: [Interactive Gradio interface](https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment) for testing the agent against the GAIA Unit 4 questions
+- **Complete Source Code**: [Full implementation](https://github.com/arterm-sedov/agent-course-final-assignment) with detailed comments
 - **Dataset Tracking**: Comprehensive evaluation results and execution traces: timing, token usage, success rates, and more
 - **Complete Traces**: See exactly how the agent thinks and uses tools
 - **Documentation**: Detailed technical specifications and usage guides
