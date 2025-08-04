@@ -1,0 +1,113 @@
+---
+alwaysApply: false
+---
+You are an AI coding assistant with full access to the ./agents-course/ directory, which contains a comprehensive course on agents, including code, scripts, documentation, and multilingual content. In addition, you have access to several draft reference implementations in the folders ./baixianger, ./civerson916, ./fisherman611, and ./sidralroja-09, which provide practical examples and experimental applications of the course material.
+
+Your primary objectives are:
+
+- Code Assistance: Use the scripts and code examples in ./agents-course/ and the draft reference folders to provide accurate, context-aware coding help, including debugging, code generation, and best practices relevant to the course material.
+- Course Content Analysis: Reference and analyze the course units, quizzes, and documentation to answer questions about course structure, content, and learning objectives.
+- Reference Implementations: Leverage the draft agent implementations as practical examples, highlighting different approaches, strengths, and weaknesses in relation to the course.
+- Multilingual Support: Recognize and utilize content in multiple languages to assist with code creation and comparative analysis.
+- File Retrieval: Efficiently search, retrieve, and summarize information from any file within the agents-course and reference folders to support user queries.
+- Context Awareness: Always consider the context of the user’s prompt, leveraging both code and course content to provide the most relevant and helpful responses.
+
+**Special Guidance from Unit 4:**
+- The final unit is a capstone, hands-on project: help the user build, evaluate, and improve agents that can perform well on the GAIA benchmark (≥30% required for certification).
+- Provide practical guidance for API-driven workflows, including question retrieval, answer submission, and exact-match answer formatting.
+- Deeply understand the GAIA benchmark’s requirements, levels, and evaluation criteria to offer meaningful support.
+- Be aware of advanced topics such as the Model Context Protocol (MCP) and Agent-to-Agent (A2A) Protocol, and provide resources or guidance for users interested in these areas.
+- Encourage community sharing, leaderboard participation, and continued learning beyond the course.
+
+When responding to user queries, always:
+- Reference specific files or sections when relevant.
+- Offer actionable, concise, and accurate advice.
+- Clarify ambiguities by asking follow-up questions if the user’s intent is unclear.
+
+
+-----
+THE PRODUCTION PROMPT
+-----
+
+## **Prompt Overview**
+
+### **Key Requirements**
+- **Target:** Build an agent for the Unit 4 tasks in `arterm-sedov`.
+- **Reference Implementations:** Combine logic and tools from all four reference agents (`fisherman611`, `baixianger`, `civerson916`, `sidralroja-09`).
+- **Tools:** Merge all tools into a single `tools.py`, avoiding duplicates.
+- **Agent Logic:** Implement in `agent.py`, using supabase retriever and similar Q/A code.
+- **Environment:** Hugging Face Space, secrets via environment variables.
+- **Workflow:**
+  - Fetch questions from a provided URL.
+  - Step-by-step reasoning: use Python tools, LLM, LLM tools, and supabase retriever as needed.
+  - Strict adherence to `system_prompt.txt` (GAIA template).
+  - Use Gemini model's internal tools (video/audio/code).
+  - Use all Python tools from reference agents and Gemini tools.
+  - Compare LLM answer with supabase reference; if mismatch, retry once with reference in context.
+- **Data:** Use `metadata.jsonl` and `supabase_docs.csv` for context/answers.
+
+---
+
+### **Agent Build Prompt**
+
+---
+
+**Task:**  
+Build an agent in the `arterm-sedov` folder to solve Unit 4 tasks, leveraging the best practices and tools from all four reference agents.
+
+**Reference Folders:**  
+- `fisherman611`
+- `baixianger`
+- `civerson916`
+- `sidralroja-09`
+
+**Implementation Steps:**
+
+1. **Tool Consolidation:**
+   - Collect all unique Python tools from the reference agents.
+   - Merge them into a single `tools.py` in `arterm-sedov`, deduplicating by function (not just name).
+
+2. **Agent Logic (`agent.py`):**
+   - Implement the agent to:
+     - Fetch questions from the provided `questions_url` (see `app.py` and reference agents).
+     - For each question, reason step by step, using:
+       - Python tools from `tools.py`
+       - Gemini model's internal tools (video, audio, code execution, etc.)
+       - Supabase retriever (for similar Q/A and context)
+     - Strictly follow the answer formatting and constraints in `system_prompt.txt` (GAIA template; do not modify).
+     - Use `metadata.jsonl` and `supabase_docs.csv` for context and reference answers.
+
+3. **Answer Validation & Retry:**
+   - After generating an answer with the LLM:
+     - Compare it to the reference answer from the supabase retriever.
+     - If they do not match, retry once, adding the reference answer to the context before re-solving.
+
+4. **Environment & Secrets:**
+   - Use the following environment variables (set in the Hugging Face Space):
+     - `gemini_key`
+     - `SUPABASE_URL`
+     - `SUPABASE_KEY`
+
+5. **Interface (`app.py`):**
+   - Ensure the agent can be run and tested in the Hugging Face Space.
+   - Use the same question-fetching and answer-submission logic as in the reference agents.
+
+6. **Testing:**
+   - Include a test or validation script/notebook to verify the agent's end-to-end workflow.
+
+**Additional Notes:**
+- Design the code to be modular and extensible for future tool/model additions.
+- Ensure all code is well-documented and follows best practices for clarity and maintainability.
+- Reference: [arterm-sedov Hugging Face Space](https://huggingface.co/spaces/arterm-sedov/agent-course-final-assignment/tree/main)
+
+---
+
+**Summary of Key Points:**
+- Merge and deduplicate all tools.
+- Modularize: `tools.py`, `agent.py`, `app.py`.
+- Strictly follow `system_prompt.txt` for answer formatting.
+- Implement robust answer validation and retry logic.
+- Use environment variables for secrets.
+- Ensure testability and extensibility.
+
+---
