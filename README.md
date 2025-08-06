@@ -24,19 +24,23 @@ Behold the GAIA Unit 4 Agent by Arte(r)m Sedov — a robust and extensible syste
 
 This project represents what I learned at HuggingFace Agents Course, eg. to build sophisticated AI agents.
 
-This is Arterm's graduation work for The Agents Course:
-
-<https://huggingface.co/learn/agents-course/en/>
+This is Arterm's graduation work for The [Agents Course](https://huggingface.co/learn/agents-course/en/).
 
 ## The results dataset
+
+Running this agent takes a lot of time due to it complex reasoning and deep research nature.
+
+See previous run details in the dataset:
 
 <https://huggingface.co/datasets/arterm-sedov/agent-course-final-assignment>
 
 ## The agent to play with
 
 > [!NOTE]
-> The interesting things happen in the **Logs** section in the HuggingFace space.
+> The interesting things happen in the **Logs** section in the **HuggingFace space** while the evaluation runs.
 > The agent works under the hood so you can only see its behavior in the logs.
+> To skip the wait, see some of the previous at the **Log files** tab.
+> The log files are more linear but less structured than the dataset above.
 
 HuggingFace space:
 
@@ -391,6 +395,8 @@ runs_data = dataset["runs_new"]["train"]
 
 ## File Structure
 
+The main agent runtime files are:
+
 ```
 gaia-agent/
 ├── agent.py              # Main agent implementation
@@ -398,13 +404,10 @@ gaia-agent/
 ├── tools.py              # Tool definitions and implementations
 ├── utils.py              # Core upload functions with validation
 ├── system_prompt.json    # System prompt configuration
-├── requirements.txt      # Python dependencies
-├── dataset/             # Dataset files
-│   ├── README.md        # Dataset documentation
-│   ├── DATASET_CARD.md  # Dataset metadata
-│   └── *.jsonl         # Dataset files
 └── logs/               # Execution logs and results
 ```
+
+There are other files in the root directory, but they are not used at the runtime, rather for setting up the Supabase vector store.
 
 ## Performance Statistics
 
