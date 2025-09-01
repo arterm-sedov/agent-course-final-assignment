@@ -15,7 +15,9 @@ hf_oauth_expiration_minutes: 480
 ---
 
 **Author:** Arte(r)m Sedov
+
 **Github:** <https://github.com/arterm-sedov/>
+
 **This repo:** <https://github.com/arterm-sedov/agent-course-final-assignment>
 
 ## 🚀 Arterm Sedov's Ultimate Multi-LLM GAIA Agent
